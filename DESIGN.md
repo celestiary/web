@@ -564,7 +564,7 @@ it follows: [design/UI.md](design/UI.md)).
   the head or tap it to step; the detent lasts through the panel's
   re-renders.  It sits above the widgets drawer's sheet; the bottom
   controls and settings sit above its peek (`--info-sheet-bottom`) and hide
-  while it's raised (`html.info-raised`); Cesium's credits ride above both
+  while it's raised (`html.info-raised`); the credits footer rides above both
   sheets.  A drag's release eases from where the finger let go: measuring
   the detents lays the sheet out at each, so it's laid out again at the
   release height before the transition is let run (it had started from
@@ -586,7 +586,7 @@ float down the right on a wider screen, and the settings buttons
   safe-area inset) and publishes it to the store (`ChromeSlice`
   `phoneDockHeight`), which `WidgetsDrawer` adds to the scene's bottom inset
   and the drawer's sheet stands on; its whole height, an open panel too, goes
-  to `--phone-dock-height`, which the info sheet and Cesium's credits stand
+  to `--phone-dock-height`, which the info sheet and the credits footer stand
   on, so a panel lifts them rather than covering them (a panel's opening
   doesn't resize the scene).
 - **Testable without a DOM**: `PhoneDock` reads the store and the router and
@@ -1579,6 +1579,8 @@ Thin MUI-based overlay panels:
   ([Colonization.md](js/scene/Colonization.md))
 - `Settings` — keyboard shortcut reference
 - `About` — app info and star catalog stats
+- `CreditsFooter` — every attribution on screen in one line along the bottom,
+  from `js/credits.js`'s registry ([design/UI.md](design/UI.md#the-credits-footer))
 - `SearchBar` — breadcrumb-anchored search (chips, MUI `Autocomplete`,
   Go / Look at buttons, crosshair picker toggle, preview + commit flow). See
   [js/search/DESIGN.md](js/search/DESIGN.md) for the index architecture.
@@ -1691,6 +1693,8 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/choreography.js` | The first load's reveal: `Choreography` (steps at times after a start, on the frame clock), `REVEAL_AT`, `READY_TIMEOUT_MS` ([the first load](#the-first-load)) |
 | `js/loading.js` | `hideLoading()`: fades out the page's loading text (`public/index.html` `#loading`); `handOffLoadingTitle()`: the loading title becomes the homepage's ([homepage](#homepage)) |
 | `js/staleBuild.js` | `staleRoute()`: a route's lazy import that failed goes to the page's stale-build recovery (`public/index.html` `stale-build`; [hosting](#hosting-and-the-domain)) |
+| `js/credits.js` | The credits footer's registry: `addCredit(id, credit, {persistence})`, `removeCredit(id)`, `setCreditSource`, `followCredit`, for each layer's attribution while its data is drawn, on arrival then fading unless its terms want it kept (per-credit windows, the chrome's state, reduced motion) ([design/UI.md](design/UI.md#the-credits-footer); the policy table, [CESIUM.md](CESIUM.md#credits-policy)) |
+| `js/scene/gibs.js` | NASA GIBS's acknowledgement in the credits footer, for Earth's clouds and Cesium's night lights (`creditGibs`) |
 | `js/home.js` | The homepage: `isHomepage` (the bare URL), `HOME_HISTORY_KEY`, `HOME_CARDS` ([homepage](#homepage)) |
 | `js/changelog.js` | The changelog in the app: `loadChangelog`, `parseChangelog`, the "new since your last visit" marker (`checkNew`, `markSeen`, from the dates in `changelogStamp.json`: `stampEntries`, `freshIds`), the tour's stops, captions and token (`tourStops`, `tourCaption`, `holdMs`, `decodeNewsToken`) ([what's new](#whats-new-and-the-changelog-tour)) |
 | `js/newsTour.js` | `NewsTour`: the changelog tour's sequencing (fly, caption, hold, next, previous, pause, stop), pure on the frame clock |

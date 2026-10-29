@@ -84,11 +84,107 @@ bar along the bottom (`js/ui/PhoneDock.jsx`), 56px over the safe area:
   the scene, closes it.
 - The scene stops above the bar (`Celestiary.setInsets`' bottom takes its
   height, from the store's `phoneDockHeight`), so nothing important is drawn
-  under it; the widgets sheet sits on the bar, and the info sheet and
-  Cesium's credits on the whole dock, an open panel too
+  under it; the widgets sheet sits on the bar, and the info sheet and the
+  credits footer on the whole dock, an open panel too
   (`--phone-dock-height`), so a panel lifts them rather than covering them.
 - It's chrome: held on the homepage, faded with the rest, hidden by `v`.
 - Desktop is unchanged.
+
+## The credits footer
+
+Every attribution on screen is in one line along the bottom edge, as a map's
+(Google Maps' "Imagery ©2026 …, Map data ©2026 Google"): small, low
+contrast, right-aligned (`js/ui/CreditsFooter.jsx`, `js/credits.js`).
+
+- **What's in it**, each only while its data is drawn: Cesium's credits
+  first (the ion logo, the imagery's and terrain's providers, its *Data
+  attribution* list; CESIUM.md [credits](../CESIUM.md#credits)), then
+  celestiary's own: New York's "© OpenStreetMap contributors (ODbL)" and
+  "NYC Open Data" while the city is drawn, Gaia's "ESA/Gaia/DPAC · CC BY-SA
+  3.0 IGO" while any of its stars are, and "Imagery: NASA GIBS / ESDIS"
+  while Earth's clouds from its daily mosaics, or the Cesium layer's night
+  lights, are on screen (GIBS's whole acknowledgement is in the dialog); a
+  `·` between them, and the **info icon** at the end.  Empty, the footer
+  isn't laid out.
+- **On arrival, then fading.**  A credit fades in as its data comes into the
+  scene, stays 8 s (`CREDIT_SHOW_MS`), and fades out over `--fade-ms`
+  (`CREDIT_FADE_MS`, 400 ms), each on its own clock: Y arriving while X is
+  up doesn't touch X's, so X fades first and Y after its own 8 s.  One whose
+  data leaves and comes back starts again; one that stays doesn't.  Out of
+  the line, it's still applicable.  Cesium's fade to the ion logo alone
+  (`keepsLogo`, phase `'compact'`: its text credits and *Data attribution*
+  go, the logo stays), and stay whole while Bing's imagery is drawn
+  (`while-shown`).  The policy for each source, from its terms, is the table
+  in CESIUM.md [credits](../CESIUM.md#credits-policy).
+- **The info icon**: Material's *InfoOutlined* (`@mui/icons-material`, 363
+  bytes in the first load; an inline path would have been about the same),
+  dim, at the line's end while anything is applicable, `aria-label`
+  "Credits".  While a mouse hovers the line or the keyboard focuses it
+  (`:focus-visible`, so a tap's focus doesn't count) every applicable credit
+  is in the line, whole (`affordance`).  A click or a tap opens the credits
+  dialog.
+- **The credits dialog** (`js/ui/creditsDialog.js`, `js/credits/catalog.js`,
+  `js/credits/facts.js`): MUI's Dialog as the app's others (ui/Dialog.jsx:
+  the 1.5rem title, the close button; its focus trap and Esc), but not
+  routed, so the scene's link stays; full screen on a phone (600px or
+  less).  Two tabs (WAI-ARIA's pattern: arrows, Home and End; the selected
+  tab in the tab order): **Active**, the sources whose data is in the scene
+  now (the footer's registry, and the scene's state for the rest), and
+  **All**, every source the docs name, 24 of them.  Each is a section: its
+  name as the title, its attribution and licence links, a note where its
+  terms ask for words (Gaia's acknowledgement, GIBS's), its facts as a
+  two-column list, read again each second while it's open, and whether it
+  ever shows in the footer.  The facts come from the scene where it holds
+  them (Gaia's stars loaded and drawn and their types, the Cesium layers'
+  tiles, the cloud day, the satellites and places loaded) and from the
+  data's own metadata otherwise, each number's source in a comment, and a
+  test that fails when the bundled data drifts from the numbers quoted.
+  **Lazy:** loaded on the first open, a chunk of its own with no imports from
+  the first load (React, MUI's dialog, the registry and the tables come in
+  from the footer, `CREDITS_DIALOG_DEPS`), and no JSX (its runtime would be
+  one): a module both import would make esbuild split the first load's
+  chunks, which the first try did (16 files, 4 KB more).
+- **Motion**: the fades are on the chrome's tokens (`--fade-ms`,
+  `--fade-ease`; a `credits-in` keyframe as an entry comes into the line, an
+  opacity transition out).  With `prefers-reduced-motion` there's no fade:
+  in and out (`setCreditsMotion`, and no animation or transition in
+  index.css).
+- **The registry** (`credits.js`): `addCredit(id, credit, {order,
+  persistence, keepsLogo})` and `removeCredit(id)`; `setCreditSource(id,
+  source, on, credit, opts)` for a credit more than one layer brings (GIBS's:
+  the clouds and the night lights; a hand-over doesn't restart it); and
+  `followCredit(apply)`, which follows a per-frame "drawn" and lets it go
+  only after 30 frames without, so a skipped frame or a flickering count
+  doesn't start the window again.  A credit is `{text, href}` (a link only if
+  http(s)), a list of them, or `{element}`, an element a library keeps up to
+  date itself (Cesium's `CreditDisplay` writes into `#cesium-credits`, which
+  the footer mounts as it is).  Lower `order` first (Cesium's 0, the rest
+  10), then by when added.  The default persistence is `'while-shown'`: a
+  layer that brings data with a licence asking for credit adds its own here
+  while that data is drawn, and makes it `'timed'` once its terms are
+  checked and recorded in CESIUM.md's table.
+- **The look**: 11px Inter (`--credits-size`) on a 20px line
+  (`--credits-line`), `--ink-3` on `--surface-veil` (the surface at 75%),
+  which holds about 4.4:1 over a sunlit day side and stays quiet on the
+  night sky; links in the same ink, underlined on hover.  The ion logo is the
+  line's height (`--credits-logo`, 20 of its 28 px); other providers' logos
+  stay as Cesium draws them.
+- **Where**: the bottom edge, from `--credits-left` (128px, clear of the
+  settings and About buttons bottom-left) to the widgets drawer
+  (`--dock-width`).  On a phone (600px or less) the whole width, above the
+  dock and both sheets (`--phone-dock-height`, `--sheet-height`,
+  `--info-sheet-bottom`), wrapping rather than cut: Bing's terms forbid
+  obscuring its attribution, so nothing is behind a tap.
+- **Chrome**: held through the first load and on the homepage (the Cesium
+  layers are suspended there, but the tour's stars and clouds are drawn),
+  faded in with the rest at the reveal, out with the changelog tour, hidden
+  by `v` (`html.chrome-hidden`, `Celestiary._navDisplay`'s
+  `CHROME_PANEL_IDS`).  The credits' windows run only while the chrome is
+  shown (`setCreditsChrome`, from `Celestiary._setNav`): a credit whose data
+  came in on the homepage, or whose window a hide cut short, shows its whole
+  window when the chrome comes back, if its data is still in; one already
+  seen through stays out.  It's mounted from the start, so Cesium's credits
+  have somewhere to go whenever a layer loads.
 
 ## Phases
 

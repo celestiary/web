@@ -47,6 +47,9 @@ export function decodeStarTile(buf) {
   const mags = new Float32Array(n)
   const lut = sharedBlackbodyLut()
   const colours = new Map()
+  // The tile's stars by spectral class from their Teff (TEFF_CLASS_BOUNDS), for
+  // the credits dialog's facts (credits/facts.js gaiaFacts).
+  const classes = new Uint32Array(TEFF_CLASS_BOUNDS.length + 1)
   for (let i = 0; i < n; i++) {
     let r2 = 0
     for (let k = 0; k < 3; k++) {
@@ -61,6 +64,7 @@ export function decodeStarTile(buf) {
     }
     const absMag = t.absMag[i] / ABS_MAG_SCALE
     const teff = t.teff[i] || DEFAULT_TEFF
+    classes[teffClass(teff)]++
     let rgb = colours.get(teff)
     if (!rgb) {
       rgb = blackbodyFromLut(lut, teff)
@@ -92,5 +96,24 @@ export function decodeStarTile(buf) {
       mags[i] = mags[i - 1]
     }
   }
-  return {count: n, attributes, mags, ids: t.ids}
+  return {count: n, attributes, mags, ids: t.ids, classes}
+}
+
+
+/**
+ * The Harvard classes' lower bounds in Teff, K, hottest first, O to K (M is
+ * the rest): the usual main-sequence ranges (O ≥ 30,000 K, B 10,000-30,000,
+ * A 7,500-10,000, F 6,000-7,500, G 5,200-6,000, K 3,700-5,200, M below).
+ * The names are credits/facts.js's TEFF_CLASS_NAMES.
+ */
+export const TEFF_CLASS_BOUNDS = Object.freeze([30000, 10000, 7500, 6000, 5200, 3700])
+
+
+/**
+ * @param {number} teff K
+ * @returns {number} Its class's index, O 0 to M 6
+ */
+export function teffClass(teff) {
+  const k = TEFF_CLASS_BOUNDS.findIndex((b) => teff >= b)
+  return k < 0 ? TEFF_CLASS_BOUNDS.length : k
 }

@@ -4,9 +4,10 @@ import {ASTRO_UNIT_METER} from '../../shared.js'
 import {exposureAt, METER_EVERY_FRAMES, nightLightRadiance} from '../exposure.js'
 import {MeterCadence} from '../meterReadback.js'
 import {clearSharedImages, sharedObjectUrl} from '../sharedImage.js'
-import CesiumLayers, {bodyGain, meshRange, preloadNames, tilesReady} from './CesiumLayers.js'
+import CesiumLayers, {BING_LOGO_SELECTOR, bingShown, bodyGain, meshRange, preloadNames, tilesReady} from './CesiumLayers.js'
 import GuestPages from './guestPages.js'
 import {CESIUM_BODIES} from './bodies.js'
+import {addCredit, clearCredits, getCredits, hasCredit} from '../../credits.js'
 
 
 describe('meshRange', () => {
@@ -1069,5 +1070,131 @@ describe('a guest page\'s round trips, split', () => {
     L.guests._splitTrip(body, {viewId: 7})
     expect(body.trips).toHaveLength(0)
     expect(new CesiumLayers({}).guestStats()).toEqual([])
+  })
+})
+
+
+describe('credits in the footer', () => {
+  afterEach(() => clearCredits())
+
+  it('puts Cesium\'s credits in while a body\'s ground is in view, and takes them out after', () => {
+    const L = new CesiumLayers({})
+    const earthCredits = {style: {}}
+    L.credits = {id: 'cesium-credits'}
+    L.bodies.earth = {status: 'ready', credits: earthCredits}
+    L._creditedBody = () => 'earth'
+    L._showCredits()
+    expect(getCredits().map((c) => c.id)).toEqual(['cesium'])
+    expect(getCredits()[0].element).toBe(L.credits)
+    expect(earthCredits.style.display).toBe('inline')
+    L._creditedBody = () => null
+    L._showCredits()
+    expect(hasCredit('cesium')).toBe(false)
+    expect(earthCredits.style.display).toBe('none')
+  })
+
+  it('puts Cesium\'s first, before celestiary\'s own', () => {
+    const L = new CesiumLayers({})
+    addCredit('other', {text: 'Someone'})
+    L.credits = {id: 'cesium-credits'}
+    L._creditedBody = () => 'earth'
+    L._showCredits()
+    expect(getCredits().map((c) => c.id)).toEqual(['cesium', 'other'])
+  })
+
+  it('credits New York\'s data only while the city is drawn', () => {
+    const L = new CesiumLayers({})
+    const drawn = () => {
+      L._creditNewYork()
+      return hasCredit('new-york')
+    }
+    L.active = [{name: 'earth', node: {}}]
+    L._newYorkRange = 'show'
+    // The switch off, or the city still building: nothing of it drawn.
+    expect(drawn()).toBe(false)
+    L._newYork = {status: 'loading', city: null}
+    expect(drawn()).toBe(false)
+    L._newYork = {status: 'ready', city: {}}
+    expect(drawn()).toBe(true)
+    expect(getCredits()[0].items).toEqual([
+      {text: '© OpenStreetMap contributors (ODbL)', href: 'https://www.openstreetmap.org/copyright'},
+      {text: 'NYC Open Data', href: 'https://opendata.cityofnewyork.us/'},
+    ])
+    // Out of the city's range ('keep': loaded, not drawn).
+    L._newYorkRange = 'keep'
+    expect(drawn()).toBe(false)
+    L._newYorkRange = 'show'
+    expect(drawn()).toBe(true)
+    // Earth's layer warming or gone (celestiary's Earth shows), the homepage.
+    L.active = []
+    expect(drawn()).toBe(false)
+    L.active = [{name: 'earth', node: {}}]
+    expect(drawn()).toBe(true)
+    // Freed (the switch off).
+    L._newYork = null
+    expect(drawn()).toBe(false)
+  })
+
+  it('times Cesium\'s credits down to the ion logo, keeps them whole while Bing\'s are in, and times New York\'s', () => {
+    const L = new CesiumLayers({})
+    let bing = false
+    L.credits = {id: 'cesium-credits', querySelector: (sel) => (bing && sel === BING_LOGO_SELECTOR ? {} : null)}
+    L._creditedBody = () => 'earth'
+    L._showCredits()
+    L.active = [{name: 'earth', node: {}}]
+    L._newYorkRange = 'show'
+    L._newYork = {status: 'ready', city: {}}
+    L._creditNewYork()
+    expect(getCredits().map((c) => [c.id, c.persistence, c.keepsLogo])).toEqual([
+      ['cesium', 'timed', true], ['new-york', 'timed', false]])
+    // Bing's logo in Cesium's credits: whole, the whole time.
+    bing = true
+    L._showCredits()
+    expect(getCredits()[0]).toMatchObject({id: 'cesium', persistence: 'while-shown'})
+    expect(bingShown(L.credits)).toBe(true)
+    bing = false
+    L._showCredits()
+    expect(getCredits()[0]).toMatchObject({id: 'cesium', persistence: 'timed', keepsLogo: true})
+    expect(bingShown(null)).toBe(false)
+  })
+
+  it('credits NASA GIBS while Earth\'s layer draws its night lights, VIIRS Black Marble from GIBS', () => {
+    let exposure = 1
+    const L = new CesiumLayers({renderer: {get toneMappingExposure() {
+      return exposure
+    }}})
+    const earth = {night: {}, nightInView: true}
+    L.bodies.earth = earth
+    const lit = () => {
+      L._creditNightLights()
+      return hasCredit('nasa-gibs')
+    }
+    // Earth's layer warming: celestiary's Earth, whose lights are bundled.
+    L.active = []
+    expect(lit()).toBe(false)
+    L.active = [{name: 'earth', node: {}}]
+    expect(lit()).toBe(true)
+    expect(getCredits()[0].persistence).toBe('timed')
+    // All day side.
+    earth.nightInView = false
+    expect(lit()).toBe(false)
+    earth.nightInView = true
+    expect(lit()).toBe(true)
+    // An exposure under which the lights are under a display step.
+    exposure = 1e-12
+    expect(lit()).toBe(false)
+    exposure = 1
+    // No night layer (a guest page that has none).
+    earth.night = false
+    expect(lit()).toBe(false)
+  })
+
+  it('credits the city drawn on Earth\'s guest page too', () => {
+    const L = new CesiumLayers({})
+    L.active = [{name: 'earth', node: {}}]
+    L._newYorkRange = 'show'
+    L._newYork = {status: 'ready', remote: true, step: null}
+    L._creditNewYork()
+    expect(hasCredit('new-york')).toBe(true)
   })
 })

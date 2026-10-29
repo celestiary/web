@@ -12,6 +12,8 @@ import {
 import {irradianceAt} from '../exposure.js'
 import {CLOUD_LAYER} from '../../shared.js'
 import {CLOUD_WHITE} from './cloudSource.js'
+import {creditGibs} from '../gibs.js'
+import {followCredit} from '../../credits.js'
 
 
 /**
@@ -108,6 +110,36 @@ export function shellOpacity(cameraHeightM, volumeReadiness) {
 
 
 /**
+ * Whether the clouds are drawn so they can be seen, for their source's
+ * credit (gibs.js): the shell's or the volume's share over nothing, and the
+ * shell's disc at least CREDIT_MIN_PX in radius (from orbit; from inside it,
+ * always), so Earth a few pixels across from Jupiter doesn't credit them.
+ *
+ * @param {number} cloudRadius Metres
+ * @param {number} eyeDistance The camera from the body's centre, metres
+ * @param {number} fovDeg The camera's vertical field
+ * @param {number} heightPx The canvas's height in CSS pixels
+ * @param {number} shellShare The shell's opacity
+ * @param {number} volumeShare The volume's readiness times the map's gain
+ * @returns {boolean}
+ */
+export function cloudsCredited(cloudRadius, eyeDistance, fovDeg, heightPx, shellShare, volumeShare) {
+  if (!(shellShare > 0 || volumeShare > 0)) {
+    return false
+  }
+  if (eyeDistance <= cloudRadius) {
+    return true
+  }
+  const px = Math.asin(cloudRadius / eyeDistance) / ((fovDeg ?? 45) * Math.PI / 180) * (heightPx || 1080)
+  return px >= CREDIT_MIN_PX
+}
+
+
+/** The clouds' disc radius on screen, CSS px, from which they're credited. */
+export const CREDIT_MIN_PX = 10
+
+
+/**
  * @param {number} groundRadius The body's radius, metres
  * @param {object} cloudMap A CloudMap
  * @param {object} opts
@@ -150,7 +182,14 @@ export function newCloudShell(groundRadius, cloudMap, {ready = () => true, volum
   shell.layers.set(CLOUD_LAYER)
   shell.userData.map = cloudMap
   shell.userData.volume = volume
+  // Whether the last frame drew GIBS's clouds big enough to see (set in
+  // onBeforeRender, which three calls only for a shell it draws), for GIBS's
+  // credit (gibs.js); read and cleared here, before the next frame.
+  let gibsDrawn = false
+  const credit = followCredit((on) => creditGibs('clouds', on))
   shell.preAnimCb = (time) => {
+    credit(gibsDrawn)
+    gibsDrawn = false
     cloudMap.update(time.simTime)
     volume?.update()
     shell.visible = ready()
@@ -185,7 +224,12 @@ export function newCloudShell(groundRadius, cloudMap, {ready = () => true, volum
     // A white cloud's radiance in three's units (Lambert: E·albedo/π), for
     // the renderer's exposure to scale as it does the lit surface.
     u.uRadiance.value = sunDistance > 0 ? CLOUD_WHITE * irradianceAt(sunDistance) / Math.PI : 0
-    u.uOpacity.value = shellOpacity(eye.length() - groundRadius, volume ? volume.readiness() : 0) * cloudMap.gain()
+    const readiness = volume ? volume.readiness() : 0
+    u.uOpacity.value = shellOpacity(eye.length() - groundRadius, readiness) * cloudMap.gain()
+    if (cloudMap.fromGibs && !gibsDrawn) {
+      gibsDrawn = cloudsCredited(cloudRadius, eye.length(), camera.fov, renderer?.domElement?.clientHeight,
+          u.uOpacity.value, readiness * cloudMap.gain())
+    }
   }
   return shell
 }

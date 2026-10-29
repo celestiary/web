@@ -39,6 +39,22 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Every credit in one small line along the bottom
+
+The data's credits are now one quiet line at the bottom edge, as a map's: Cesium ion's and its
+imagery's, OpenStreetMap's and NYC Open Data's while New York's city is drawn, and now ESA Gaia's
+for its stars and NASA GIBS's for Earth's clouds and night lights. Each shows as its data comes
+into view and fades a few seconds later, leaving the Cesium ion logo, and Bing's credits while its
+imagery is up. The info icon at the line's end opens a credits dialog: what's in the scene now and
+every source celestiary uses, with what it takes from each, such as how many of Gaia's stars are
+loaded and of what types, or how many of Earth's tiles Cesium is drawing. Cesium's *Data
+attribution* link opens its list again.
+
+- Date: 2026-10-28
+- PR: [#341](https://github.com/celestiary/web/pull/341)
+- Issue: [#279](https://github.com/celestiary/web/issues/279)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@-38.1501,-99.3434,12.104919Mm;t=9792.377067jd;cq=0.3284,-0.0652,-0.0081,0.9423;fov=45deg;s=alpoGF;time:pause)
+
 ### Rubin's pixel on the sky
 
 A new switch in the Rubin Observatory app, *Rubin's pixel*, draws what the camera can tell apart at

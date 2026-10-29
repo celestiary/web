@@ -38,6 +38,7 @@ import {HOME_TOUR_LOOP_FADE_MS, HOME_TOUR_STILL_MS, homeTour} from './homeTour'
 import {ease} from './tour'
 import {formatTonight, lowPrecisionSun, resolveLocation, tonightTime} from './tonight'
 import {hideLoading} from './loading'
+import {setCreditsChrome} from './credits.js'
 import {clampEv, stepEv} from './scene/evCompensation'
 import {clampStarMag, stepStarMag} from './scene/starMagnitude'
 import {fetchPlaces} from './scene/Places'
@@ -59,6 +60,11 @@ const CHROME_FADE_MS = 400
 // starts with it (public/index.html), so the chrome is hidden from the first
 // paint until the load's reveal shows it, or never, for a link with 'v' off.
 const CHROME_HIDDEN_CLASS = 'chrome-hidden'
+// The chrome's panels (`v`), which _navDisplay takes out of layout once
+// faded out.  The credits footer (ui/CreditsFooter.jsx) holds every
+// attribution, Cesium's included: chrome, hidden with the rest.
+export const CHROME_PANEL_IDS = ['nav-id', 'top-right', 'search-bar', 'widgets-drawer', 'widgets-dock', 'phone-dock',
+  'credits-footer']
 // The scene's fade in from black on the first load, ms, as the loading text
 // fades out (public/index.html).
 const SCENE_FADE_MS = 600
@@ -3245,6 +3251,8 @@ export default class Celestiary {
    */
   _setNav(visible) {
     this.navVisible = visible
+    // The credits' windows run only while they can be seen (credits.js).
+    setCreditsChrome(visible)
     if (visible) {
       this._navHideAt = null
       this._navDisplay(true)
@@ -3279,19 +3287,12 @@ export default class Celestiary {
 
   /** @param {boolean} shown The chrome in layout, or out of it */
   _navDisplay(shown) {
-    const panels = [elt('nav-id'), elt('top-right'), elt('search-bar'), elt('widgets-drawer'), elt('widgets-dock'),
-      elt('phone-dock')]
-    panels.forEach((panel) => {
+    CHROME_PANEL_IDS.forEach((id) => {
+      const panel = elt(id)
       if (panel) {
         panel.style.display = shown ? '' : 'none'
       }
     })
-    // Cesium's credits overlay: its display is the Cesium layers' (shown
-    // only while a layer is active), so 'v' hides it by visibility.
-    const credits = elt('cesium-credits')
-    if (credits) {
-      credits.style.visibility = shown ? '' : 'hidden'
-    }
   }
 
 

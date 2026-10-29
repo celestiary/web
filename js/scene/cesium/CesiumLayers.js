@@ -31,7 +31,6 @@ import {
 import {DISPLAY_GAIN, FADE_LAYER, toRad} from '../../shared.js'
 import {bodyLayer} from '../../store/LayersSlice.js'
 import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
-import CreditsReveal from './creditsReveal.js'
 import {
   bodyToEcef,
   cameraToEcefView,
@@ -41,7 +40,7 @@ import {
   nightInView,
   sunLightDirectionEcef,
 } from './frames.js'
-import {DEFAULT_GUEST_BASE, newYorkOptions, newYorkRange, newYorkStatus} from './newYork.js'
+import {DEFAULT_GUEST_BASE, NEW_YORK_CREDITS, newYorkDrawn, newYorkOptions, newYorkRange, newYorkStatus} from './newYork.js'
 import {groundInView, halfDiagonal, hiddenBehind, OCCLUDER_SCALE} from './visibility.js'
 import {fovScale} from '../farPoint.js'
 import {nightLightRadiance} from '../exposure.js'
@@ -65,6 +64,8 @@ import {latLngAltToBodyFixed} from '../../coords.js'
 import {perf} from '../../perf/perf.js'
 import {dataUrl} from '../../dataUrl.js'
 import {sanitizeCredits} from '../../cesium-guest/credits.js'
+import {addCredit, removeCredit} from '../../credits.js'
+import {creditGibs} from '../gibs.js'
 import {monthOfJulianDay} from '../monthly.js'
 import {GUEST_VERSION, guestOptions} from '../../cesium-guest/origins.js'
 
@@ -291,6 +292,8 @@ export default class CesiumLayers {
     this._publishNewYork(store)
     // The credits follow the ground in view: none while it's only sky.
     this._showCredits()
+    this._creditNewYork()
+    this._creditNightLights()
     for (const {node} of active) {
       this._hideSurface(node)
     }
@@ -595,8 +598,35 @@ export default class CesiumLayers {
     if (!body?.night || !body.nightInView) {
       return false
     }
+    return this._lightsVisible() || this._meterFrame()
+  }
+
+
+  /**
+   * @returns {boolean} Whether the night lights' brightest is a display
+   *   step or more at this exposure (_lightsShow)
+   */
+  _lightsVisible() {
     const brightest = nightLightRadiance() * this.ui.renderer.toneMappingExposure
-    return !(brightest < LIGHTS_DISPLAY_STEP) || this._meterFrame()
+    return !(brightest < LIGHTS_DISPLAY_STEP)
+  }
+
+
+  /**
+   * NASA GIBS's acknowledgement (gibs.js) while Earth's layer draws its
+   * night lights, VIIRS Black Marble from GIBS (CESIUM.md, "Night lights"):
+   * the layer active, some night in view, and the lights bright enough to
+   * show.  Celestiary's own Earth's lights are the bundled texture, from
+   * NASA Earth Observatory, not GIBS.
+   */
+  _creditNightLights() {
+    const earth = this.bodies.earth
+    const drawn = Boolean(earth?.night && earth.nightInView && this.active.some((a) => a.name === 'earth') &&
+      this._lightsVisible())
+    if (drawn !== (this._lightsCredited ?? false)) {
+      this._lightsCredited = drawn
+      creditGibs('night-lights', drawn)
+    }
   }
 
 
@@ -1053,17 +1083,26 @@ export default class CesiumLayers {
       return
     }
     const shown = this._creditedBody()
-    if (shown === this._credited) {
-      return
-    }
-    this._credited = shown
-    this.credits.style.display = shown ? 'block' : 'none'
-    // In full as a body comes into view, then just the logo.
-    this._creditsReveal?.show(shown ?? null)
-    for (const [name, body] of Object.entries(this.bodies)) {
-      if (body.credits) {
-        body.credits.style.display = name === shown ? 'block' : 'none'
+    if (shown !== this._credited) {
+      this._credited = shown
+      if (!shown) {
+        removeCredit(CESIUM_CREDIT_ID)
       }
+      for (const [name, body] of Object.entries(this.bodies)) {
+        if (body.credits) {
+          body.credits.style.display = name === shown ? 'inline' : 'none'
+        }
+      }
+    }
+    if (shown) {
+      // In the credits footer (credits.js, ui/CreditsFooter.jsx) while shown:
+      // on arrival in full, then the ion logo alone, which ion's terms want
+      // on screen; but whole while Bing's imagery is drawn, whose terms
+      // forbid minimising its attribution (CESIUM.md, "Credits").  The same
+      // credit again changes nothing, so this runs each frame.
+      const bing = bingShown(this.credits)
+      addCredit(CESIUM_CREDIT_ID, {element: this.credits},
+          {order: 0, persistence: bing ? 'while-shown' : 'timed', keepsLogo: true})
     }
   }
 
@@ -1431,27 +1470,17 @@ export default class CesiumLayers {
 
   /**
    * A body's credits' element, under the one container they share; made
-   * with the first.  _showCredits shows the active body's.
+   * with the first.  _showCredits shows the active body's, and puts the
+   * container in the credits footer (CESIUM.md, "Credits").
    *
    * @returns {HTMLElement}
    */
   _creditsFor() {
     if (!this.credits) {
-      this.credits = document.createElement('div')
+      this.credits = document.createElement('span')
       this.credits.id = 'cesium-credits'
-      Object.assign(this.credits.style, {
-        // Above the widgets drawer's sheet, the info panel's and the dock (a phone's).
-        position: 'fixed', bottom: 'calc(0.5em + var(--sheet-height, 0px) + var(--info-sheet-bottom, 0px) + var(--phone-dock-height, 0px))',
-        left: '50%', transform: 'translateX(-50%)',
-        fontSize: '11px', color: '#aaa', display: 'none', zIndex: '10',
-        // HTML chrome: 'v' hides it with the other panels (Celestiary
-        // _toggleNav sets visibility; _showCredits owns display).
-        visibility: this.ui.sceneManager?.getSetting?.('v') === false ? 'hidden' : '',
-      })
-      document.body.appendChild(this.credits)
-      this._creditsReveal = new CreditsReveal(this.credits)
     }
-    const credits = document.createElement('div')
+    const credits = document.createElement('span')
     credits.style.display = 'none'
     this.credits.appendChild(credits)
     return credits
@@ -1486,6 +1515,9 @@ export default class CesiumLayers {
       container,
       contextOptions: guest.contextOptions,
       creditContainer: credits,
+      // "Data attribution" opens its list over the page, not in the hidden
+      // widget's own element.
+      creditViewport: document.body,
       month: this._month(),
       token: ionToken(),
       onError: (err) => this._fail(name, err),
@@ -1652,6 +1684,27 @@ export default class CesiumLayers {
     const status = newYorkStatus(this._newYork)
     if (store.newYorkNear !== near || store.newYorkStatus !== status) {
       store.setNewYorkState({near, status})
+    }
+  }
+
+
+  /**
+   * New York's data credits (newYork.js NEW_YORK_CREDITS) in the credits
+   * footer while the city is drawn: Earth's layer active, the camera in the
+   * city's range and the city in.
+   */
+  _creditNewYork() {
+    const drawn = newYorkDrawn(this._newYork, this.active.some((a) => a.name === 'earth'), this._newYorkRange)
+    if (drawn === (this._newYorkCredited ?? false)) {
+      return
+    }
+    this._newYorkCredited = drawn
+    if (drawn) {
+      // On arrival, then fading: OSMF's attribution guidelines allow it
+      // after five seconds, reachable after (CESIUM.md, "Credits").
+      addCredit(NEW_YORK_CREDIT_ID, NEW_YORK_CREDITS, {persistence: 'timed'})
+    } else {
+      removeCredit(NEW_YORK_CREDIT_ID)
     }
   }
 
@@ -1902,6 +1955,26 @@ function newDecodeMaterial() {
 
 
 const STENCIL_REF = 1
+
+
+/**
+ * Whether Cesium's credits hold Bing's (its logo, which CreditDisplay shows
+ * while Bing's tiles are drawn: BingMapsImageryProvider's credit, an image
+ * titled "Bing Imagery").
+ *
+ * @param {?object} credits #cesium-credits
+ * @returns {boolean}
+ */
+export function bingShown(credits) {
+  return Boolean(credits?.querySelector?.(BING_LOGO_SELECTOR))
+}
+
+
+/** Bing's logo in Cesium's credits (index.css keeps it whole too). */
+export const BING_LOGO_SELECTOR = 'img[title="Bing Imagery"]'
+// Cesium's credits' entry in the credits footer (credits.js), and New York's.
+const CESIUM_CREDIT_ID = 'cesium'
+const NEW_YORK_CREDIT_ID = 'new-york'
 // How long a frame waits for a guest page's frame of its view, ms, before
 // it's drawn with the last one (CesiumLayers.awaitingGuests).
 // Short, since a late frame is corrected to the camera rather than drawn

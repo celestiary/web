@@ -80,7 +80,6 @@
     "js/scene/cesium/CesiumLayers.test.js": 1.5,
     "js/scene/cesium/bodies.test.js": 0.1,
     "js/scene/cesium/cesiumPatches.test.js": 0.1,
-    "js/scene/cesium/creditsReveal.test.js": 0.1,
     "js/scene/cesium/detail.test.js": 0.1,
     "js/scene/cesium/distance.test.js": 0.1,
     "js/scene/cesium/encoding.test.js": 0.1,

@@ -244,6 +244,18 @@ tried and dropped.
   corrected to the camera: the guest held, its frame of one view composed
   at a view turned `deg`, against the guest's own frame there, with the
   correction and without (`guestReproject`).
+- **The credits footer headless** (design/UI.md [the credits
+  footer](design/UI.md#the-credits-footer)): a timed credit is in the line
+  for 8 s from its data's arrival, and a SwiftShader screenshot with the
+  scene running can outlast that, so take it as soon as the entry's
+  `getComputedStyle(e).opacity` is `'1'`: on a busy page its 400 ms fade-in
+  can sit at its first frame for a second or more (wait for
+  `e.getAnimations().length === 0`).  Gaia's credit needs a view away from
+  the Sun (from `#sun` the exposure leaves the limit near −7 and no Gaia
+  star drawn); `c.scene.gaia.last.drawn` says.  Faded credits are still in
+  the registry: hover `#credits-footer .credits-line` to show them, or
+  click `#credits-footer .credits-more` (the info icon) for the dialog,
+  which loads on that first click.
 - **Layer mode's checks run on two origins:** `yarn build`, then `yarn
   layer-host` (guest `http://127.0.0.1:5480`, host
   `http://localhost:5481/host.html?guest=http://127.0.0.1:5480`).  Read

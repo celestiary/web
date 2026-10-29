@@ -6,6 +6,8 @@ import {
   DEFAULT_GUEST_BASE,
   FREE_BEYOND_M,
   guestBaseAllowed,
+  NEW_YORK_CREDITS,
+  newYorkDrawn,
   newYorkOptions,
   newYorkRange,
   newYorkStatus,
@@ -90,6 +92,26 @@ describe('newYorkRange', () => {
   it('frees it far away', () => {
     expect(newYorkRange(above(0, 51.5, 1000), 1000)).toBe('free')
     expect(newYorkRange(above(NYC_LON, NYC_LAT, FREE_BEYOND_M + 1), FREE_BEYOND_M + 1)).toBe('free')
+  })
+})
+
+
+describe('New York\'s credits', () => {
+  it('are drawn only with the city: Earth\'s layer active, in range, the city in', () => {
+    const ready = {status: 'ready', city: {}}
+    expect(newYorkDrawn(ready, true, 'show')).toBe(true)
+    expect(newYorkDrawn(ready, true, 'keep')).toBe(false)
+    expect(newYorkDrawn(ready, true, null)).toBe(false)
+    expect(newYorkDrawn(ready, false, 'show')).toBe(false)
+    expect(newYorkDrawn({status: 'loading', city: null}, true, 'show')).toBe(false)
+    expect(newYorkDrawn({status: 'error', city: null}, true, 'show')).toBe(false)
+    expect(newYorkDrawn(null, true, 'show')).toBe(false)
+  })
+
+  it('credit OpenStreetMap (ODbL) and NYC Open Data, as slop-newyork\'s README does', () => {
+    expect(NEW_YORK_CREDITS.map((c) => c.text)).toEqual(['© OpenStreetMap contributors (ODbL)', 'NYC Open Data'])
+    expect(NEW_YORK_CREDITS[0].href).toBe('https://www.openstreetmap.org/copyright')
+    expect(NEW_YORK_CREDITS[1].href).toBe('https://opendata.cityofnewyork.us/')
   })
 })
 

@@ -33,7 +33,16 @@ export const STATIC_BUDGET = {
   // the field range on ThreeUI, the RUBIN instrument, the Rubin panel's
   // optics switch and field readout, 3 KB minified); 2,353.4 with Rubin's pixel
   // (#339: its switch and token field, 0.4 KB minified and 0.6 KB gzipped).
-  totalMinifiedKB: 2354,
+  // 2,366 with the credits footer (#341: ui/CreditsFooter.jsx, credits.js
+  // and their CSS, chrome mounted from the start so Cesium's credits have
+  // somewhere to go; its info icon, @mui/icons-material's InfoOutlined; the
+  // hand-off of what the lazy credits dialog shares with the first load,
+  // CreditsFooter CREDITS_DIALOG_DEPS, passed rather than imported, which had
+  // split the first load into 16 files; Cesium's credits timed to the ion
+  // logo, CesiumLayers bingShown and credits.js keepsLogo; and Gaia tiles'
+  // class counts, starTile.js).  The dialog and its facts are a chunk of
+  // their own.
+  totalMinifiedKB: 2367,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -45,7 +54,11 @@ export const STATIC_BUDGET = {
   // 1.1 KB gzipped, from 733.3 to 734.4; the clamp has to be in ThreeUI and
   // the switch and readout in the panel, both first load); 736 for the pixel
   // marker's switch (735.03: 30 bytes over, so a KB of room, not a squeeze).
-  totalGzipKB: 736,
+  // 739, so 740, for the credits footer (#341: its timing, each credit on
+  // arrival then fading, its info icon, and Gaia's and NASA GIBS's credits;
+  // credits.js, CreditsFooter.jsx, scene/gibs.js; chrome, so in the first
+  // load with the footer).
+  totalGzipKB: 740,
   // The largest single first-load file, minified.  Main: 695 KB.
   largestChunkMinifiedKB: 765,
 }

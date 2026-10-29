@@ -60,7 +60,12 @@ acknowledgement:
 
 The acknowledgement is ESA's standard text as recalled: the archive's
 credits page redirects to `www.cosmos.esa.int`, which the sandbox can't
-reach, so check it there, and add Gaia to the app's credits.  The ShareAlike term applies to the data, not to the code (ISC).
+reach, so check it there.  **In the app** Gaia's credit, "ESA/Gaia/DPAC" (to
+Gaia's page) and "CC BY-SA 3.0 IGO" (to the licence, which §4(a) asks for by
+its URI), is in the credits footer while any of its stars are drawn
+(`gaiaPopulation.js` `gaiaDrawn`, `GAIA_CREDIT`): on arrival for 8 s, then
+faded on its own clock, whatever else stays
+([CESIUM.md, credits](../../CESIUM.md#credits-policy)).  The ShareAlike term applies to the data, not to the code (ISC).
 
 ## The query
 

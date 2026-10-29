@@ -180,7 +180,10 @@ at the equator, about 1.2 MB of JPEG a day.  Fetched from
 `gibs.earthdata.nasa.gov`, which sends CORS headers; no key.  NASA imagery,
 public domain; GIBS asks to be acknowledged ("imagery provided by services
 from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth
-Science Data and Information System (ESDIS)").
+Science Data and Information System (ESDIS)"), which the credits footer
+gives while a GIBS day is drawn with Earth 10 px or more in radius on screen
+(`CloudMap.fromGibs`, `CloudShell.js` `cloudsCredited`, `gibs.js`; on
+arrival, then fading: [CESIUM.md, credits](../../CESIUM.md#credits-policy)).
 
 The layer, by date (`cloudSource.js`, `cloudSource`; start dates from
 GIBS's GetCapabilities, 2026-10):
