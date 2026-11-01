@@ -37,6 +37,20 @@ open; not a polish or a lesser feature. **`Kind: fix` marks a fix**: something t
 wrong or a regression and now isn't; anything that adds or improves what you can see or do is a
 feature, the default. Featured and kind are independent: a major fix can be featured.
 
+## November 2026
+
+### A link to a body by its name alone opens it
+
+A link such as celestiary.org/#earth or #moon stayed on the loading screen. It now opens on that body
+like #sun/earth does, as do #earth/moon, #mars and the rest.
+
+- Date: 2026-11-01
+- PR: [#348](https://github.com/celestiary/web/pull/348)
+- Issue: [#336](https://github.com/celestiary/web/issues/336)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: none
+- Kind: fix
+
 ## October 2026
 
 ### Every credit in one small line along the bottom
