@@ -733,7 +733,7 @@ export default class Celestiary {
       // homepage's, and the tour places the camera once the Sun and Earth
       // are in.
       history.replaceState?.({...(history.state ?? {}), [HOME_HISTORY_KEY]: true}, '')
-      this.loader.loadPath('milkyway', this.onLoad, () => {
+      this.loader.loadPath(SCENE_ROOT, this.onLoad, () => {
         this._loadBody('sun/earth', () => this._startTour())
       })
       return
@@ -764,7 +764,7 @@ export default class Celestiary {
     } else {
       location.hash = DEFAULT_TARGET
     }
-    this.loader.loadPath('milkyway', this.onLoad, () => {
+    this.loader.loadPath(SCENE_ROOT, this.onLoad, () => {
       this._navigate(rawHash || DEFAULT_TARGET, () => {
         // On error.
         setTimeout(() => {
@@ -1081,6 +1081,12 @@ export default class Celestiary {
    * callback, which never comes for a body another load already has in
    * flight.
    *
+   * A path that starts below the Sun (`#earth`, `#moon`, `#earth/moon`, a
+   * `from=earth`) is loaded as its full path (`sun/earth`), so the bodies
+   * above it are in the scene before it is: the scene adds a body to its
+   * parent, and the loader, given 'earth' alone, brought it before the Sun,
+   * which only the milky way's system had asked for (#336).
+   *
    * @param {string} path e.g. 'sun/earth'
    * @param {Function} cb
    * @param {Function} [onErr]
@@ -1091,8 +1097,20 @@ export default class Celestiary {
       cb()
       return
     }
-    (this._bodyWaiters[name] ??= []).push(cb)
-    this.loader.loadPath(path, this.onLoad, () => {/* waited on in onLoad */}, onErr)
+    const load = (full) => {
+      if (typeof this.loader.loaded[name] === 'object') {
+        cb()
+        return
+      }
+      (this._bodyWaiters[name] ??= []).push(cb)
+      this.loader.loadPath(full, this.onLoad, () => {/* waited on in onLoad */}, onErr)
+    }
+    const top = path.split('/')[0]
+    if (top === SCENE_ROOT || (this.loader.loaded[SCENE_ROOT]?.system ?? []).includes(top)) {
+      load(path)
+    } else {
+      this.loader.fullPath(path, SCENE_ROOT).then(load)
+    }
   }
 
 
@@ -3522,6 +3540,9 @@ export default class Celestiary {
 
 
 const DEFAULT_TARGET = 'sun'
+// The scene's root, which every load starts from (load), and whose system
+// every path below it starts in (_loadBody).
+const SCENE_ROOT = 'milkyway'
 const J2000_JD = 2451545.0
 
 

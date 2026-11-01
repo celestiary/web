@@ -161,11 +161,12 @@ tried and dropped.
     `c.time` (`setTime(ms)`, `simTimeJulianDay()`).
   - Read state with `page.evaluate` rather than inferring it from
     pixels.
-  - Open a body other than the Sun by its path (`#earth`) and the bodies can
-    load out of order on a local `python3 -m http.server` build ("No parent
-    obj ... for earth", on main too, 2026-10-23), and the reveal never ends.
-    Open `#sun`, wait for `c._reveal.done`, then `c.scene.setTarget('earth')`
-    and `c.scene.goTo()`, and wait for `c.shared.targets.tween` to be null.
+  - A body opens by its path, short or full (`#earth`, `#moon`,
+    `#earth/moon`, `#sun/earth`): wait for `c._reveal.done` and
+    `c._arrivals > 0`, then for `c.shared.targets.tween` to be null.  A path
+    below the Sun loads as its full path (`Loader.fullPath`), so its parents
+    are in the scene first; before #336 it threw "No parent obj ... for
+    earth" and the reveal never ended.
   - Call the function under test directly (e.g.
     `c.ui._applyAsymptoticZoom`) instead of replaying dozens of wheel
     events: SwiftShader is slow, and a screenshot of a landed view can
