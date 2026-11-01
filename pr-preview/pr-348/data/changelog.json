@@ -1,6 +1,32 @@
 {
   "entries": [
     {
+      "id": "2026-11-01-a-link-to-a-body-by-its-name-alone-opens-it",
+      "date": "2026-11-01",
+      "headline": "A link to a body by its name alone opens it",
+      "text": "A link such as celestiary.org/#earth or #moon stayed on the loading screen. It now opens on that body like #sun/earth does, as do #earth/moon, #mars and the rest.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 348,
+          "url": "https://github.com/celestiary/web/pull/348"
+        },
+        {
+          "kind": "issue",
+          "number": 336,
+          "url": "https://github.com/celestiary/web/issues/336"
+        }
+      ],
+      "epic": {
+        "number": 118,
+        "title": "Navigation, time and sharing",
+        "url": "https://github.com/celestiary/web/issues/118"
+      },
+      "permalink": null,
+      "image": null,
+      "kind": "fix"
+    },
+    {
       "id": "2026-10-28-every-credit-in-one-small-line-along-the-bottom",
       "date": "2026-10-28",
       "headline": "Every credit in one small line along the bottom",
