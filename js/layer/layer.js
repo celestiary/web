@@ -3,7 +3,7 @@ import {makeNetGLGuestContext, parentTransport} from '@pablo-mayrgundter/portal-
 import OrbitsLayer from './OrbitsLayer.js'
 import {hostOrigin} from './origins.js'
 import {meteredTransport} from './wire.js'
-import {serveLayer} from './protocol.js'
+import {SKY_HELLO, serveLayer} from './protocol.js'
 
 
 // Layer mode's page (public/layer.html; design/LayerMode.md): celestiary's
@@ -12,6 +12,12 @@ import {serveLayer} from './protocol.js'
 // the host's context with no clears, testing the host's depth.
 //
 //   layer.html?nets=S,I,D&sats=1[&host=<origin>][&wire=1]
+//   layer.html?sky=1[&host=<origin>]
+//
+// `sky=1` draws the sky instead (SkyLayer.js; design/LayerMode.md, "The
+// sky"): the naked-eye stars, the Sun, the Moon and the planets, in the
+// equator of date, for a host that draws its world under it (exo.cafe's
+// abode).  Its code loads only then, so the orbits' page is as it was.
 //
 // The host's origin comes from location.ancestorOrigins, else the
 // referrer, else `host`, and must be on the allow-list (origins.js), a
@@ -53,34 +59,48 @@ if (!origin || window.parent === window) {
   // The host blends stored sRGB bytes straight to its screen: display
   // referred, as celestiary's overlay pass.
   renderer.outputColorSpace = SRGBColorSpace
-  const nets = (params.get('nets') ?? 'S,I,D').split(',').map((k) => k.trim()).filter((k) => ['S', 'I', 'D'].includes(k))
-  const layer = new OrbitsLayer()
-  const loaded = layer.load({satellites: params.get('sats') !== '0', networks: nets})
-  let size = ''
-  const served = serveLayer({
-    transport, layer, loaded, meter,
-    render: () => layer.render(renderer),
-    // The view it was drawn for rides the frame-end (portal-netgl 0.6.3), so
-    // a host that reprojects composes it for that view, not its guess.
-    endFrame: () => guest.endFrame(Number.isFinite(layer.viewId) ? {viewId: layer.viewId} : {}),
-    // NetGL's handshake, which portal-netgl's hosts wait on, and where the
-    // wire is agreed; an overlay has no door, so the anchor is nominal.
-    announce: () => guest.announce({position: [0, 0, 0], normal: [0, 0, 1], up: [0, 1, 0]}),
-    resize: ([x, y, w, h], pixelRatio) => {
-      const key = `${x},${y},${w},${h},${pixelRatio}`
-      if (key !== size) {
-        size = key
-        renderer.setPixelRatio(pixelRatio)
-        renderer.setSize((x + w) / pixelRatio, (y + h) / pixelRatio, false)
-        if (!shadowDraws) {
-          // three keeps the size it was given (its viewport, its pixel
-          // ratio); only the undrawn shadow's buffer goes back to 1×1.
-          guest.shadow.canvas.width = 1
-          guest.shadow.canvas.height = 1
+  // The sky's code is imported only for it (the target has no top-level await).
+  const start = async () => {
+    const sky = params.get('sky') === '1'
+    let layer
+    let loaded
+    if (sky) {
+      const {default: SkyLayer} = await import('./SkyLayer.js')
+      layer = new SkyLayer()
+      loaded = layer.load()
+    } else {
+      const nets = (params.get('nets') ?? 'S,I,D').split(',').map((k) => k.trim()).filter((k) => ['S', 'I', 'D'].includes(k))
+      layer = new OrbitsLayer()
+      loaded = layer.load({satellites: params.get('sats') !== '0', networks: nets})
+    }
+    let size = ''
+    const served = serveLayer({
+      transport, layer, loaded, meter,
+      ...(sky ? {hello: SKY_HELLO} : {}),
+      render: () => layer.render(renderer),
+      // The view it was drawn for rides the frame-end (portal-netgl 0.6.3), so
+      // a host that reprojects composes it for that view, not its guess.
+      endFrame: () => guest.endFrame(Number.isFinite(layer.viewId) ? {viewId: layer.viewId} : {}),
+      // NetGL's handshake, which portal-netgl's hosts wait on, and where the
+      // wire is agreed; an overlay has no door, so the anchor is nominal.
+      announce: () => guest.announce({position: [0, 0, 0], normal: [0, 0, 1], up: [0, 1, 0]}),
+      resize: ([x, y, w, h], pixelRatio) => {
+        const key = `${x},${y},${w},${h},${pixelRatio}`
+        if (key !== size) {
+          size = key
+          renderer.setPixelRatio(pixelRatio)
+          renderer.setSize((x + w) / pixelRatio, (y + h) / pixelRatio, false)
+          if (!shadowDraws) {
+            // three keeps the size it was given (its viewport, its pixel
+            // ratio); only the undrawn shadow's buffer goes back to 1×1.
+            guest.shadow.canvas.width = 1
+            guest.shadow.canvas.height = 1
+          }
+          renderer.setViewport(x / pixelRatio, y / pixelRatio, w / pixelRatio, h / pixelRatio)
         }
-        renderer.setViewport(x / pixelRatio, y / pixelRatio, w / pixelRatio, h / pixelRatio)
-      }
-    },
-  })
-  window.celestiaryLayer = {layer, renderer, guest, origin, meter, served, shadowDraws}
+      },
+    })
+    window.celestiaryLayer = {layer, renderer, guest, origin, meter, served, shadowDraws, sky}
+  }
+  start().catch((err) => console.error('celestiary layer:', err))
 }

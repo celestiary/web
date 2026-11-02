@@ -189,6 +189,77 @@ NetGL's call stream, in order with it.
   - `ECEF = bodyToEcef · Ry(−GMST) · equator`;
   - vertices are float32 metres, about 4 m at GEO.
 
+## The sky
+
+`layer.html?sky=1` is a second guest on the same page: the celestial
+sphere for a host that draws its own world under it. The first host is
+exo.cafe's abode (pablo-mayrgundter/exo, `src/world/celestiary-sky.js`).
+Its code is `js/layer/SkyLayer.js`, imported only when `sky=1`, so the
+orbits' page loads what it did.
+
+- **What it draws:**
+  - the naked-eye stars, from the catalogue's bright tier (to V 6.5:
+    8,700 stars, one 196 KB request, `large/stars/v1/packs/roots.bin`);
+  - the Sun and the Moon as discs at their true angular size, with the
+    Moon phased by the Sun and a faint earthshine on its night side;
+  - the seven planets as points, as bright as their magnitudes.
+
+  It draws no atmosphere, ground, labels or Milky Way. The host draws
+  its own sky under it.
+- **Where things are:**
+  - The frame is the **equator of date**: +X to the equinox, +Z to the
+    north pole, with no translation. The view's matrix is a pure rotation.
+  - The stars are precessed from J2000 (`precessionQuaternion`), with
+    no proper motion past the catalogue's epoch.
+  - The Sun and the planets come from Standish's mean elements
+    (`planetsApprox.js`), to a few arcminutes over 1800-2050, so the page
+    loads no VSOP87.
+  - The Moon comes from Meeus' ELP-2000/82 (`lunarTheory.js`). It is
+    topocentric for the view's `observer` (`{lat, lon, alt}`), since
+    parallax moves it up to a degree.
+  - Nutation and aberration are left out (20″).
+- **Brightness:**
+  - A point's brightness is 1 at magnitude 1.5, and falls by
+    10^(−0.2) a magnitude. That compresses the stars' range, so the eye's
+    limit is still 10% on 8 bits.
+  - A point brighter than 1 grows, up to 3×, rather than saturating.
+  - The planets' magnitudes are the Astronomical Almanac's
+    (Meeus ch. 41), without Saturn's rings.
+- **The contract:** the sky's hello is:
+
+  ```js
+  {adapter: 'celestiary-sky', capabilities: {kinds: ['sky'], depth: ['none'],
+    projections: ['matrix'], frames: ['equator-of-date'], anchors: false,
+    time: true, observer: true},
+    contracts: {alpha: 'premultiplied', color: 'display'},
+    extent: {frame: 'equator-of-date', beyond: 'infinite'}}
+  ```
+
+  - A host that wants a sky checks for `sky` in `kinds` and its frame in
+    `frames`. If either is missing, it keeps its own sky.
+  - Each `layer:view` is one frame, with any projection. exo asks for a
+    cube's six 90° faces, each into its own tile of a texture, and turns
+    the cube by sidereal time itself. It refreshes the faces every couple
+    of seconds for the bodies' motion.
+  - The colours are display values, premultiplied, added on a
+    transparent frame (blend ONE, ONE for colour and alpha).
+  - Nothing is cleared, and there is no depth test: the host clears
+    each tile and composes it as `c·(1 − a) + rgb` behind its world.
+- **The time** is the view's `timeMs`, else the host's clock, as for
+  the orbits. exo runs its abode ×600, so the Moon visibly moves between
+  refreshes.
+- **Checked** by `js/layer/sky.test.js`:
+  - the Sun at the 2026 equinox and solstice to 0.1°;
+  - the Moon new and full on their dates, and its parallax;
+  - the planets' magnitudes inside the almanac's ranges over two years;
+  - Polaris and Sirius of date, against the J2000 places precessed;
+  - the hello.
+
+  It was also run against exo's own sky host from two origins, headless
+  (the guest at 127.0.0.1, exo at localhost; exo's `?sky_src=` takes a
+  loopback guest). The whole sky came in 7.5 s, and each body landed on its
+  predicted pixel of exo's cube-face atlas.
+
 ## Cost
 
 What the guest sends a frame, measured in the guest (`js/layer/wire.js`
