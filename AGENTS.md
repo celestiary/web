@@ -45,6 +45,7 @@ tried and dropped.
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
 | Earth satellites: CelesTrak's GP data, SGP4, the TEME frame, old elements, targeting and riding one | [js/scene/satellites/Satellites.md](js/scene/satellites/Satellites.md) |
 | The space networks: Starlink's whole constellation, Iridium and its crosslinks, the Deep Space Network and DSN Now's live links; the compact elements, the propagation in slices | [js/scene/networks/Networks.md](js/scene/networks/Networks.md) |
+| The sky guest: celestiary itself, less its chrome, drawing another app's camera from a place on Earth (`sky.html`; exo.cafe's abode): the boot on a handed-in renderer, the view in the equator of date, the meter in a guest, the check host (`yarn sky-host`) | [design/SkyGuest.md](design/SkyGuest.md) |
 | Layer mode: celestiary's orbits (satellites, the networks) as a NetGL guest page (`layer.html`) in another app's globe; its contract (view, time, anchors, origins) and the two-origin check host (`yarn layer-host`) | [design/LayerMode.md](design/LayerMode.md) |
 | Populations round a body (satellites, orbiters, the Deep Space Network's): groups, the names budget, the panel's section, the `pop:` token, adding one | [js/scene/population/Population.md](js/scene/population/Population.md) |
 | 3D models (glTF, `loadModel`), spacecraft at their JPL Horizons positions (Webb), their sources and licences | [js/scene/models.md](js/scene/models.md) |
@@ -266,6 +267,16 @@ tried and dropped.
   `window.hostFrame()` (the host keeps its drawing buffer).  Pass `t=` to pin
   the time; the DSN's links show only within an hour of now
   ([design/LayerMode.md](design/LayerMode.md#status)).
+- **The sky guest's checks run on two origins too:** `CESIUM_ION_TOKEN=
+  yarn build`, then `yarn sky-host` (guest `http://127.0.0.1:5482/sky.html`,
+  host `http://localhost:5483/host.html?guest=http://127.0.0.1:5482&t=<ISO>&az=&alt=`;
+  [design/SkyGuest.md](design/SkyGuest.md#the-check-host)).  `window.look(az,
+  alt)` and `window.at(iso)` move the host's camera; read its canvas with
+  `toDataURL` (it keeps its buffer), not `page.screenshot`, which times out
+  while the metered guest draws its frame twice.  To reach the guest's
+  `window.celestiarySky` (`c`, `metering`), find its frame by the start of
+  its URL: the host's own URL carries the guest's, so `url().includes(...)`
+  finds the host and `frame.evaluate` runs in the wrong page.
 - **Earth's clouds load from NASA GIBS** a second after the date settles
   (js/scene/Planet.md#clouds). Wait on
   `c.ui.sceneManager.objects.earth.clouds.userData.map.status`

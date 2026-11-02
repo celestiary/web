@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import esbuild from 'esbuild'
-import config, {cesiumGuestConfig, layerConfig} from './common.js'
+import config, {cesiumGuestConfig, layerConfig, skyConfig} from './common.js'
 import {createProxyServer} from './proxy.js'
 
 
@@ -9,6 +9,7 @@ import {createProxyServer} from './proxy.js'
 config.define.__DEV__ = JSON.stringify(true)
 layerConfig.define.__DEV__ = JSON.stringify(true)
 cesiumGuestConfig.define.__DEV__ = JSON.stringify(true)
+skyConfig.define.__DEV__ = JSON.stringify(true)
 
 const ctx = await esbuild.context(config)
 await ctx.watch()
@@ -16,6 +17,8 @@ await ctx.watch()
 await (await esbuild.context(layerConfig)).watch()
 // The Cesium guest page, into docs/cesium-guest/ (common.js cesiumGuestConfig).
 await (await esbuild.context(cesiumGuestConfig)).watch()
+// The sky guest, into docs/sky/ (common.js skyConfig; design/SkyGuest.md).
+await (await esbuild.context(skyConfig)).watch()
 
 
 /**

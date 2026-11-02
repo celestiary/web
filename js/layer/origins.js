@@ -15,6 +15,8 @@ export const ALLOWED_ORIGINS = [
   'https://pablo-mayrgundter.github.io',
   'https://celestiary.org',
   'https://celestiary.github.io',
+  // exo.cafe's abode draws celestiary's sky (js/sky/, design/SkyGuest.md).
+  'https://exo.cafe',
   'http://localhost:*',
   'http://127.0.0.1:*',
   ...(typeof __LAYER_ORIGINS__ === 'string' ? __LAYER_ORIGINS__.split(',').map((o) => o.trim()).filter(Boolean) : []),

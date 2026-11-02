@@ -127,9 +127,13 @@ export default class Celestiary {
    * @param {Function} setTimeStr
    * @param {Function} setIsPaused
    */
-  constructor(useStore, canvasContainer, navElt, setTimeStr, setIsPaused) {
+  constructor(useStore, canvasContainer, navElt, setTimeStr, setIsPaused, opts = {}) {
     assertArgs(...arguments)
     this.useStore = useStore
+    // A page that draws into another's context (the sky guest, js/sky/)
+    // passes its renderer, and sizes the scene to its host's view rather
+    // than to its own window (setViewSize).
+    this._viewSize = opts.viewSize ?? null
     this.time = new Time(setTimeStr)
     this.setIsPaused = setIsPaused
     this.animation = new Animation(this.time)
@@ -148,7 +152,7 @@ export default class Celestiary {
       }
       this.frame(performance.now())
     }
-    this.ui = new ThreeUi(canvasContainer, animCb)
+    this.ui = new ThreeUi(canvasContainer, animCb, undefined, opts.renderer)
     // The scene is shown when it's in, by the first load's reveal.
     this.ui.holdCanvas()
     window.addEventListener('resize', () => this._layout())
@@ -3203,6 +3207,22 @@ export default class Celestiary {
   }
 
 
+  /**
+   * Size the scene to a host's view, CSS pixels, rather than the window
+   * (a guest page's, js/sky/).
+   *
+   * @param {number} width
+   * @param {number} height
+   */
+  setViewSize(width, height) {
+    if (this._viewSize?.width === width && this._viewSize?.height === height) {
+      return
+    }
+    this._viewSize = {width, height}
+    this._layout()
+  }
+
+
   /** Size the scene to the window less the insets. */
   _layout() {
     this._sizeContainer(this.ui.container)
@@ -3216,8 +3236,9 @@ export default class Celestiary {
    * @param {HTMLElement} container
    */
   _sizeContainer(container) {
-    const height = Math.max(window.innerHeight - this._insets.bottom, 1)
-    container.style.width = `${Math.max(window.innerWidth - this._insets.right, 1)}px`
+    const view = this._viewSize
+    const height = Math.max((view ? view.height : window.innerHeight) - this._insets.bottom, 1)
+    container.style.width = `${Math.max((view ? view.width : window.innerWidth) - this._insets.right, 1)}px`
     container.style.height = `${height}px`
     document.documentElement?.style.setProperty('--scene-height', `${height}px`)
   }
