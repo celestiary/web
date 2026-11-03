@@ -134,9 +134,8 @@ A host's numbers (exo's, on a laptop's GPU, 2026-11-03) showed where a guest's f
     host, where nothing reads it. Chrome then warns "READ-usage buffer was
     written, then fenced, but written again before being read back" and
     copies it for nothing, every metered frame.
-- **The host sets the rest:** the frame's size (exo: 0.6 of its CSS pixels
-  × the overscan) and how often it asks (exo: at most every 250 ms while
-  the head is still).
+- **The host sets the rest:** the frame's size (exo: its CSS pixels) and
+  how often it asks (exo: once a frame, for that frame's camera).
 
 ## Measuring it
 
@@ -177,20 +176,20 @@ The sky's hello:
   celestiary's ground below the horizon.
 - **It is drawn to the host's screen framebuffer**, which a host points at
   a render target of its own (portal-netgl's `replay.screenFramebuffer`).
-- **The sky is at infinity**, so a host can show a frame drawn for one
-  camera rotation at another. It looks each direction up through the
-  frame's own view and projection. That is exact for any turn of the
-  head, so a frame that comes late still has its stars in place.
-- **exo does this** (`src/world/celestiary-sky.js`):
-  - it asks for its camera each frame, one view in flight, with a wider
-    field than its own;
-  - its abode's dome samples the latest frame by direction;
-  - outside the frame's coverage it shows exo's own dusk.
+- **The sky is at infinity**, so a host could show a frame drawn for one
+  camera rotation at another, looking each direction up through the
+  frame's own view and projection. exo did this, on a dome, at first; it
+  now draws each frame in place, for its own camera (below).
 
 ## Drawn in place
 
-A host can draw the frame straight into its own, rather than onto a dome
-(exo's default, `celestiary-sky.js` `drawInto`):
+A host draws the frame straight into its own (exo's abode,
+`src/world/celestiary-sky.js` `drawInto`):
+
+- **A sync render.** Each host frame sends the camera it draws its scene
+  with and waits for the sky drawn for it (exo: at most 250 ms, then it
+  draws with the last frame, re-run). The frame is the camera's own field,
+  at a pixel per CSS pixel.
 
 - **It replays the frame into the framebuffer it is drawing its scene
   into**, bound and cleared first (`replay.screenFramebuffer`), with the
@@ -209,8 +208,8 @@ A host can draw the frame straight into its own, rather than onto a dome
   The host's output encoding then gives the display values back.
   - The meter's view (`uDebug` 7) is left as it is.
   - The hello says which colour the frame is in (`contracts.color`:
-    `'display'` or `'linear'`). A host that finds `'display'` (an older
-    page) keeps its dome.
+    `'display'` or `'linear'`). exo lets a guest that says `'display'` (an
+    older page) go, and keeps its own dusk.
 
 ## The check host
 
