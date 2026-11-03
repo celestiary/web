@@ -40,7 +40,8 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 ## November 2026
 
 Behind the scenes: celestiary's own sky inside another app's world, the sky guest
-([#350](https://github.com/celestiary/web/pull/350)), first for exo.cafe's abode.
+([#350](https://github.com/celestiary/web/pull/350)), first for exo.cafe's abode, and with its shadow drawing
+only the metered frames on portal-netgl 0.6.11 ([#351](https://github.com/celestiary/web/pull/351)).
 
 ## October 2026
 
