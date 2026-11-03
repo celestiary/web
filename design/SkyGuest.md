@@ -168,12 +168,13 @@ The sky's hello:
  capabilities: {kinds: ['sky'], depth: ['none'], projections: ['matrix'],
    frames: ['equator-of-date'], anchors: false, time: true, labels: false,
    observer: true},
- contracts: {alpha: 'opaque', color: 'display'},
+ contracts: {alpha: 'opaque', color: 'display'},  // 'linear' with ?output=linear
  extent: {frame: 'equator-of-date', beyond: 'infinite'}}
 ```
 
 - **A frame is the whole view.** It is opaque and tone-mapped (display
-  values), with celestiary's ground below the horizon.
+  values, or with `output=linear` those values decoded from sRGB), with
+  celestiary's ground below the horizon.
 - **It is drawn to the host's screen framebuffer**, which a host points at
   a render target of its own (portal-netgl's `replay.screenFramebuffer`).
 - **The sky is at infinity**, so a host can show a frame drawn for one
@@ -186,6 +187,31 @@ The sky's hello:
   - its abode's dome samples the latest frame by direction;
   - outside the frame's coverage it shows exo's own dusk.
 
+## Drawn in place
+
+A host can draw the frame straight into its own, rather than onto a dome
+(exo's default, `celestiary-sky.js` `drawInto`):
+
+- **It replays the frame into the framebuffer it is drawing its scene
+  into**, bound and cleared first (`replay.screenFramebuffer`), with the
+  guest's screen viewport mapped to that target's size
+  (`remapScreenViewport`).
+- **Then it draws its scene over the frame**, with depth cleared and no
+  colour clear. The atmosphere pass writes celestiary's own depth
+  (`gl_FragDepth`, for its labels), which means nothing to the host.
+- **So what lands in the host's frame is the app's own final pass**: the
+  air over the scene, the one tone map and the night sky's light, at the
+  host's resolution. It samples the scene buffer, which is drawn at the
+  view's size.
+- **The host's buffer is linear, and it encodes it at its end.** So the
+  host asks for `sky.html?output=linear`, and the pass writes its display
+  values decoded from sRGB (`Atmosphere.js` `screenOut`, `uLinearOut`).
+  The host's output encoding then gives the display values back.
+  - The meter's view (`uDebug` 7) is left as it is.
+  - The hello says which colour the frame is in (`contracts.color`:
+    `'display'` or `'linear'`). A host that finds `'display'` (an older
+    page) keeps its dome.
+
 ## The check host
 
 `yarn sky-host` (`tools/sky/serve.mjs`) serves `docs/` at
@@ -193,7 +219,8 @@ The sky's hello:
 at `http://localhost:5483/host.html?guest=http://127.0.0.1:5482`, which:
 
 - sends a camera at a place, looking at an azimuth and altitude:
-  `&lat=&lon=&az=&alt=&fov=&t=<ISO>&rate=`, and `&meter=0` passes through;
+  `&lat=&lon=&az=&alt=&fov=&t=<ISO>&rate=`; `&meter=0` and `&output=`
+  pass through;
 - replays each frame onto its own canvas;
 - `window.look(az, alt)` and `window.at(iso)` move it;
 - `window.hostState` has the hello, the status, the frames and the errors.

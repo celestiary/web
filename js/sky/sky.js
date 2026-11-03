@@ -18,7 +18,7 @@ import {fieldOf, landedQuaternion, shadowDrawsFor, skyGain, sunAltitude} from '.
 // view, its stars, Milky Way, planets, Moon, Sun, clouds and air, and ends
 // the frame.  The first host is exo.cafe's abode.
 //
-//   sky.html[?host=<origin>][&meter=0][&perf=1|sync]
+//   sky.html[?host=<origin>][&meter=0][&output=linear][&perf=1|sync]
 //
 // The host's origin is found and checked as layer mode's (layer/origins.js),
 // and the control plane is layer mode's (layer/protocol.js) with the sky's
@@ -33,6 +33,11 @@ import {fieldOf, landedQuaternion, shadowDrawsFor, skyGain, sunAltitude} from '.
 // settles on for the Sun's altitude instead (view.js skyGain), for a
 // cheaper sky that's right on average and wrong where the frame's content
 // matters (the Moon in view, a bright planet).
+//
+// `output=linear` writes the screen's display values decoded from sRGB, for
+// a host that replays the frame into a linear buffer of its own and encodes
+// it at its end (exo draws it in place, under its abode); the hello says
+// which (`contracts.color`: 'display' or 'linear').
 
 
 /** The sky guest's `layer:hello`: an opaque view of the sky, any projection, in the equator of date. */
@@ -156,6 +161,8 @@ if (!found || window.parent === window) {
  */
 function start(origin) {
   const metering = new URLSearchParams(location.search).get('meter') !== '0'
+  const linearOut = new URLSearchParams(location.search).get('output') === 'linear'
+  const hello = {...SKY_HELLO, contracts: {...SKY_HELLO.contracts, color: linearOut ? 'linear' : 'display'}}
   const meter = meteredTransport(parentTransport({hostOrigins: [origin]}))
   const guest = makeNetGLGuestContext({transport: meter.transport, messageChannel: 'stream', wire: 2,
     shadowDraws: metering})
@@ -222,6 +229,7 @@ function start(origin) {
         c.scene.land('earth', o.lat, o.lon, (o.alt ?? 0) + EYE_HEIGHT_M, {instant: true})
       }
       plainGround(c)
+      c.ui._atmMesh.material.uniforms.uLinearOut.value = linearOut ? 1 : 0
       targets.track = false
       targets.tween = null
       const cam = c.ui.camera
@@ -244,7 +252,7 @@ function start(origin) {
   }
 
   const served = serveLayer({
-    transport: guest.transport, layer: sky, meter, hello: SKY_HELLO,
+    transport: guest.transport, layer: sky, meter, hello,
     loaded: whenReady(c),
     render: () => sky.render(),
     endFrame: () => guest.endFrame(Number.isFinite(sky.viewId) ? {viewId: sky.viewId} : {}),
@@ -270,7 +278,7 @@ function start(origin) {
       {enabled: false, note: 'add perf=1 to sky.html (exo: ?sky_perf=1)'}
     guest.transport.post({type: 'sky:perf', id: msg.id, snapshot: {...snapshot, lastFrame: served.state.last, metering}})
   })
-  window.celestiarySky = {c, renderer, guest, origin, meter, served, metering}
+  window.celestiarySky = {c, renderer, guest, origin, meter, served, metering, linearOut}
 }
 
 

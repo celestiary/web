@@ -22,7 +22,7 @@ const num = (k, d) => (q.has(k) ? Number(q.get(k)) : d)
 const W = num('w', 640)
 const H = num('h', 400)
 const guestOrigin = new URL(q.get('guest') ?? 'http://127.0.0.1:5482').origin
-const meterParam = q.has('meter') ? `&meter=${q.get('meter')}` : ''
+const meterParam = (q.has('meter') ? `&meter=${q.get('meter')}` : '') + (q.has('output') ? `&output=${q.get('output')}` : '')
 const look = {az: num('az', 180), alt: num('alt', 20), fov: num('fov', 60)}
 const site = {lat: num('lat', 55.62), lon: num('lon', 0)}
 const clock = {t0: q.has('t') ? Date.parse(q.get('t')) : Date.now(), at: performance.now(), rate: num('rate', 0)}
