@@ -7,7 +7,7 @@ import {hostOrigin} from '../layer/origins.js'
 import {meteredTransport} from '../layer/wire.js'
 import {serveLayer} from '../layer/protocol.js'
 import {targets} from '../shared.js'
-import {fieldOf, landedQuaternion, skyGain, sunAltitude} from './view.js'
+import {fieldOf, landedQuaternion, shadowDrawsFor, skyGain, sunAltitude} from './view.js'
 
 
 // The sky guest (public/sky.html; design/SkyGuest.md): celestiary itself,
@@ -26,7 +26,9 @@ import {fieldOf, landedQuaternion, skyGain, sunAltitude} from './view.js'
 //
 // The exposure is celestiary's own: its meter reads the frame back and the
 // eye adapts, as in the app.  For that the guest's shadow context draws
-// (portal-netgl's `shadowDraws`), the frame's GPU work twice over.
+// (portal-netgl's `shadowDraws`): the scene buffer only on the frames the
+// meter samples, one in four, where portal-netgl lets it switch (0.6.11),
+// and every frame's otherwise, its GPU work twice over (meterOnly, below).
 // `meter=0` keeps the shadow from drawing, and takes the gain the meter
 // settles on for the Sun's altitude instead (view.js skyGain), for a
 // cheaper sky that's right on average and wrong where the frame's content
@@ -95,6 +97,40 @@ const GROUND = new DataTexture(new Uint8Array([46, 52, 40, 255]), 1, 1)
 GROUND.needsUpdate = true
 const NO_LIGHTS = new DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1)
 NO_LIGHTS.needsUpdate = true
+/**
+ * The shadow draws what the meter reads, and no more (portal-netgl 0.6.11's
+ * settable `shadowDraws`; before it, nothing changes and the shadow draws
+ * everything).  Decided by the target each draw goes to:
+ *
+ * - the scene buffer, only on the frames the meter samples
+ *   (ThreeUi.isMeterFrame): the meter reads it back at their end;
+ * - the screen, never: nothing reads the shadow's (it's 1×1);
+ * - any other target, always: the caches drawn there are read again on
+ *   later frames (the Milky Way's march, the zodiacal light, the clouds'
+ *   history, the atmosphere's tables, the galaxies), and the metering
+ *   target itself.
+ *
+ * Three binds every target through `setRenderTarget`, its shadow maps and
+ * transmission pass too, so the switch sits there.
+ *
+ * @param {object} guest portal-netgl's guest context
+ * @param {object} renderer three's, on the guest's context
+ * @param {object} ui ThreeUi
+ */
+function meterOnly(guest, renderer, ui) {
+  const settable = Boolean(Object.getOwnPropertyDescriptor(guest, 'shadowDraws')?.set)
+  if (!settable) {
+    return
+  }
+  const bind = renderer.setRenderTarget.bind(renderer)
+  renderer.setRenderTarget = (target, ...rest) => {
+    guest.shadowDraws = shadowDrawsFor(target, ui._sceneRT, ui.isMeterFrame())
+    return bind(target, ...rest)
+  }
+  guest.shadowDraws = false
+}
+
+
 /** How high the camera stands, m. */
 const EYE_HEIGHT_M = 2
 /**
@@ -148,6 +184,8 @@ function start(origin) {
   c._schedulePermalinkUpdate = ignore
   if (!metering) {
     c.ui._meter = ignore
+  } else {
+    meterOnly(guest, renderer, c.ui)
   }
   const shrinkShadow = () => {
     // three keeps the size it was given; the shadow's own buffer goes back

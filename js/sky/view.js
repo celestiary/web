@@ -103,3 +103,21 @@ export function skyGain(alt) {
   }
   return t[t.length - 1][1]
 }
+
+
+/**
+ * Whether the sky guest's shadow draws into a target (sky.js meterOnly):
+ * the scene buffer on the frames the meter samples, the screen never, any
+ * other target (the caches read again later, the metering target) always.
+ *
+ * @param {?object} target the render target bound, null for the screen
+ * @param {?object} sceneTarget the scene buffer (ThreeUi._sceneRT)
+ * @param {boolean} meterFrame whether the meter samples the frame under way
+ * @returns {boolean} whether draws to the target run on the shadow
+ */
+export function shadowDrawsFor(target, sceneTarget, meterFrame) {
+  if (!target) {
+    return false
+  }
+  return target !== sceneTarget || meterFrame
+}

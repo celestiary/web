@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'bun:test'
 import {Vector3} from 'three'
-import {METERED_GAIN, fieldOf, landedQuaternion, skyGain, sunAltitude} from './view.js'
+import {METERED_GAIN, fieldOf, landedQuaternion, shadowDrawsFor, skyGain, sunAltitude} from './view.js'
 
 
 // The sky guest's view (design/SkyGuest.md): a host's equator-of-date
@@ -78,5 +78,19 @@ describe('the exposure from the Sun\'s altitude', () => {
       expect(skyGain(a)).toBeGreaterThanOrEqual(last)
       last = skyGain(a)
     }
+  })
+})
+
+
+describe('what the shadow draws while metering', () => {
+  it('the scene buffer on the meter\'s frames, the screen never, other targets always', () => {
+    const scene = {}
+    const cache = {}
+    expect(shadowDrawsFor(scene, scene, true)).toBe(true)
+    expect(shadowDrawsFor(scene, scene, false)).toBe(false)
+    expect(shadowDrawsFor(null, scene, true)).toBe(false)
+    expect(shadowDrawsFor(null, scene, false)).toBe(false)
+    expect(shadowDrawsFor(cache, scene, false)).toBe(true)
+    expect(shadowDrawsFor(cache, scene, true)).toBe(true)
   })
 })

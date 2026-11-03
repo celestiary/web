@@ -73,9 +73,24 @@ by GMST.
 - **By default the meter is celestiary's own.** It meters the frame, and
   the eye adapts as in the app.
   - The meter reads the scene's buffer back, so the guest's shadow
-    context must draw (portal-netgl's `shadowDraws: true`).
-  - So each frame costs its GPU work twice: once for the shadow, once for
-    the host's replay.
+    context must draw there (portal-netgl's `shadowDraws`).
+  - It draws only what the meter reads (`sky.js` `meterOnly`, on
+    portal-netgl 0.6.11's settable `shadowDraws`), by the target each draw
+    goes to:
+    - the scene buffer only on the frames the meter samples, one in four
+      (`ThreeUi.isMeterFrame`);
+    - the screen never (the shadow's is 1×1, and nothing reads it);
+    - every other target always: the caches drawn there are read again on
+      later frames (the Milky Way's march, the zodiacal light, the clouds'
+      history, the atmosphere's tables, the galaxies), as is the metering
+      target.
+  - So three frames in four cost their GPU work once, on the host, and the
+    fourth twice. On portal-netgl before 0.6.11 the shadow draws every
+    frame.
+  - The clouds' history is marched on the shadow every frame against a
+    scene depth that is up to three frames old there. It only feeds the
+    shadow's own meter, whose reading it can shift slightly in the volumetric
+    clouds.
   - Measured on the check host at 55.6° N, looking south 20° up:
     - gain 1 by day;
     - 3.7 at sunset, 340 at 8° below the horizon;
@@ -201,7 +216,4 @@ Run `yarn build` first, with `CESIUM_ION_TOKEN=` (CLAUDE.md).
     have;
   - NASA GIBS's daily clouds, which the sandbox can't reach.
 - **Left:**
-  - a portal-netgl switch to let the shadow draw only the frames the
-    meter samples (`MeterCadence`), which would take the meter's cost from
-    every frame to a few;
   - the host's pixel ratio below 1, for a cheaper sky on a slow GPU.
