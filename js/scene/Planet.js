@@ -533,6 +533,8 @@ export default class Planet extends Object {
       // share material via cacheMaterial — though that doesn't happen
       // today).
       surfaceMaterial.userData.uSunDirection = nightSunDirUniform
+      // And the map, for a page that draws no ground (the sky guest, js/sky/sky.js).
+      surfaceMaterial.userData.uNightMap = nightMapUniform
       shaderMods.push((shader) => {
         shader.uniforms.uNightMap = nightMapUniform
         shader.uniforms.uSunDirection = nightSunDirUniform
