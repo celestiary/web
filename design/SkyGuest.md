@@ -93,6 +93,36 @@ by GMST.
   - It is right on average, and wrong where the frame's content matters:
     the Moon in view, or the Sun's disc.
 
+## What it leaves out
+
+A host's numbers (exo's, on a laptop's GPU, 2026-11-03) showed where a guest's frame went.
+
+- **Earth's ground stays plain.** A host draws its own ground under the
+  sky, so the guest leaves out the surface's maps: colour, terrain, water,
+  normals and night lights. That was about 80 MB uploaded at load, and the
+  month's 34 MB colour map again each simulated month, at a host's fast
+  clock. Each crossed to the host as one frame's uploads, 45 to 91 MB,
+  stalling its frame 0.5 to 2.5 s.
+  - `sky.js` `plainGround` puts one 1×1 texture in their place, held in
+    the surface mesh's `onBeforeRender`. Held there because the planet hands
+    its stand-in map over to the real one, and the month's to the next,
+    inside the frame's own animation.
+  - The night lights' uniform is on the material's `userData.uNightMap`
+    for this (Planet.js).
+  - The atmosphere is the LUTs', not the ground's, so the sky is unchanged.
+  - The clouds stay: they are sky.
+- **The meter reads back synchronously** (ThreeUi's `meter=sync`, set by
+  `sky.js` unless the URL says otherwise):
+  - It reads into client memory, which portal-netgl keeps on the guest's
+    shadow, and the wait for the pixels stays in the guest's process.
+  - The pixel-pack buffer it reads through otherwise is replayed on the
+    host, where nothing reads it. Chrome then warns "READ-usage buffer was
+    written, then fenced, but written again before being read back" and
+    copies it for nothing, every metered frame.
+- **The host sets the rest:** the frame's size (exo: 0.6 of its CSS pixels
+  × the overscan) and how often it asks (exo: at most every 250 ms while
+  the head is still).
+
 ## Measuring it
 
 The guest's cost is in two places, and both are measured.

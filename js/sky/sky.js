@@ -1,4 +1,4 @@
-import {WebGLRenderer} from 'three'
+import {DataTexture, WebGLRenderer} from 'three'
 import {makeNetGLGuestContext, parentTransport} from '@pablo-mayrgundter/portal-netgl/core'
 import Celestiary from '../Celestiary.js'
 import useStore from '../store/useStore.js'
@@ -41,6 +41,60 @@ export const SKY_HELLO = Object.freeze({
   contracts: {alpha: 'opaque', color: 'display'},
   extent: {frame: 'equator-of-date', beyond: 'infinite'},
 })
+/**
+ * Earth's ground, plain: a host draws its own ground under the sky, so the
+ * guest needn't load or upload the surface's maps (colour, terrain, water,
+ * normals, night lights: about 80 MB, and 34 MB again each month at a
+ * host's fast clock), all of which crossed to the host as uploads that
+ * stalled its frame.  One 1×1 texture in their place, and none for the
+ * rest; the atmosphere is the LUTs', not the ground's.  Cheap when held.
+ *
+ * @param {object} c Celestiary
+ */
+function plainGround(c) {
+  const earth = c.scene.objects.earth
+  if (!earth) {
+    return
+  }
+  // Held at the draw itself: the planet hands its stand-in map over to the
+  // real one once that loads (standInMaps.js), and the month's after that,
+  // in the frame's own animation, after the view is applied.
+  earth.traverse((o) => {
+    if (o.name !== 'planet surface' || !o.material || o.userData.plainGround) {
+      return
+    }
+    o.userData.plainGround = true
+    const before = o.onBeforeRender
+    o.onBeforeRender = function(...args) {
+      plainMaterial(this.material)
+      return before.apply(this, args)
+    }
+    plainMaterial(o.material)
+  })
+}
+
+
+/**
+ * @param {object} m the surface's material
+ */
+function plainMaterial(m) {
+  let changed = m.map !== GROUND
+  m.map = GROUND
+  for (const k of ['bumpMap', 'normalMap', 'roughnessMap', 'metalnessMap']) {
+    changed ||= m[k] !== null
+    m[k] = null
+  }
+  if (m.userData.uNightMap && m.userData.uNightMap.value !== NO_LIGHTS) {
+    m.userData.uNightMap.value = NO_LIGHTS
+  }
+  if (changed) {
+    m.needsUpdate = true
+  }
+}
+const GROUND = new DataTexture(new Uint8Array([46, 52, 40, 255]), 1, 1)
+GROUND.needsUpdate = true
+const NO_LIGHTS = new DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1)
+NO_LIGHTS.needsUpdate = true
 /** How high the camera stands, m. */
 const EYE_HEIGHT_M = 2
 /**
@@ -70,8 +124,18 @@ function start(origin) {
   const guest = makeNetGLGuestContext({transport: meter.transport, messageChannel: 'stream', wire: 2,
     shadowDraws: metering})
   const renderer = new WebGLRenderer({context: guest.gl, canvas: guest.shadow.canvas, antialias: false})
-  // Not the homepage, and no Cesium: the sky is celestiary's own.
-  history.replaceState(null, '', `${location.pathname}${location.search}#sun`)
+  // Not the homepage, and no Cesium: the sky is celestiary's own.  And
+  // the meter reads its frame back synchronously (ThreeUi's `meter=sync`):
+  // into client memory, which portal-netgl keeps on this page's shadow.
+  // The pixel-pack buffer it reads through otherwise is replayed on the
+  // host, where nothing reads it (Chrome warns, 'READ-usage buffer was
+  // written, then fenced, but written again', and copies it for nothing),
+  // and the wait for the pixels stays in this page's process.
+  const search = new URLSearchParams(location.search)
+  if (metering && !search.has('meter')) {
+    search.set('meter', 'sync')
+  }
+  history.replaceState(null, '', `${location.pathname}?${search}#sun`)
   for (const body of ['earth', 'moon', 'mars']) {
     useStore.getState().setBodyLayer(body, 'default')
   }
@@ -119,6 +183,7 @@ function start(origin) {
         site = key
         c.scene.land('earth', o.lat, o.lon, (o.alt ?? 0) + EYE_HEIGHT_M, {instant: true})
       }
+      plainGround(c)
       targets.track = false
       targets.tween = null
       const cam = c.ui.camera
