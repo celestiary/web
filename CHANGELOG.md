@@ -37,6 +37,11 @@ open; not a polish or a lesser feature. **`Kind: fix` marks a fix**: something t
 wrong or a regression and now isn't; anything that adds or improves what you can see or do is a
 feature, the default. Featured and kind are independent: a major fix can be featured.
 
+## November 2026
+
+Behind the scenes: celestiary's own sky inside another app's world, the sky guest
+([#350](https://github.com/celestiary/web/pull/350)), first for exo.cafe's abode.
+
 ## October 2026
 
 ### Every credit in one small line along the bottom
