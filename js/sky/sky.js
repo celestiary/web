@@ -18,7 +18,7 @@ import {fieldOf, landedQuaternion, skyGain, sunAltitude} from './view.js'
 // view, its stars, Milky Way, planets, Moon, Sun, clouds and air, and ends
 // the frame.  The first host is exo.cafe's abode.
 //
-//   sky.html[?host=<origin>][&meter=0]
+//   sky.html[?host=<origin>][&meter=0][&perf=1|sync]
 //
 // The host's origin is found and checked as layer mode's (layer/origins.js),
 // and the control plane is layer mode's (layer/protocol.js) with the sky's
@@ -153,6 +153,19 @@ function start(origin) {
       c.setViewSize(w / pixelRatio, h / pixelRatio)
       shrinkShadow()
     },
+  })
+  // The host can ask for this page's perf snapshot (its passes, by
+  // js/perf; on with `perf=1` in this page's URL, which exo's `?sky_perf=1`
+  // passes on): the guest's own side of the cost, recording and its shadow's
+  // draws; the host times its replay itself.
+  guest.transport.onMessage((msg) => {
+    if (msg?.type !== 'sky:perf-request') {
+      return
+    }
+    const perf = window.perf
+    const snapshot = perf?.enabled ? JSON.parse(JSON.stringify(perf.snapshot())) :
+      {enabled: false, note: 'add perf=1 to sky.html (exo: ?sky_perf=1)'}
+    guest.transport.post({type: 'sky:perf', id: msg.id, snapshot: {...snapshot, lastFrame: served.state.last, metering}})
   })
   window.celestiarySky = {c, renderer, guest, origin, meter, served, metering}
 }

@@ -93,6 +93,27 @@ by GMST.
   - It is right on average, and wrong where the frame's content matters:
     the Moon in view, or the Sun's disc.
 
+## Measuring it
+
+The guest's cost is in two places, and both are measured.
+
+- **Celestiary's side.** This is the recording, plus the shadow's draws
+  while metering. `sky.html?perf=1` (or `perf=sync`) turns on the app's own
+  perf tool (`js/perf`, DESIGN.md [Perf overlay](../DESIGN.md#perf-overlay))
+  inside the guest. Its overlay is in the 1-pixel iframe, unseen, so a host
+  asks for the snapshot instead: it posts `{type: 'sky:perf-request', id}`
+  and gets back `{type: 'sky:perf', id, snapshot}`. The snapshot is the
+  Copy button's JSON, with the last frame's cost (`served.state.last`) and
+  whether it meters. `layer:stats` (layer mode's) reports the per-frame
+  cost about once a second, once subscribed.
+- **The host's side.** The host times its own replay. exo:
+  - `?sky_perf=1` passes `perf=1` on to the guest;
+  - it times each replay on the CPU, and with its GPU work (a 1-pixel read
+    after it, so in perf mode only);
+  - it records the frames' latency and the frames over 100 ms (with the
+    Sun's altitude and the head's turn rate);
+  - `await exo.abode.sky.perf()` returns both sides as one object to paste.
+
 ## The contract
 
 The sky's hello:
