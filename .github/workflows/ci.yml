@@ -88,7 +88,10 @@ jobs:
   # precommit`, which stays cheap.  (The static half, the first load's size,
   # is in precommit: `yarn bundle-check`.)
   load-budget:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest became 26.04 in November 2026, which Playwright
+    # 1.56 can't install Chromium's dependencies on.  Back to ubuntu-latest
+    # with a Playwright that supports it.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6.0.2
