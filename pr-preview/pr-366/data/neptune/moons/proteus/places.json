@@ -1,0 +1,13 @@
+{
+  "_attribution": "IAU Gazetteer of Planetary Nomenclature, USGS Astrogeology Science Center and the IAU Working Group for Planetary System Nomenclature (WGPSN); planetarynames.wr.usgs.gov. Public domain.",
+  "_body": "proteus",
+  "_source": "https://asc-planetarynames-data.s3.us-west-2.amazonaws.com/PROTEUS_nomenclature_center_pts.zip",
+  "_sourceModified": "2026-10-09",
+  "_newestApproval": "1994-01-01",
+  "_generator": "tools/places/build.mjs",
+  "_lngConvention": "east-positive (+E), -180..+180",
+  "_latConvention": "planetocentric",
+  "places": [
+    {"n": "Pharos", "t": 0, "lat": 0, "lng": 0, "k": "crater"}
+  ]
+}
