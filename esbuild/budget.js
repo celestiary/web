@@ -41,8 +41,9 @@ export const STATIC_BUDGET = {
   // split the first load into 16 files; Cesium's credits timed to the ion
   // logo, CesiumLayers bingShown and credits.js keepsLogo; and Gaia tiles'
   // class counts, starTile.js).  The dialog and its facts are a chunk of
-  // their own.  2,377.3, so 2,379, with the Sun's activity view (js/scene/Sun.md,
-  // "The activity view": 10 KB minified, 3.5 KB gzipped): the EUV imager's and
+  // their own.  2,379 with the Sun's activity view (js/scene/Sun.md, "The
+  // activity view": 12 KB minified, 5 KB gzipped, 739 to 744, its filaments
+  // included; no room is left under either limit): the EUV imager's and
   // the coronagraph's branches of the photosphere's and the corona's
   // shaders, which are one program each with the white-light picture, so
   // not a chunk of their own; the erupting prominences and the flares'
