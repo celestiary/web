@@ -292,6 +292,12 @@ export default class Scene {
     this.loadRubin = () => import('./rubin/install.js')
     // The Suntan feature, the same way (getSuntan).
     this.loadSuntan = () => import('./suntan/install.js')
+    // A sky survey's imagery over the stars from the start, by its key: the
+    // `?sky=` parameter (sky/Sky.md), until the surveys have a control.
+    const sky = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('sky')
+    if (sky) {
+      this.showSky(sky)
+    }
     // Whether vsopAt is VSOP87C itself yet (Animation.vsopReady): set by
     // Celestiary.  Absent, as in tests, it's taken as ready.
     this.vsopReady = null
@@ -2839,6 +2845,7 @@ export default class Scene {
   /** Out of the seat (rideSeat), the camera staying where it is. */
   leaveSeat() {
     this.seat = null
+    this.seatAim = null
   }
 
 
@@ -3597,6 +3604,19 @@ export default class Scene {
       dataUrl, addCredit, removeCredit,
     })
     return this.rubin
+  }
+
+
+  /**
+   * A sky survey's imagery (HiPS tiles, sky/Sky.md) drawn over the stars,
+   * by its key (`jwst-nircam`): lazily loaded.
+   *
+   * @param {string} key
+   * @returns {Promise<?object>} The layer, or null for a key no survey has
+   */
+  async showSky(key) {
+    const {showSurvey} = await import('./sky/install.js')
+    return showSurvey(this, key, {sceneReferred, addCredit, removeCredit})
   }
 
 

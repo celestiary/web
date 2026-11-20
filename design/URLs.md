@@ -914,8 +914,9 @@ brings back all of the first group.
 - the widgets drawer, the dock, the apps pinned and running, and each app's
   controls and run (`apps`, `apps.<id>`);
 - the optional layers switched on: New York's city (`layers:nyc`);
-- the page's query string (`?hdr=0`, `?perf=1`), kept when the address bar
-  is rewritten.
+- the page's query string (`?hdr=0`, `?perf=1`, and `?sky=<key>`, a sky
+  survey's imagery over the stars: js/scene/sky/Sky.md), kept when the
+  address bar is rewritten.
 
 **Added with this audit:** `time:`, `sm=`, `T`, and the telescope-safe `fov=`.  `F` followed ([#102](https://github.com/celestiary/web/issues/102)).
 

@@ -279,6 +279,19 @@ unpinned, removes them (`Scene.removeRubin`).
   place of the stare ([below](#cadence)), and two lines more in the
   readout: the visit (n of N, its filter, or slewing to it) and the time
   to the next visit of 2026 ED138's field, each marked "(modelled)".
+- **Rubin's image**: the switch for Rubin's public imagery on the sky
+  ([below](#the-imagery)), and with it on a button for each field that can
+  be shown: the discovery field, the Virgo Cluster, and the Trifid and
+  Lagoon while CDS serves them (`install.js` `newImageSwitch` `fields()`,
+  in the lazy code: each field's direction through the stars' frame and
+  the field of view that frames it, 2° and the camera's 3.5°; CDS's
+  `properties` asked once says whether its field is offered).  A button
+  turns the view there over the look tween (`goToField`), out of the
+  cadence's ride and off tracking, which would both turn it back, and
+  where the camera is landed and the field is under the horizon it says
+  so under the buttons, since the ground is then in the way.  The buttons
+  are the way to the fields: the image is on the sky wherever the camera
+  is, whatever is targeted.
 - **The dome and the building**: the shell switch (`setShell`).
 - **Its path on the sky**: the switch for the arc.
 
@@ -421,7 +434,11 @@ Rubin doesn't stare at one object: it surveys the sky in visits, and the
 pipeline finds a moving object by linking its detections across them.
 The *Survey cadence* switch (`cadence=1` in `apps.rubin`, off by default:
 the stare stays the app's first look) has the telescope keep a survey
-night instead, **a model of one, not Rubin's log**.
+night instead, **a model of one, not Rubin's log**.  When the visit's
+field holds Rubin's public imagery (the First Look's coverage, or the
+discovery image's footprint), the readout says so: "Rubin's image covers
+this field: First Look, the Trifid and Lagoon nebulae"
+([js/scene/sky/Sky.md, in the Rubin app](../sky/Sky.md#in-the-rubin-app)).
 
 **What is real, and what is modelled.**
 
@@ -560,6 +577,15 @@ the object, tracked, at 256×.
 "Rubin's image", a switch in the app (off by default, `apps.rubin:image=1`;
 [#333](https://github.com/celestiary/web/issues/333)), lays the discovery
 image over the field it was taken of, on the sky where its stars are.
+
+With it, the switch turns on **Rubin's First Look** (23 June 2025), drawn
+by the general sky-imagery layer
+([js/scene/sky/Sky.md](../sky/Sky.md); [#360](https://github.com/celestiary/web/issues/360)):
+the Virgo Cluster from Rubin's own tiles (its SkyViewer's, 24 deg²), and
+the Trifid and Lagoon nebulae from CDS's HiPS, which answered 404 when
+this went in (Sky.md, "Surveys"); each one's credit in the footer while
+its tiles are drawn.  The two layers share
+the tile material (`sky/tileMaterial.js`).
 
 **Source and licence.**  NOIRLab's composite
 [noirlab2626d](https://noirlab.edu/public/images/noirlab2626d/): the 30
