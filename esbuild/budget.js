@@ -53,8 +53,10 @@ export const STATIC_BUDGET = {
   // minified; the schedule and the fields' drawing are in the lazy Rubin
   // chunk) and the seat's aim (#332: Scene.rideSeat's `aim` and the panel
   // riding the telescope's pointing on the cadence, half a KB, Scene and
-  // the panel both first load), 2,371.
-  totalMinifiedKB: 2371,
+  // the panel both first load), 2,371.  With the camera turning with a
+  // body low over its ground (#344: Scene _syncSpin, _hungOn,
+  // linkCameraQuaternion), 2,372.
+  totalMinifiedKB: 2372,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,

@@ -3438,7 +3438,7 @@ export default class Celestiary {
       ...encodeAppTokens(this.useStore.getState().widgets),
     }
     return encodePermalink(
-        path, d2000, lat, lng, alt, cam.quaternion, cam.fov, settings, tokens, from,
+        path, d2000, lat, lng, alt, this.scene.linkCameraQuaternion?.() ?? cam.quaternion, cam.fov, settings, tokens, from,
         this.ui.exposureCompensation(), this.ui.starMagnitudeOffset())
   }
 

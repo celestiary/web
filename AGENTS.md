@@ -355,9 +355,11 @@ tried and dropped.
   `python3 -m http.server` doesn't send, so answer it in `page.route` through
   `route.fetch`.  Low over the ground Earth's layer stays warming on
   SwiftShader: set `c.ui.layers.bodies.earth.shown = true` to draw it.  Pause
-  the clock (`;time:pause`): running, the view drifted off the island (the
-  rewritten link's longitude moved 0.2° west in 45 s), and a city out of view never finishes its staged set-up (it replays only
-  in frames that draw it).  The city takes 2.5 to 3.5 minutes at 800x500.
+  the clock (`;time:pause`) for frames that repeat.  Before the camera
+  turned with Earth below 30 km (DESIGN.md [follow](DESIGN.md#follow)), a
+  running view drifted off the island (the rewritten link's longitude moved
+  0.2° west in 45 s), and a city out of view never finishes its staged
+  set-up (it replays only in frames that draw it).  The city takes 2.5 to 3.5 minutes at 800x500.
 - **Cesium is patched on install** (`patches/`, applied by patch-package
   from `postinstall`; [CESIUM.md](CESIUM.md#patching-cesium)).  A fix to
   Cesium goes on a branch of celestiary/cesium with its Cesium specs, then
