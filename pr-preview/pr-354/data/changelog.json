@@ -22,7 +22,7 @@
         "title": "The Rubin Observatory and 2026 ED138",
         "url": "https://github.com/celestiary/web/issues/321"
       },
-      "permalink": "#sun@0,-90,23.604464Gm;t=9630.708805jd;cq=0,0,0,1;fov=3.5deg;s=F;time:pause;apps:open,view=rubin;apps.rubin:cadence=1",
+      "permalink": "#sun/ed138@-30.2446,-70.7494,2.684km;from=sun/earth;t=9630.783523jd;cq=-0.1325,0.8944,0.4018,-0.1454;fov=30deg;s=LTF;time:pause;apps:open,view=rubin;apps.rubin:optics=0,cadence=1",
       "image": null,
       "featured": true
     },
