@@ -1,8 +1,11 @@
 import ColonizationApp from './ColonizationApp'
 import RubinApp from './RubinApp'
+import SuntanApp from './SuntanApp'
 import {EXPANSION_APP_ID} from '../store/ColonizationSlice'
 import {RUBIN_APP_ID} from '../store/rubinApp'
+import {SUNTAN_APP_ID} from '../store/suntanApp'
 import RocketIcon from '@mui/icons-material/RocketLaunchOutlined'
+import SunIcon from '@mui/icons-material/WbSunnyOutlined'
 import TelescopeIcon from '@mui/icons-material/TravelExploreOutlined'
 
 
@@ -32,6 +35,14 @@ export const APPS = [
     Icon: TelescopeIcon,
     Panel: RubinApp,
     stop: (celestiary) => celestiary.scene.removeRubin(),
+  },
+  {
+    id: SUNTAN_APP_ID,
+    name: 'Suntan',
+    description: 'A concept mission to the Sun\'s surface on Parker Solar Probe\'s path, with its sensors',
+    Icon: SunIcon,
+    Panel: SuntanApp,
+    stop: (celestiary) => celestiary.scene.removeSuntan(),
   },
 ]
 

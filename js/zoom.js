@@ -12,12 +12,19 @@ export const GROUND_CLEARANCE_M = 1
  * from Earth's surface ('1') looks at the Moon; the camera is still on
  * Earth.  Falls back to the target (e.g. at a star).
  *
+ * A craft the camera rides (a Suntan craft's node, `isCraftNode`, with its
+ * own `props.radius`) is its own: zoom eases in to it, where its body's
+ * radius (the Sun's) held the camera hundreds of thousands of kilometres off.
+ *
  * @param {object|null} platformParent The camera platform's parent
  * @param {object|null} cur The body last gone to or landed on
  * @param {object|null} target The looked-at body
  * @returns {object|null}
  */
 export function homeBody(platformParent, cur, target) {
+  if (platformParent?.isCraftNode && platformParent.props?.radius) {
+    return platformParent
+  }
   if (cur && platformParent && (cur === platformParent || cur.orbitPosition === platformParent)) {
     return cur
   }

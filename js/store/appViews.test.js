@@ -1,6 +1,9 @@
 import {describe, expect, it} from 'bun:test'
 import {APP_VIEWS} from './appViews.js'
 import {DEFAULT_RUBIN, RUBIN_APP_ID} from './rubinApp.js'
+import {SUNTAN_APP_ID} from './suntanApp.js'
+import SearchIndex from '../search/SearchIndex.js'
+import ViewsProvider from '../search/providers/ViewsProvider.js'
 
 
 describe('APP_VIEWS', () => {
@@ -20,5 +23,22 @@ describe('APP_VIEWS', () => {
     view.open({ui: {useStore: store}})
     expect(actions[0]).toEqual({type: 'openApp', id: RUBIN_APP_ID})
     expect(actions[1]).toEqual({type: 'appState', id: RUBIN_APP_ID, appState: {...DEFAULT_RUBIN, watch: true}})
+  })
+
+  it('has the Suntan app, which opens it, findable by its name from the start', () => {
+    const view = APP_VIEWS.find((v) => v.id === 'suntan')
+    expect(view.name).toMatch(/Suntan/)
+    expect(view.target).toBe('sun')
+    const actions = []
+    view.open({ui: {useStore: {getState: () => ({dispatchWidgets: (a) => actions.push(a)})}}})
+    expect(actions).toEqual([{type: 'openApp', id: SUNTAN_APP_ID}])
+  })
+
+  it('finds the Suntan app by its name and by Parker', async () => {
+    const idx = new SearchIndex()
+    idx.register(new ViewsProvider(APP_VIEWS))
+    await idx.ensureReady()
+    expect(idx.query('suntan')[0].entry.id).toBe('view:suntan')
+    expect(idx.query('parker solar probe')[0].entry.id).toBe('view:suntan')
   })
 })

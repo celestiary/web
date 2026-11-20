@@ -1087,7 +1087,7 @@ the layers control, offered over Manhattan with Earth's Cesium layer active;
 `layers:nyc` in the permalink, and `?nyc=1` as before.
 
 ```
-celestiary (three.js 0.171)              the host
+celestiary (three.js 0.187)              the host
   ← Earth's link (makeNetGLImmediateLink, CesiumLayers._createWidget)
 Cesium (Earth's widget, NetGL guest)     its context._gl is a NetGL recorder
   ← the city's link (newYorkGuest.js), replaying into that recorder
@@ -1161,7 +1161,7 @@ recorder, which interns them as it does its own.
   `https://pablo-mayrgundter.github.io/slop-newyork/` (its main), with
   `js/guest-entry.mjs` and `js/guest-cesium.mjs`.  Not bundled: it's a
   separate app with its own release cycle, on three.js's dev build (its
-  WebGPURenderer and TSL), where celestiary bundles three 0.171; bundling
+  WebGPURenderer and TSL), where celestiary bundles three 0.187; bundling
   it would put two three.js builds and the city's modules in celestiary's
   build to version by hand.  The guest is native ES modules (slop-newyork's
   since its upstream merge, [PR #2](https://github.com/pablo-mayrgundter/slop-newyork/pull/2);
