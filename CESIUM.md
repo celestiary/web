@@ -1162,11 +1162,16 @@ recorder, which interns them as it does its own.
   `js/guest-entry.mjs` and `js/guest-cesium.mjs`.  Not bundled: it's a
   separate app with its own release cycle, on three.js's dev build (its
   WebGPURenderer and TSL), where celestiary bundles three 0.187; bundling
-  it would put two three.js builds and the city's 20 scripts in
-  celestiary's build to version by hand.  The guest's modules import three
-  by bare names, so `public/index.html` has an import map for `three`,
-  `three/webgpu`, `three/tsl` and `three/addons/`, to jsDelivr pinned at a
-  three.js commit (not `@dev`, which would change under production).
+  it would put two three.js builds and the city's modules in celestiary's
+  build to version by hand.  The guest is native ES modules (slop-newyork's
+  since its upstream merge, [PR #2](https://github.com/pablo-mayrgundter/slop-newyork/pull/2);
+  classic scripts on `window.NYC` before) that import three by bare names,
+  so `public/index.html` and `public/cesium-guest.html` have an import map
+  for `three`, `three/webgpu`, `three/tsl` and `three/addons/`, to jsDelivr
+  pinned at a three.js commit (not `@dev`, which would change under
+  production): the commit slop-newyork's own `index.html` pins, which the
+  city is written against.  When slop-newyork moves its pin, move these
+  with it (8b92052 since that merge).
   Celestiary's own bundle imports nothing by name, so the map is inert
   until the city loads.  The browser warns "Multiple instances of Three.js
   being imported" then: by design, the city's three is its own.
