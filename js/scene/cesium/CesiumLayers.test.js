@@ -851,18 +851,45 @@ describe('a guest page\'s late frames, corrected (portal-netgl 0.6.10)', () => {
     const post = () => {
       body.waiting = null
       L.guests.postViews([{name: 'earth', node}])
+      // A difference of two sums on the page's clock: within its rounding.
       return body.holdUntil - body.postedAt
     }
     // No frame in yet, or one without its view and projection: the long wait.
-    expect(post()).toBe(L.guestWaitUncorrectedMs)
+    expect(post()).toBeCloseTo(L.guestWaitUncorrectedMs, 6)
     // A frame that can be corrected: the short one.
     L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 1,
       viewMatrix: L._ecefViewMatrix('earth', node), projectionMatrix: [1, 0, 0, 0, 0, 1.6, 0, 0, 0, 0, -1, -1, 0, 0, -2, 0]})
-    expect(post()).toBe(L.guestWaitMs)
+    expect(post()).toBeCloseTo(L.guestWaitMs, 6)
     expect(L.guestWaitMs).toBeLessThan(L.guestWaitUncorrectedMs)
     // Off: the long one again.
     L.guestReproject = false
-    expect(post()).toBe(L.guestWaitUncorrectedMs)
+    expect(post()).toBeCloseTo(L.guestWaitUncorrectedMs, 6)
+  })
+
+  it('a late frame\'s distances decode by its own view\'s scale', () => {
+    const {L} = setup()
+    const body = {remote: true, distanceScale: 4e4, drainedView: {distanceScale: 9e4}}
+    expect(L._frameDistanceScale(body)).toBe(9e4)
+    // On the page, or before any frame: the posted scale.
+    expect(L._frameDistanceScale({distanceScale: 4e4})).toBe(4e4)
+    expect(L._frameDistanceScale({remote: true, distanceScale: 4e4, drainedView: null})).toBe(4e4)
+  })
+
+  it('remembers each posted view\'s distance scale, and which one a day frame drained', () => {
+    const {L, node} = setup()
+    L._viewOf = () => ({size: [480, 300], heightM: 2e7, distanceScale: 7e5, position: [1, 2, 3]})
+    const body = {name: 'earth', status: 'ready', remote: true, iframe: {style: {}}, waiting: null, holdUntil: 0,
+      receiver: {post: () => {}}}
+    L.bodies.earth = body
+    L.guests.postViews([{name: 'earth', node}])
+    const id = body.posted
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: id})
+    expect(body.drainedView).toEqual({distanceScale: 7e5})
+    // The lights part leaves it; a frame of an unknown view clears it.
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: id, part: 'emission'})
+    expect(body.drainedView.distanceScale).toBe(7e5)
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 99999})
+    expect(body.drainedView).toBe(null)
   })
 
   it('the lights part is \'emission\' (GUEST_VERSION 3) or \'lights\' (before)', () => {
