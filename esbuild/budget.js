@@ -41,10 +41,12 @@ export const STATIC_BUDGET = {
   // split the first load into 16 files; Cesium's credits timed to the ion
   // logo, CesiumLayers bingShown and credits.js keepsLogo; and Gaia tiles'
   // class counts, starTile.js).  The dialog and its facts are a chunk of
-  // their own.  2,367 and a fraction with a late Cesium guest frame's
-  // distance scale (#344: GuestPages _sent, CesiumLayers
-  // _frameDistanceScale), so a KB of room.
-  totalMinifiedKB: 2368,
+  // their own.  2,367 with a body opened by its path below the Sun (#336:
+  // Loader fullPath, _descriptor and _pathOf, Celestiary _loadBody's full
+  // path, under a KB), at the limit, so a KB of room; with a late Cesium guest
+  // frame's distance scale (#344: GuestPages _sent, CesiumLayers
+  // _frameDistanceScale) 2,368 and a fraction, so a KB of room again.
+  totalMinifiedKB: 2369,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
