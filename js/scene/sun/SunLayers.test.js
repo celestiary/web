@@ -1,6 +1,8 @@
 import {describe, expect, it} from 'bun:test'
 import {SUN_DISC_RADIANCE} from '../exposure.js'
-import {VISIBLE_FLOOR, offDiscBrightest, viewFieldWeight, visibleRadius} from './SunLayers.js'
+import SunLayers, {VISIBLE_FLOOR, offDiscBrightest, viewFieldWeight, visibleRadius} from './SunLayers.js'
+import {EUV_VIEW, VIEW_EUV, VIEW_EYE} from './activityView.js'
+import {MAX_FILAMENTS} from './limits.js'
 import {CORONA_RADII} from './sun-shaders.js'
 import {newSolarWind, parkerLag} from './SolarWind.js'
 
@@ -30,6 +32,44 @@ describe('the activity view\'s field', () => {
     expect(viewFieldWeight(20)).toBeCloseTo(0.5, 6)
     expect(viewFieldWeight(32)).toBe(1)
     expect(viewFieldWeight(500)).toBe(1)
+  })
+})
+
+
+describe('the view the layers are drawn in', () => {
+  const star = () => ({props: {radius: {scalar: 6.957e8}}, color: [1, 1, 1], teff: 5772})
+
+  it('is the eye\'s unless asked, and switches the disc\'s and the corona\'s shaders together', () => {
+    const layers = new SunLayers(star(), {activity: true})
+    const disc = layers.photosphereUniforms()
+    const corona = layers.corona.material.uniforms
+    expect(layers.view).toBe(VIEW_EYE)
+    expect(disc.uEuv.value).toBe(0)
+    expect(corona.uView.value.x).toBe(0)
+    layers.setView(VIEW_EUV)
+    expect(layers.view).toBe(VIEW_EUV)
+    expect(disc.uEuv.value).toBe(1)
+    expect(corona.uView.value.x).toBe(1)
+    layers.setView('x-ray')
+    expect(layers.view).toBe(VIEW_EYE)
+    expect(disc.uEuv.value).toBe(0)
+    expect(corona.uView.value.x).toBe(0)
+  })
+
+  it('starts in the view it is given, with the view\'s levels in the uniforms', () => {
+    const layers = new SunLayers(star(), {activity: true, view: VIEW_EUV})
+    const disc = layers.photosphereUniforms()
+    expect(disc.uEuv.value).toBe(1)
+    expect(disc.uEuvLevels.value.toArray()).toEqual([EUV_VIEW.plage, EUV_VIEW.filament, EUV_VIEW.limb, EUV_VIEW.white])
+    expect(disc.uFilamentCentre.value.length).toBe(MAX_FILAMENTS)
+    expect(layers.corona.material.uniforms.uRadialRef.value.length).toBe(16)
+  })
+
+  it('gives a star without activity the view\'s disc and no corona', () => {
+    const layers = new SunLayers(star(), {activity: false, view: VIEW_EUV})
+    expect(layers.corona).toBeUndefined()
+    expect(layers.photosphereUniforms().uEuv.value).toBe(1)
+    expect(layers.photosphereUniforms().uRegionMode.value).toBe(0)
   })
 })
 
