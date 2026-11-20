@@ -127,7 +127,10 @@ export const RUNTIME_BUDGET = {
   // After #259's star tiers (2026-10-20): 26 requests, 925 KB (the
   // catalogue's bright tier is 157 KB of it).  After #258: 25 requests,
   // 2,614 KB (stars.dat was 1,848 KB of it).  Before it: 81, 2,859 KB.
-  ready: {requests: 28, kb: 1020},
+  // With three.js 0.187 (#366) main measured 1,015 to 1,019 KB from run to
+  // run here, and #364's pivot took a CI run to 1,021.8: 1,024 KB, for the
+  // runs' spread.
+  ready: {requests: 28, kb: 1024},
   // After #259: 39 requests, 3,918 KB.  Raised from #258's 29 requests:
   // the catalogue's faint tiers are 12 packs where stars.dat was one file,
   // by design (a deep link needs only its field's; DESIGN.md "The star
