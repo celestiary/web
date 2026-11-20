@@ -109,7 +109,8 @@ like #sun/earth does, as do #earth/moon, #mars and the rest.
 Behind the scenes: celestiary's own sky inside another app's world, the sky guest
 ([#350](https://github.com/celestiary/web/pull/350)), first for exo.cafe's abode, and with its shadow drawing
 only the metered frames on portal-netgl 0.6.11 ([#351](https://github.com/celestiary/web/pull/351)); and in
-Cesium's iframe mode, a late frame's distances read as it drew them ([#352](https://github.com/celestiary/web/pull/352)).
+Cesium's iframe mode, a late frame's distances read as it drew them ([#352](https://github.com/celestiary/web/pull/352)); and
+three.js 0.187, from 0.171 ([#366](https://github.com/celestiary/web/pull/366)).
 
 ## October 2026
 
