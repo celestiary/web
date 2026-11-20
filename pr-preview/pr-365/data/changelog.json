@@ -23,6 +23,52 @@
         "url": "https://github.com/celestiary/web/issues/321"
       },
       "permalink": "#sun/ed138@-30.2446,-70.7494,2.684km;from=sun/earth;t=9630.583333jd;cq=0.1938,0.97,-0.093,-0.1132;fov=3.5deg;s=LF;time:pause;apps:open,view=rubin;apps.rubin:optics=0,image=1",
+      "image": null
+    },
+    {
+      "id": "2026-11-20-zooming-out-after-leaving-a-planet-s-orbit",
+      "date": "2026-11-20",
+      "headline": "Zooming out after leaving a planet's orbit stays near the planet",
+      "text": "After f turned following off, one scroll of the wheel threw the camera millions of kilometres out, and dragging swung it round the Sun. The zoom and the drag now turn about the body you're looking at, so you can fly freely near it.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 364,
+          "url": "https://github.com/celestiary/web/pull/364"
+        },
+        {
+          "kind": "issue",
+          "number": 361,
+          "url": "https://github.com/celestiary/web/issues/361"
+        }
+      ],
+      "epic": {
+        "number": 118,
+        "title": "Navigation, time and sharing",
+        "url": "https://github.com/celestiary/web/issues/118"
+      },
+      "permalink": null,
+      "image": null,
+      "kind": "fix"
+    },
+    {
+      "id": "2026-11-20-fly-a-concept-mission-to-the-sun-s-surface-and",
+      "date": "2026-11-20",
+      "headline": "Fly a concept mission to the Sun's surface, and read its sensors",
+      "text": "The new Suntan app in the drawer follows Parker Solar Probe's seven Venus flybys to the Sun, settles a relay into an orbit that turns with the Sun's surface and drops a lander to the photosphere. Step through the mission's events, find and ride either craft, and read its simulated sunlight, temperatures, solar wind and magnetic field as it goes. Search for \"Suntan\" to open it, from the homepage too.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 363,
+          "url": "https://github.com/celestiary/web/pull/363"
+        }
+      ],
+      "epic": {
+        "number": 120,
+        "title": "Missions and models",
+        "url": "https://github.com/celestiary/web/issues/120"
+      },
+      "permalink": "#sun@65,-90,328.421067Gm;t=9979.535155jd;cq=-0.5373,0,0,0.8434;fov=45deg;s=F;time:pause;apps:open,view=suntan",
       "image": null,
       "featured": true
     },
