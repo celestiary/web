@@ -55,8 +55,10 @@ export const STATIC_BUDGET = {
   // riding the telescope's pointing on the cadence, half a KB, Scene and
   // the panel both first load), 2,371.  With the camera turning with a
   // body low over its ground (#344: Scene _syncSpin, _hungOn,
-  // linkCameraQuaternion), 2,372.
-  totalMinifiedKB: 2372,
+  // linkCameraQuaternion), 2,372.  With a camera left behind turning about
+  // its target (#361: Scene pivotBody, ThreeUi _updatePivot, dragControls
+  // getPivot), 2,372 and a fraction, so 2,373.
+  totalMinifiedKB: 2373,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,

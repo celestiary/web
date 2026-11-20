@@ -3158,6 +3158,33 @@ export default class Scene {
 
 
   /**
+   * The body the zoom and the orbit drag turn about when the camera has
+   * been left behind (ThreeUi._updatePivot, #361): following is off, the
+   * camera isn't landed or at a star, and the target is a body other than
+   * the frame's (the one just left, or one targeted since).  Null
+   * otherwise, and they turn about the platform's origin, the body the
+   * camera rides.
+   *
+   * @returns {?object}
+   */
+  pivotBody() {
+    if (Shared.targets.follow || Shared.targets.landed || Shared.targets.tween?.travels) {
+      return null
+    }
+    const platform = this.ui.camera.platform
+    if (!platform.parent || platform.parent === this._starAnchor) {
+      return null
+    }
+    const target = Shared.targets.obj
+    if (!target || target === Shared.targets.cur || !(target.props?.radius?.scalar > 0) ||
+        target.isSatelliteNode || !target.parent) {
+      return null
+    }
+    return target
+  }
+
+
+  /**
    * @returns {Quaternion} The camera's rotation in the frame a link's `cq`
    *   is in: its platform's, but the orbit's while it rides the body's
    *   spinning node (`_syncSpin`), so a link written low over the ground
