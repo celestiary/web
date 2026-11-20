@@ -69,6 +69,26 @@ function farAlong(obs, localDir) {
 
 
 describe('RubinObservatory', () => {
+  it('on the survey\'s cadence, by night, points at the visit\'s field and hides the beam while slewing', () => {
+    const {earth, body} = world(0)
+    let visit = {el: 55, az: 120, slewing: false}
+    const obs = new RubinObservatory({earth, deps, body: () => body, newModel: stubModel, cadence: () => visit})
+    body.position.copy(farAlong(obs, new Vector3(0, 1, -1))).sub(earth.parent.position)
+    obs.update(2461175.5)
+    expect(obs.state.cadence).toBe(true)
+    expect(obs.state.el).toBe(55)
+    expect(obs.state.az).toBe(120)
+    expect(obs.model.azimuth.rotation.y).toBeCloseTo(-120 * Math.PI / 180, 9)
+    expect(obs.model.elevation.rotation.x).toBeCloseTo(-35 * Math.PI / 180, 9)
+    expect(obs.model.beam.visible).toBe(true)
+    visit = {el: 50, az: 121, slewing: true}
+    obs.update(2461175.5)
+    expect(obs.model.beam.visible).toBe(false)
+    // Without a time, or off, it follows the body.
+    obs.update()
+    expect(obs.state.cadence).toBeUndefined()
+  })
+
   it('stands at the site on Earth\'s spun node, in the local frame, at the site\'s height until the terrain is known', () => {
     const {earth, body} = world(0)
     const obs = new RubinObservatory({earth, deps, body: () => body, newModel: stubModel})

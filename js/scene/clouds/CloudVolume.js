@@ -284,7 +284,7 @@ export default class CloudVolume {
       eye: this._eye.clone(), sun: this._sun.clone(), viewToBody: this._viewToBody.clone(), proj: u.uProj.value.clone(),
       opacity: share, map: this.cloudMap.texture?.version ?? 0, width: w, height: h, atmosphere,
     }
-    const still = Boolean(prev) && Boolean(this._anchor) && inputsUnchanged(this._anchor, inputs)
+    const still = Boolean(prev) && Boolean(this._anchor) && inputsUnchanged(this._anchor, inputs, prev)
     this._history = historyFrames(this._history, !still, Boolean(prev))
     if (!still) {
       this._anchor = inputs
@@ -358,16 +358,23 @@ export function historyFrames(frames, changed, hasHistory) {
 /**
  * Whether the march's inputs are the same view: the eye and the Sun in the
  * body frame, the camera's rotation and projection, the volume's share,
- * the map and the target, within what a frame can't show.  The anchor is
- * the run's first frame, so a slow drift (the Sun at real time, 0.75″ a
- * frame at 20 fps) accumulates until it adds up to the tolerance, and a
- * creeping camera doesn't average a blurred history.
+ * the map and the target, within what a frame can't show.  The eye and the
+ * rotation are held to the run's first frame (the anchor), so a creeping
+ * camera doesn't average a blurred history.  The Sun is held to the frame
+ * before: at real time it drifts 15″ a second in the body frame (0.75″ a
+ * frame at 20 fps), which ended every still run after a second or two and
+ * dropped the history to MOVING_FRAMES (the clouds' flicker with time
+ * running, #344).  Held frame to frame, the converged history lags the Sun
+ * by its drift over STILL_FRAMES (at real time and 20 fps, 1.6′), which no
+ * frame can show; time run fast (from about 25× at 20 fps) still changes
+ * the view.
  *
  * @param {object} a The still run's first inputs
  * @param {object} b This frame's
+ * @param {object} [prev] The frame before's (a, if not given)
  * @returns {boolean}
  */
-export function inputsUnchanged(a, b) {
+export function inputsUnchanged(a, b, prev = a) {
   if (a.width !== b.width || a.height !== b.height || a.opacity !== b.opacity || a.map !== b.map || !a.proj.equals(b.proj)) {
     return false
   }
@@ -376,7 +383,7 @@ export function inputsUnchanged(a, b) {
       a.atmosphere.multiScatter !== b.atmosphere.multiScatter) {
     return false
   }
-  if (a.eye.distanceTo(b.eye) > STILL_EYE_M || a.sun.distanceTo(b.sun) > STILL_SUN_RAD) {
+  if (a.eye.distanceTo(b.eye) > STILL_EYE_M || prev.sun.distanceTo(b.sun) > STILL_SUN_RAD) {
     return false
   }
   const ea = a.viewToBody.elements
@@ -432,7 +439,11 @@ export const STILL_FRAMES = 128
 export const CLIP_GAMMA = 1.25
 /** The frames of a texel's history over which the resolve's spatial filter fades out (RESOLVE_FRAG). */
 export const SPATIAL_FADE_FRAMES = 16
-/** What a still run tolerates, over its whole span: the eye (m), the Sun (rad), the rotation (a matrix element). */
+/**
+ * What a still run tolerates: the eye (m) and the rotation (a matrix
+ * element) over its whole span, the Sun (rad) from one frame to the next
+ * (inputsUnchanged).
+ */
 export const STILL_EYE_M = 0.02
 export const STILL_SUN_RAD = 1.0e-4
 export const STILL_ROTATION = 2.0e-5

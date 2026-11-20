@@ -14,7 +14,10 @@ and a body in the Sun's system.
 | `rubinModel.js` | The dome, enclosure and telescope from primitives, in metres |
 | `RubinObservatory.js` | The model on Earth's ground, turned each frame to follow the body |
 | `ApparentPath.js` | The body's apparent path on Earth's sky over the run, the months named, a ring at the clock's time |
-| `install.js` | Builds both in the scene (`Scene.getRubin`), a dynamic import |
+| `install.js` | Builds both in the scene (`Scene.getRubin`), a dynamic import, and the image's switch |
+| `RubinImage.js`, `wcs.js` | Rubin's image on the sky: the tile layer, and the TAN WCS it's placed by ("The imagery") |
+| `public/data/rubin/noirlab2626d.json` | The image's manifest: tiles, levels, credit, licence, WCS |
+| `../../../tools/rubin/` | `solveWcs.py` (the WCS fitted to Gaia) and `pyramid.py` (the tiles) |
 | `../../ui/RubinApp.jsx` | The app's panel: the views, a night's observing, the readout, the optics, the shell's and the path's switches |
 | `../../store/rubinApp.js` | The app's ID, the `apps.rubin` token and the field's readout |
 | `../observer/instrument.js` | `RUBIN`, the instrument the app makes the observer, and the field range (`instrumentFieldRange`, `clampField`) |
@@ -185,7 +188,9 @@ there over the go tween looking along the tube with the site's zenith
 up, and from then on puts the camera at the seat's world position each
 frame (`Scene._syncSeat`, from `syncFollow`, before tracking faces the
 target), so the view rides the mount as the telescope turns, with the
-orientation the user's or tracking's.  In the seat ThreeUI sets the near
+orientation the user's or tracking's; given an `aim` (a quaternion from
+the seat's frame to the camera's) the orientation is the seat's too, each
+frame, which is how the survey's cadence is watched (below).  In the seat ThreeUI sets the near
 plane to 0.3 m (`SEAT_NEAR_M`; the floor of 100 m on Earth would clip
 the parts a metre off) and leaves the ground floor alone (the seat
 stands on the observatory's own ground); a wheel zoom leaves the seat
@@ -212,6 +217,26 @@ directions out at a fixed 1e12 m (6.7 au), where from the ground the ring
 was 1.1″ off the body, the parallax of Earth's radius at 6.7 au against
 47 au, and the two came apart in a 20″ field on the preview; at the true
 distance the ring is on the body from anywhere.
+
+**Relative to the eye** ([#340](https://github.com/celestiary/web/issues/340);
+DESIGN.md [relative-to-eye anchors](../../../DESIGN.md#relative-to-eye-anchors)).
+The daily positions are float64 (`points`), and the line is drawn through
+the cubic between them (`relativeToEye.js` `cubicAt`) at `FINE_PER_DAY`
+(48) steps, 7,345 vertices, whose chords sag 2.4e3 m (0.06 px at 0.00016°
+on 500 px) where the daily chords sagged 5.5e6 m.  Each frame `place`
+puts an anchor at the body's place at the frame's time (the same cubic),
+makes it the line's and the ring's `position`, and re-writes the line's
+vertices as float32 offsets from it (`writeOffsets`; the ring's one vertex
+is the origin).  Three composes the model-view in float64, so the camera
+is subtracted there, and what goes up as float32 is small where the
+camera looks.  As a `Float32Array` at 7e12 m each point was held to 5e5 m:
+at 0.00016° the ring jumped 7 px between frames and the line wandered 5
+px.  The path is sampled again when VSOP87C arrives (`approximate`, the
+scene's `vsopReady`): built from the stand-in Earth, 17,000 km off, the
+ring sat 0.33″ from the body, 1.8 px at the pixel limit and 320 px at
+0.00016°, which no float precision would have fixed.  The months' names
+stay where the first sampling put them (a label's 17,000 km is nothing at
+the fields they show at).
 
 ## The app
 
@@ -250,6 +275,10 @@ unpinned, removes them (`Scene.removeRubin`).
   the dome, the telescope's azimuth and elevation or "parked".
 - **Rubin's optics**: the switch that holds the field to the camera's
   ([below](#the-optics)), and the field's readout.
+- **Survey cadence**: the switch for the modelled night of visits in
+  place of the stare ([below](#cadence)), and two lines more in the
+  readout: the visit (n of N, its filter, or slewing to it) and the time
+  to the next visit of 2026 ED138's field, each marked "(modelled)".
 - **The dome and the building**: the shell switch (`setShell`).
 - **Its path on the sky**: the switch for the arc.
 
@@ -265,7 +294,8 @@ the places were lost to the index's rebuilds on the first search before
 
 **State in the link** (`apps.rubin`, design/URLs.md): `path=0` with the
 path off, `night=<days since 1970>` for a night other than 15 May,
-`shell=0` with the shell off, `optics=0` with Rubin's optics off.  The
+`shell=0` with the shell off, `optics=0` with Rubin's optics off,
+`cadence=1` with the survey's cadence on.  The
 clock is the `t=` token's, as ever.
 
 ## The optics
@@ -385,6 +415,289 @@ camera's tweens, the store) was split out the same way.  The panel
 repeats the few numbers it needs of `rubin.js` (`store/rubinApp.js`)
 rather than import it; `rubin.test.js` holds them equal.
 
+## Cadence
+
+Rubin doesn't stare at one object: it surveys the sky in visits, and the
+pipeline finds a moving object by linking its detections across them.
+The *Survey cadence* switch (`cadence=1` in `apps.rubin`, off by default:
+the stare stays the app's first look) has the telescope keep a survey
+night instead, **a model of one, not Rubin's log**.
+
+**What is real, and what is modelled.**
+
+- **Real:** the visit's shape and the survey's rules, from Rubin's public
+  descriptions: a 30 s visit (as 2 × 15 s or 1 × 30 s) on a 9.6 deg²
+  field, 3.5° across ([Ivezić et al. 2019, *LSST: from science drivers to
+  reference design*](https://arxiv.org/abs/0805.2366)); a field visited
+  twice a night some 33 minutes apart, the pair a tracklet the moving-object
+  pipeline links ([Bianco et al. 2022, the cadence optimisation
+  paper](https://arxiv.org/abs/2108.01683), and the scheduler's baseline
+  simulations, [rubin_scheduler](https://github.com/lsst/rubin_scheduler)
+  and [rubin_sim](https://github.com/lsst/rubin_sim)); the Wide-Fast-Deep
+  footprint's declinations (about −72° to +12° here); a few filter changes
+  a night.  The slew's kinematics are the scheduler's own, read from
+  [`rubin_scheduler/scheduler/model_observatory/kinem_model.py`](https://github.com/lsst/rubin_scheduler/blob/f5a9d641e979163be45022855412b808da6a8af4/rubin_scheduler/scheduler/model_observatory/kinem_model.py)
+  at lsst/rubin_scheduler `f5a9d641` (main on 2026-11-20), `KinemModel`'s
+  defaults: the telescope (TMA, `setup_telescope`) azimuth 7°/s, 7°/s²,
+  28°/s³ of jerk; altitude 3.5°/s, 3.5°/s², 14°/s³; a 3 s settle; the dome
+  (`setup_dome`) azimuth 1.5°/s and 0.75°/s², altitude 1.75°/s and
+  0.875°/s², no jerk limit, and 1 s for the azimuth to settle.  A slew is
+  the longer of the telescope's slower axis plus its settle and the dome's
+  slower axis (its azimuth with its settle), as `slew_times` takes it with
+  `lax_dome` off.  The telescope's jerk-limited time is a constant-jerk
+  S-curve (`axisSlewSeconds`), written here from the standard profile, not
+  ported from the scheduler's `jerk.py`; its cases are tested for
+  continuity, not against the scheduler's numbers.  `tma_movement` in the
+  same file gives the TMA at a percentage of its full performance (100%:
+  10°/s and 10°/s² in azimuth, capped at 7°/s; 5°/s and 5°/s² in altitude),
+  70% the simulations' default; between neighbouring fields the dome
+  decides either way.
+- **Modelled:** every visit's time and field.  Rubin's visit lists for
+  2026 are proprietary for two years (the data policy, DPOL-301; issue
+  [#333](https://github.com/celestiary/web/issues/333)'s scoping comment),
+  and the Minor Planet Center's observations of 2026 ED138 (observatory
+  X05), which would give the times of the object's own visits, weren't
+  reachable from where this was built (minorplanetcenter.net refused).  So
+  the object's field is visited as one modelled pair a night; the
+  discovery composite's 30 visits over 20 nights (4 March to 11 July, the
+  field at RA 18h17m03.45s, Dec −42°46′36″) aren't marked yet.
+
+**The model** (`cadence.js`, pure; `buildNight`):
+
+- **The night**: from the evening's twilight to the morning's, the Sun
+  under −12° (the dome's opening, rubin.js), by the Astronomical Almanac's
+  low-precision Sun and the IAU 1982 sidereal time; no ephemeris calls.
+- **The fields**: a fixed tiling of the footprint, rings of declination 3°
+  apart with fields 3° apart along them, alternate rings half a step on
+  (2,700 fields; the 3.5° fields overlap, and any point is in one).
+- **The altitude limit**: 30°, airmass 2.0, at the start and the end of
+  every visit; a field is chosen only 8° over it, so its pair is still up
+  33 minutes later; none within 3.5° of the zenith (the mount's 86.5°).
+- **Blocks**: from where the telescope points, the nearest field not yet
+  taken (azimuth plus elevation difference), and the next, for 16.5
+  minutes; a second block for as long; then both again in the same order,
+  so each field's second visit is about 33 minutes after its first (the
+  night's last pairs come back sooner, no sooner than 12 minutes).
+- **The slew** before each visit: as above, to where the field will be
+  when the slew ends; a median of about 5 s between neighbours, as Rubin's
+  ~5 s.  A visit is 30 s open and 4 s of readout and shutter.
+- **Filters**: g, r, i, z, y (u is a dark-time filter, left out); a change,
+  two minutes, after three cycles or more, at random by the night's seed.
+- **2026 ED138's field**, centred on the object's place that night (from
+  the path's own ephemeris), opens the cycle nearest the object's highest
+  point in the night; the tiling's fields that hold it are left to it.
+  The object moves under 0.05° in a night, so the field holds it at both
+  visits.
+- **Deterministic**: the night's seed is its day number.  A night is
+  800 to 1,050 visits, built in about 0.2 s once, when the clock first
+  enters it (`nightOf`: the day turns at 16h UTC, about noon at the site),
+  not per frame.
+
+**From the seat** the cadence is ridden, not tracked.  The stare's watch
+tracks 2026 ED138 at 256×, which on the cadence showed nothing: the view
+held the object while the telescope went from field to field 90° away,
+eight visits a second (the maintainer's report on the PR's preview).  So
+with the switch on, *Watch the night* and *Astronomer's seat* ride the
+telescope's pointing (`rideSeat`'s `aim`: the view along the tube, its up
+towards a higher elevation), with tracking off, from the night's first
+visit, at 32× (`CADENCE_RATE`: a 34 s visit takes a second, a night about
+18 minutes).  At Rubin's 3.5° field the current field's circle fills the
+frame's height and the sky steps a field at a time.  The switch flipped
+while in the seat changes the view and the rate at once, both ways; a
+drag doesn't turn the view while it rides the pointing, and a wheel zoom
+leaves the seat as ever.
+
+**In the scene** (`SurveyCadence.js`, made by install.js beside the path,
+on Earth's orbitPosition, in the ecliptic of J2000 precessed to the date
+as the path is):
+
+- **The mount** (`RubinObservatory`, its `cadence` option): by night on
+  the visit's field, tracking it through the visit, then eased (a
+  smoothstep over the slew less the dome's 1 s settle) from where the last visit
+  ended to where the next begins; between cycles it holds the last field.
+  The beam is off while it slews.  By day it parks as before.  The
+  pointing is `cadence.js`'s alt-az (mean sidereal time, first-order
+  precession), not the scene's Earth: the two agree to a small fraction of
+  the field (the browser check, below).
+- **The fields** drawn: each field of the night a 3.5° circle at 1e13 m
+  (0.1″ of parallax from the ground), on the overlay layer, through
+  `sceneReferred`: the current one bright (amber; the object's teal), those
+  visited fading over an hour to a third, those to come dim, the object's
+  dim teal.  The colours are rewritten when the visit changes or a minute
+  passes, not every frame.
+
+**Checked** (`cadence.test.js`, with the Horizons fixture for the object's
+place): the night between the twilights; the tiling covers the
+footprint; visits never overlap and each slew has its time at the rates;
+every visit above 30° at its start and end; more than 95% of fields in
+pairs 10 to 60 minutes apart; a few filter changes; 2026 ED138's field
+visited as a pair holding the object (Horizons' RA and Dec) on nights of
+4 March, 1 April, 20 June and 11 July; the mount on the field during a
+visit and slewing between.  `SurveyCadence.test.js`: each circle 1.75°
+from its centre at the sky's distance, the current one brightest.
+Headless (SwiftShader, 15 May 2026, the clock paused): mid-visit the
+mount's alt-az equals the visit's field exactly, and the drawn circle's
+centre, taken back to the site's frame through the scene's Earth, is
+0.002° in elevation and 0.013° in azimuth from it (0.007° on the sky at
+59°); mid-slew the mount is between fields with the beam off; the
+circles' shader compiled, and the object's teal field sits on 2026 ED138.
+The panel, opened through the store (`dispatchWidgets` `openApp`): the
+switch clicked on sets `cadence: true` in the app's state and the link's
+`apps.rubin:cadence=1`; with the clock paused mid-visit the readout reads
+"Visit 557 of 1012, filter i (modelled)", mid-slew "Slewing to visit 558
+of 1012" with the mount's "Slewing" line; and the rewritten link, with its
+`cq=`, opened in a fresh page, restores the switch on and the same readout.
+The watch, as a visitor uses it (the panel's buttons clicked, the clock
+running): before the seat's aim the view sat 0° from 2026 ED138 and 70° to
+100° from the telescope's pointing, at 256×; with it the view is 0° from
+the pointing and the readout steps a visit about each second at 32×, from
+visit 4 of 1,012 two seconds after *Watch the night*; the switch flipped
+during the stare's watch goes to the pointing and 32×, and flipped back to
+the object, tracked, at 256×.
+
+## The imagery
+
+"Rubin's image", a switch in the app (off by default, `apps.rubin:image=1`;
+[#333](https://github.com/celestiary/web/issues/333)), lays the discovery
+image over the field it was taken of, on the sky where its stars are.
+
+**Source and licence.**  NOIRLab's composite
+[noirlab2626d](https://noirlab.edu/public/images/noirlab2626d/): the 30
+visits over 20 nights, 4 March to 11 July 2026, stacked, so it shows the
+field, not one night's frame.  33,075 × 22,050 px at 0.2″, 110′ × 73′,
+centred at RA 18h17m03.45s, Dec −42°46′36″.  CC BY 4.0, credit
+"NSF–DOE Vera C. Rubin Observatory/NOIRLab/SLAC/AURA; image processing
+M. Jurić (UW), D. de Martin & M. Zamani (NSF NOIRLab)", with the note
+that celestiary tiled and reprojected it; the credits footer
+(`credits.js`) carries it, timed, while the image is on.  Rubin's own
+survey imagery isn't public until its proprietary period ends (about
+2028), and its tiles may not be redistributed: the press composite is what
+can be shown.  NOIRLab's own Zoomify pyramid of it sends no
+`access-control-allow-origin`, so a page can't use its tiles as textures;
+hence a pyramid of our own.
+
+**The placement (WCS).**  The image has no FITS header, so one was fitted:
+`tools/rubin/solveWcs.py` finds the brightest star centroids in a copy
+reduced 8× (1.6″ a pixel), searches rotation (0.5° steps) and both parities
+from the page's centre and 0.2″ scale for the best match to Gaia DR3
+(G < 12.5 within 1.1°), then fits a TAN projection (CRVAL, CRPIX, CD) by
+least squares, rejecting at 3σ.  **567 stars, 0.60″ rms** (3 full-resolution
+pixels; under half a reduced pixel), scale 0.2000″, north 23.9° left of up
+(the WorldWide Telescope link's 23.87°; NOIRLab's "156.1° left of vertical"
+is the same angle from the vertical's other end), sky parity (not mirrored).
+The WCS is in the manifest; `js/scene/rubin/noirlab2626d.stars.json` holds
+every seventh matched star, and `wcs.test.js` holds the WCS to them (each
+within 2″), to the page's centre and rotation, and puts 2026 ED138 (the
+Horizons fixture) inside the image all through the run: its track crosses
+the frame from left to right, as the composite was framed on it.  The
+Gaia query:
+
+```sql
+SELECT source_id, ra, dec, phot_g_mean_mag FROM gaiadr3.gaia_source
+WHERE 1=CONTAINS(POINT('ICRS',ra,dec),CIRCLE('ICRS',274.264,-42.777,1.1))
+  AND phot_g_mean_mag < 12.5
+```
+
+(sync, CSV, from `https://gea.esac.esa.int/tap-server/tap/sync`).  A TAN
+fit leaves any distortion of NOIRLab's reprojection in the residual; at
+0.6″ there's none worth a polynomial.
+
+**The pyramid.**  `tools/rubin/pyramid.py` (Python with Pillow) cuts the
+large JPEG (`storage.noirlab.edu/media/archives/images/large/noirlab2626d.jpg`,
+303 MB) into 512 px JPEG tiles (quality 82), a quadtree in image space:
+level k is the image reduced by 2^(7−k), `<level>/<x>_<y>.jpg`, x right, y
+down, edge tiles short.  The committed pyramid stops at **level 5, a
+quarter of full resolution (0.8″ a pixel, about Rubin's delivered 0.7″
+seeing)**: 265 tiles, 23 MB in LFS under `public/large/rubin/noirlab2626d/`.
+
+```sh
+curl -O https://storage.noirlab.edu/media/archives/images/large/noirlab2626d.jpg
+python3 -I tools/rubin/pyramid.py noirlab2626d.jpg public/large/rubin/noirlab2626d --max-level 5
+```
+
+Without `--max-level` it goes to level 7, full resolution (0.2″, about 290
+MB of tiles), too much for the repo's LFS: hosting that depth, a static
+site with CORS as the Cesium guest is, is a decision left open.  Full
+resolution only shows under a 0.1° field.  The levels it prints go into the
+manifest's `tiles.levels`.
+
+**The manifest** (`public/data/rubin/noirlab2626d.json`, fetched when the
+switch is first on): id, title, source, credit, licence, frame (ICRS), the
+tiles' URL pattern (resolved with `dataUrl`), tile size, levels, and the
+WCS.  It is the shape an asset service would serve, so it can move to the
+portal when the portal grows assets.
+
+**The layer** (`RubinImage.js`, in the Rubin chunk).  Each tile is an 8 × 8
+grid whose vertices the WCS puts on the celestial sphere in the star
+catalogue's J2000 frame (`wcs.js` `equatorialToScene`, galacticFrame.js's
+turn), so the tangent projection's curvature is in the mesh, not a flat
+quad.  The group hangs from `Scene.stellarFrame`, which precesses it to the
+date with the stars, and each tile is drawn centred on the camera (the
+vertex shader takes the model-view's turn only, `mat3(modelViewMatrix)`),
+so no parallax anywhere, and exactly.  It first moved each mesh to the
+camera's place and used the whole matrix, and the picture shook as the
+field narrowed (the maintainer's report on the preview): the mesh's place
+and the camera's are each 1.5e11 m from the origin, their difference came
+out a few 1e-5 m off, and on a 1 m sphere that is arcseconds, new each
+frame.  The level is the coarsest whose pixel fits a screen pixel
+(`selectLevel`: level 2 at the camera's 3.5°, 4 at 0.5°, the deepest from
+about 0.25°), only the tiles in the view's circle are fetched, six at a
+time, from `preAnimCb` (no DOM work in a synchronous path), level 2 drawn
+whole under the detail while it loads, 96 tiles kept.  Drawn after the
+opaque bodies, depth-tested without writing depth, its depth at the far
+plane as the stars' is (a unit sphere: the radius is only a direction),
+**over the star points** (the photograph has its own stars) and under the overlays (the
+path, the pixel marker).  **Its brightness is the photograph's**: the
+tiles are display-referred sRGB, read undecoded and written through
+`sceneReferred`, so the tone map gives each texel back as it was, at any
+exposure and any metered gain.  It reads as the press image, not as what
+the eye would see from the seat; a physical rendering would want the
+calibrated data, which isn't public.
+
+**Checked in the page** (headless Chromium on SwiftShader, 600 × 341, the
+camera at Earth looking at the field, the clock paused on 15 May 2026):
+the tiles draw at levels 0, 3 and 5 for 3.5°, 0.5° and 0.02°, with no
+shader errors, and the app's apparent path of 2026 ED138 enters the drawn
+image in March and leaves it in July, as the WCS puts it.  Star on star,
+by the CPU through the page's own matrices: the six stars.dat stars in the
+frame that the fit matched (HIP 89500, 89616, 89354, 89166, 90039, 89373,
+G 7 to 9.7) lie 0.5″ to 2.8″ from where the layer draws their image
+(0.1 to 0.54 px at 0.5°, 2.4 to 13 px at 0.02°).  Most of it is the
+catalogue's, not the image's: the same stars are 0.2″ to 2.2″ from Gaia
+DR3 in stars.dat (its Hipparcos J2000 positions, without proper motion to
+2016, let alone to the image's 2026), and the worst, HIP 89354, is the one
+furthest from Gaia (2.2″).  Against Gaia the image sits at the fit's
+0.6″.  The bright stars are saturated in the composite, so their centroids
+are the least sure (HIP 89500 split into four detections, 0.5″ to 1.8″).
+The first build drew the tiles on a sphere 1e15 m
+round and the 0.5° frame came out smeared into swirls on SwiftShader, where
+the tile itself is crisp: the perspective-correct interpolation at w = 1e15.
+On a unit sphere, with the clip depth put at the far plane in the vertex
+shader as the stars' is (so the bodies still hide it), it is crisp.
+**The shake** on the preview, the closer the look: measured from the seat
+with the watch running, 24 frames a field, the image's centre by the page's
+own matrices as the GPU has them (float32) against the turn alone in
+float64.  With the mesh moved to the camera's place it was up to 6.3″ off
+and different each frame (the two places 3e-5 m apart on the 1 m sphere):
+0.25 px at 3.5°, 1 px at 0.5°, 44 px at 0.02° on a 500 px canvas.  By the
+turn alone, 0.004″ (float32's matrix), 0.03 px at 0.02°.  At
+0.02° (level 5 enlarged about 4×) a faint line shows along a tile's edge
+(placed there by the WCS: the frame's tile boundary, diagonal with the
+image's 24° turn).  Ruled out: the wrap (three's default, clamp to edge),
+and the neighbours' edge vertices (both from the same pixel coordinate,
+`tileBox`).  The likely cause is that the tiles share no edge pixel: each
+clamps its own last half texel under linear filtering and mipmaps, so the
+seam is a texel wide; the fix is a pyramid cut with a pixel of overlap (a
+re-tile and a new set of LFS objects), left for now.  On the way, edge
+tiles (short images) were mapped with UVs short of 1, stretching their
+first part across the tile; they span the whole texture now.
+
+From the seat's link (the changelog's: #334's seat view at a 2° field,
+the night of 15 May 2026 paused, `apps.rubin:image=1`), in a fresh page:
+the switch reads on, the tiles load and draw, the frame's centre is at
+image pixel (12994, 14127), inside, and 2026 ED138's ring at (12996,
+14126), on it.
+
 ## Checked
 
 - The tests above, and `ed138.test.js`.
@@ -481,10 +794,40 @@ rather than import it; `rubin.test.js` holds them equal.
     as written, the readout "Field 0.581″", 172 px a pixel.
   - No page errors.
 
+- The apparent path relative to the eye (#340), headless as above at
+  800×500 (500 device pixels high), from `#sun/ed138@…;apps.rubin:optics=0`
+  (#334's link), in the seat tracking the body, the night of 15 May from
+  03:00 UTC, 20 frames a field with the clock stepped 2 s a frame, each
+  frame rendered and measured in one task (the probe:
+  `relativeToEye.js` `gpuNdc` on the frame's own matrices and vertices,
+  the GPU's float32 arithmetic, against the body's centre in float64).
+  Before is main at da09f91, after this change, the same script:
+
+  | Field | Ring off the body, px (before → after) | Ring's jitter frame to frame | Path's line from the body's centre | Its jitter |
+  |---|---|---|---|---|
+  | 0.0278° (the pixel limit) | 1.84 → 0.000 | 0.043 → 0 | 0.016 → 0.000 | 0.030 → 0 |
+  | 0.001° | 51.2 → 0.001 | 1.12 → 0.000 | 0.42 → 0.001 | 0.82 → 0 |
+  | 0.00016° | 320 → 0.007 | 6.97 → 0.000 | 2.6 (to 5.8) → 0.004 | 5.1 → 0 |
+
+  The orbit line is 0 px from the body's centre in both (its origin at the
+  body, `bodyLine.js`), so the path and the orbit line meet at the body to
+  the path's figure.  Before, most of the ring's offset was the stand-in
+  Earth (the path sampled before VSOP87C arrived: the ring 1.7e7 m from
+  the body in world space; after, 302 m), the jitter float32's.  Rubin's
+  pixel marker is 0 px off in both.  No shader or page errors.  Not seen
+  on a real GPU.
+
 ## Not yet
 
+- **Rubin's image at full resolution** (0.2″, level 7): the pyramid in
+  the repo stops at 0.8″; the deeper levels want hosting outside LFS.  And
+  noirlab2626a's circles at the object's positions, a cross-check of the
+  WCS against the object rather than the stars, not yet done.
+
 - **Rubin's light and PSF.**  The instrument has the eye's collecting
-  area and point spread function (#340).  Its pixel and its seeing are
+  area and point spread function (the pass that would apply its PSF and
+  pixel grid is proposed in [HDR.md](../HDR.md#the-view-as-the-instrument-sees-it),
+  [#356](https://github.com/celestiary/web/issues/356)).  Its pixel and its seeing are
   drawn on the sky (#339, above), but only as a marker: the star field and
   the body aren't blurred to them.
 
@@ -496,11 +839,10 @@ rather than import it; `rubin.test.js` holds them equal.
   4D file might, but nothing here reads it).  The mount's motion and the
   shutter's are the app's own; the real dome's shutter and wind screen, and
   the slew between fields, are more of the same.
-- **The real cadence.**  Rubin doesn't stare at one object: it surveys
-  the sky in 30-second visits, and the discovery came from the
-  pipeline's detections across many visits.  The demo tracks the object
-  all night, to show where it is; a scheduler's pattern of visits is a
-  follow-up.
+- **The real cadence's visit times** ([below](#cadence)): the schedule
+  is a model; the discovery's own visits, when they're public, replace the
+  object's modelled pair.  And the model's own gaps: the Moon, the
+  weather, the twilight survey, the deep-drilling fields.
 - **Moonlight on the model**, in place of the glow.
 - **The near plane outside the seat.**  From under 100 m the dome clips;
   a lower floor near a small object on a large body (as spacecraft get a
@@ -518,9 +860,13 @@ rather than import it; `rubin.test.js` holds them equal.
 - **Float32 at 47 au** ([#334](https://github.com/celestiary/web/issues/334)).
   The body's disc is a far point past 2^22 radii (`FAR_BODY_RATIO`, #338:
   its mesh blinked and drew as a crescent at a 0.00016° field), whatever
-  the field.  Left: the path's ring, which jumps between frames (its points
-  are a `Float32Array` at the body's distance, quantised to 5e5 m), the
-  path and the orbit line missing each other by a step, and depth, which at
-  the seat is 1.0 like empty sky, so the orbit line draws across the
-  point.  The general fix is relative-to-eye placement, option 3 in
-  [#340](https://github.com/celestiary/web/issues/340).
+  the field.  The path's ring and line are relative to the eye now
+  ([the apparent path](#the-apparent-path), #340), on the body to 0.01 px
+  at 0.00016°.  Left of #340: depth, which at the seat is 1.0 like empty
+  sky, so the orbit line draws across the point (a near-plane proxy for
+  the far body's depth); the body's mesh relative to the eye, for a far
+  body drawn as a disc in a field where float32 at its distance shows
+  (the far point stands in for it past 2^22 radii, so nothing needs it
+  now); and the view as the instrument sees it ([HDR.md, the view as the
+  instrument sees it](../HDR.md#the-view-as-the-instrument-sees-it), a
+  proposal, [#356](https://github.com/celestiary/web/issues/356)).
