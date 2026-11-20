@@ -465,9 +465,14 @@ grid whose vertices the WCS puts on the celestial sphere in the star
 catalogue's J2000 frame (`wcs.js` `equatorialToScene`, galacticFrame.js's
 turn), so the tangent projection's curvature is in the mesh, not a flat
 quad.  The group hangs from `Scene.stellarFrame`, which precesses it to the
-date with the stars, and each tile is drawn centred on the camera
-(`onBeforeRender` puts its translation at the camera's), so no parallax
-anywhere.  The level is the coarsest whose pixel fits a screen pixel
+date with the stars, and each tile is drawn centred on the camera (the
+vertex shader takes the model-view's turn only, `mat3(modelViewMatrix)`),
+so no parallax anywhere, and exactly.  It first moved each mesh to the
+camera's place and used the whole matrix, and the picture shook as the
+field narrowed (the maintainer's report on the preview): the mesh's place
+and the camera's are each 1.5e11 m from the origin, their difference came
+out a few 1e-5 m off, and on a 1 m sphere that is arcseconds, new each
+frame.  The level is the coarsest whose pixel fits a screen pixel
 (`selectLevel`: level 2 at the camera's 3.5°, 4 at 0.5°, the deepest from
 about 0.25°), only the tiles in the view's circle are fetched, six at a
 time, from `preAnimCb` (no DOM work in a synchronous path), level 2 drawn
@@ -501,7 +506,14 @@ The first build drew the tiles on a sphere 1e15 m
 round and the 0.5° frame came out smeared into swirls on SwiftShader, where
 the tile itself is crisp: the perspective-correct interpolation at w = 1e15.
 On a unit sphere, with the clip depth put at the far plane in the vertex
-shader as the stars' is (so the bodies still hide it), it is crisp.  At
+shader as the stars' is (so the bodies still hide it), it is crisp.
+**The shake** on the preview, the closer the look: measured from the seat
+with the watch running, 24 frames a field, the image's centre by the page's
+own matrices as the GPU has them (float32) against the turn alone in
+float64.  With the mesh moved to the camera's place it was up to 6.3″ off
+and different each frame (the two places 3e-5 m apart on the 1 m sphere):
+0.25 px at 3.5°, 1 px at 0.5°, 44 px at 0.02° on a 500 px canvas.  By the
+turn alone, 0.004″ (float32's matrix), 0.03 px at 0.02°.  At
 0.02° (level 5 enlarged about 4×) a faint line shows along a tile's edge
 (placed there by the WCS: the frame's tile boundary, diagonal with the
 image's 24° turn).  Ruled out: the wrap (three's default, clamp to edge),

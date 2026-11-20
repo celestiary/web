@@ -1,4 +1,4 @@
-import {BufferGeometry, DoubleSide, Float32BufferAttribute, Group, Matrix4, Mesh, NoColorSpace, Quaternion,
+import {BufferGeometry, DoubleSide, Float32BufferAttribute, Group, Mesh, NoColorSpace, Quaternion,
   ShaderMaterial, TextureLoader, Vector3} from 'three'
 import {equatorialToScene, pixToWorld} from './wcs.js'
 
@@ -47,7 +47,6 @@ const toRad = Math.PI / 180
 const tmpQuat = new Quaternion
 const tmpDir = new Vector3
 const tmpPos = new Vector3
-const tmpMat = new Matrix4
 
 
 /**
@@ -188,7 +187,12 @@ function newMaterial(sceneReferred) {
     vertexShader: `varying vec2 vUv;
 void main() {
   vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  // The turn only (mat3): the tiles are at the camera, exactly.  With the
+  // mesh moved to the camera's place and the whole matrix used, the two
+  // places, each 1.5e11 m from the origin, left a few 1e-5 m of difference
+  // between them: tens of arcseconds on a 1 m sphere, new each frame, so
+  // the picture shook more the further in the field went.
+  gl_Position = projectionMatrix * vec4(mat3(modelViewMatrix) * position, 1.0);
   // At the far plane, as the stars are: behind every body, whatever the
   // sphere's radius.
   gl_Position.z = ${FAR_PLANE_INSIDE} * gl_Position.w;
@@ -326,13 +330,6 @@ export default class RubinImage extends Group {
       mesh.name = `rubin image ${key}`
       mesh.frustumCulled = false
       mesh.renderOrder = RENDER_ORDER + t.level
-      // Centred on the camera: the group's turn (the stellar frame's
-      // precession), at the camera's place.
-      mesh.onBeforeRender = (renderer, scene, camera) => {
-        mesh.matrixWorld.copy(this.matrixWorld)
-        tmpMat.copy(camera.matrixWorld)
-        mesh.matrixWorld.setPosition(tmpPos.setFromMatrixPosition(tmpMat))
-      }
       tile.mesh = mesh
       tile.state = 'ready'
       this.add(mesh)

@@ -100,6 +100,13 @@ describe('the image layer', () => {
     expect([...layer.tiles.values()].filter((t) => t.level === BASE_LEVEL).length).toBeGreaterThan(0)
     layer.preAnimCb()
     expect(pending.length).toBeGreaterThan(0)
+    // Each tile at the camera by the model-view's turn alone, not by moving
+    // the mesh to the camera's place, which shook the picture.
+    for (const mesh of layer.children) {
+      expect(mesh.material.vertexShader).toContain('mat3(modelViewMatrix) * position')
+      expect(mesh.material.vertexShader).not.toContain('modelViewMatrix * vec4(position')
+      expect(Object.hasOwn(mesh, 'onBeforeRender')).toBe(false)
+    }
     layer.dispose()
   })
 
