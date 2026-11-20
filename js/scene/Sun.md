@@ -373,6 +373,25 @@ levels are the view's parameters (`EUV_VIEW`), a model of the published
 pictures' look, not a radiative transfer of the line; the structures, and
 when and where they are, are the white-light model's.
 
+The acceptance link (2024-04-17 22:15 UTC in the model, paused: an
+erupting prominence a radius up off the limb with its CME's front ahead
+of it, plage and prominences round the disc; an X6.6 flare is at 0.8 of
+its peak on the far side from here):
+
+`?sun=euv#sun@-50.7478,-141.4986,23.604464Gm;t=8873.427083jd;cq=0.3814,-0.4134,0.1963,0.8032;fov=4deg;s=alpoGxF;time:pause`
+
+and the flare face on at the same moment, the eruption edge on at the
+limb behind it:
+
+`?sun=euv#sun@-30.2266,35.3711,23.604464Gm;t=8873.427083jd;cq=0.1203,0.8565,-0.2312,0.4456;fov=4deg;s=alpoGxF;time:pause`
+
+Rendered on SwiftShader for this change: that view cold from the link;
+the whole field at 9° (the streamers and their rays, the CME's front);
+the eruption 20 minutes before and after (0.35, 1.0 and 1.8 radii up);
+the flare face on; the same Sun in white light (unchanged: the spots, no
+corona); and from 1 AU at 45° with the view on (no field round the
+unresolved disc).
+
 Not yet in the view: filaments dark on the disc, coronal holes on the
 disc, flare loops over the limb, the loops of the low corona over the
 regions (171 and 193 Å's picture), a control in the interface and a

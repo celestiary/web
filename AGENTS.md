@@ -560,7 +560,11 @@ tried and dropped.
   `setEphemeris(fn)` its arrival; read VSOP87C from
   `vsop87/dist/vsop87c-wasm`, since `Celestiary.test.js` mocks `./vsop`.
   A PR that lowers a number lowers its limit too, in the same PR
-  (DESIGN.md [load budgets](DESIGN.md#load-budgets)).
+  (DESIGN.md [load budgets](DESIGN.md#load-budgets)).  Main sits on the
+  limit, so any first-load code trips it: measure with `yarn bundle-check`
+  before the commit, not in its hook.  Comments inside a shader's template
+  string ship (the minifier strips only JavaScript's): keep them to a line
+  and put the explanation in the JS comment or the doc.
 - **Some data is built from other data and committed, with a test that
   fails when it drifts**: after editing a body's descriptor
   (`public/data/<dir>/index.json`: `public/data/earth/`,
