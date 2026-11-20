@@ -76,7 +76,12 @@ export const STATIC_BUDGET = {
   // The HiPS sky layer (#360) is lazy but for the `?sky=` parameter in
   // Scene (showSky) and the Rubin panel's buttons to its imaged fields
   // (their list and directions are in the lazy code), half a KB: 2,462.
-  // 2,472, so 2,473 (11 KB more), with the Sun's activity view (#358;
+  // The Suntan craft's exposure (Scene.targetCraftNode and sunlitCraft,
+  // asked by ThreeUI each frame) and a link that names a craft and keeps the
+  // view on it (the `suntan:` path, the craft's frame and its restore in
+  // Celestiary, which reads a link before anything else loads), 2 KB: 2,464,
+  // so 2,465.
+  // 2,476, so 2,477 (11 KB more), with the Sun's activity view (#358;
   // js/scene/Sun.md, "The activity view"): the EUV imager's and the
   // coronagraph's branches of the photosphere's and the corona's shaders,
   // which are one program each with the white-light picture, so not a chunk
@@ -87,7 +92,7 @@ export const STATIC_BUDGET = {
   // loaded when a CME is first in view, with what they share with the first
   // load handed to them (SunLayers CME_DEPS): importing it had split two
   // more files out of the first load for the same bytes.
-  totalMinifiedKB: 2473,
+  totalMinifiedKB: 2477,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -108,9 +113,10 @@ export const STATIC_BUDGET = {
   // token, as the Rubin panel; loaded lazily it would split shared chunks as
   // that one's did).  760, so 761, with three.js 0.187 (from 0.171: about
   // 16 KB, three's own growth, as above).  763, so 764, with the camera
-  // control (#361 step 2, as above).
-  // 768, so 769 (5 KB more), with the Sun's activity view (#358, above).
-  totalGzipKB: 769,
+  // control (#361 step 2, as above).  764, so 765, with the Suntan craft's
+  // exposure and link (as above).
+  // 769, so 770 (5 KB more), with the Sun's activity view (#358, above).
+  totalGzipKB: 770,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,

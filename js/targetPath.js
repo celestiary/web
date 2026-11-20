@@ -10,6 +10,7 @@
  *   galaxy:ngc2403      a SPARC galaxy, by its SPARC name as a slug (Galaxies.md)
  *   sat:25544           an Earth satellite, by its NORAD number (Satellites.md)
  *   sat:mars:12345      an object of another body's population, by its body and id
+ *   suntan:relay        a Suntan craft, while the app runs (suntan/Suntan.md)
  *
  * A place's last segment is told from a body's by the body above it: a
  * name in that body's `system` is a body (bodies win), anything else under
@@ -27,6 +28,10 @@ const STAR_PREFIX = 'hip:'
 const EARTH = 'earth'
 const ASTERISM_PREFIX = 'asterism:'
 const GALAXY_PREFIX = 'galaxy:'
+export const SUNTAN_PREFIX = 'suntan:'
+// The Suntan craft by id (suntan/SuntanTrack.js SUNTAN_CRAFT), named here so
+// the first load needn't import the feature to read a link.
+const SUNTAN_CRAFT_IDS = new Set(['relay', 'lander'])
 
 
 /**
@@ -74,6 +79,8 @@ export function targetPath(target, bodyPath) {
     }
     case 'satellite':
       return satellitePath(target)
+    case 'craft':
+      return SUNTAN_CRAFT_IDS.has(target.id) ? `${SUNTAN_PREFIX}${target.id}` : null
     default:
       return null
   }
@@ -99,8 +106,11 @@ export function targetFramePath(target, bodyPath) {
     case 'place':
     case 'satellite':
       return bodyPath(target.body) || null
+    // A camera near a craft rides it, in its own frame: the view is metres
+    // off it, which its body's frame, the Sun's, 2.5e10 m away, would lose.
     case 'star':
     case 'galaxy':
+    case 'craft':
       return targetPath(target, bodyPath)
     default:
       return null
@@ -129,7 +139,7 @@ export function satellitePath(target) {
  *
  * @param {string} path
  * @returns {?({kind: 'star', hipId: number}|{kind: 'asterism', slug: string}|{kind: 'galaxy', id: string}|
- *   {kind: 'satellite', id: number, body: string}|
+ *   {kind: 'satellite', id: number, body: string}|{kind: 'craft', id: string}|
  *   {kind: 'bodies', parts: Array<string>})} null if empty or malformed.
  *   `bodies` is a body path, or a body path then a place (resolvePlace)
  */
@@ -150,6 +160,10 @@ export function parseTargetPath(path) {
     const m = /^(?:([a-z][a-z0-9_-]*):)?(\d+)$/.exec(path.slice(SAT_PREFIX.length))
     const id = Number(m?.[2])
     return m && Number.isSafeInteger(id) ? {kind: 'satellite', id, body: m[1] ?? EARTH} : null
+  }
+  if (path.startsWith(SUNTAN_PREFIX)) {
+    const id = path.slice(SUNTAN_PREFIX.length)
+    return SUNTAN_CRAFT_IDS.has(id) ? {kind: 'craft', id} : null
   }
   if (path.startsWith(ASTERISM_PREFIX)) {
     const s = slug(path.slice(ASTERISM_PREFIX.length))

@@ -39,6 +39,7 @@ import {orbitAt} from './meanElements.js'
 import {loadModel} from './model.js'
 import {newLabels} from './overlayMarks.js'
 import {newWideLineStrip} from './wideLines.js'
+import {BodyLine, MAX_FINE_STEPS} from './bodyLine.js'
 import {planetsApprox} from './planetsApprox.js'
 import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
 import {faceKeepingRoll} from '../faceKeepingRoll.js'
@@ -1589,6 +1590,27 @@ export default class Scene {
       return this._satelliteNode(t)
     }
     return t?.kind === 'craft' ? this._craftNode(t) : null
+  }
+
+
+  /**
+   * @returns {?object} the targeted Suntan craft's node, while it has a
+   *   place: what keys the exposure (ThreeUi._updateExposure), as a
+   *   targeted planet does, where its target object is the Sun
+   */
+  targetCraftNode() {
+    const label = Shared.targets.label
+    return label?.kind === 'craft' ? this._craftNode(label) : null
+  }
+
+
+  /**
+   * @returns {Array<object>} the Suntan craft whose models show, each a node
+   *   with props (radius, albedo): sunlit bodies for the meter's anchor
+   *   (ThreeUi._sunlitBodies), as the planets and moons are
+   */
+  sunlitCraft() {
+    return this.suntan?.track.sunlitNodes() ?? []
   }
 
 
@@ -3351,6 +3373,15 @@ export default class Scene {
    */
   linkCameraQuaternion() {
     const camera = this.ui.camera
+    // Riding a Suntan craft, relative to its node, the link's frame
+    // (Celestiary._cameraFrame, _restoreCraftView): the platform's turn on
+    // it is whatever the ride left.
+    const craft = camera.platform.parent
+    if (craft?.isCraftNode) {
+      craft.updateWorldMatrix(true, false)
+      const platform = camera.platform.getWorldQuaternion(new Quaternion())
+      return craft.getWorldQuaternion(new Quaternion()).invert().multiply(platform).multiply(camera.quaternion)
+    }
     const body = this._spinBody
     if (!body || camera.platform.parent !== body || Shared.targets.landed || !body.orbitPosition) {
       return camera.quaternion.clone()
@@ -3644,7 +3675,8 @@ export default class Scene {
     }
     if (!this.suntan) {
       this.suntan = installSuntan(this, {
-        planetsApprox, newWideLineStrip, newRings, newLabels, OVERLAY_LAYER: Shared.OVERLAY_LAYER,
+        planetsApprox, newWideLineStrip, newRings, newLabels, loadModel, OVERLAY_LAYER: Shared.OVERLAY_LAYER,
+        BodyLine, MAX_FINE_STEPS,
       })
       this._joinOverlay('o', this.suntan.track)
       // Its craft are search results while it runs (SuntanProvider).

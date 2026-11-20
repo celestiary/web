@@ -159,6 +159,13 @@ describe('the target (committedTarget) and the breadcrumb', () => {
     ])
   })
 
+  it('a Suntan craft is the Sun, then its name, linking to suntan:<id>', () => {
+    const relay = {kind: 'craft', id: 'relay', name: 'Suntan relay', body: 'sun'}
+    expect(breadcrumbItems(relay, ['sun'])).toEqual([
+      {label: 'Sun', hash: 'sun'}, {label: 'Suntan relay', hash: 'suntan:relay'},
+    ])
+  })
+
   it('a satellite is Earth\'s path, then its name, linking to sat:<NORAD>', () => {
     const iss = {kind: 'satellite', id: 25544, name: 'ISS', body: 'earth'}
     expect(breadcrumbItems(iss, ['sun', 'earth'])).toEqual([

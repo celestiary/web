@@ -85,6 +85,8 @@ it (`js/targetPath.js`):
                         (js/scene/satellites/Satellites.md)
 #sat:mars:12            an object of another body's population, by its body
                         and id (js/scene/population/Population.md)
+#suntan:relay           a Suntan craft, `relay` or `lander`, while its app
+                        runs (js/scene/suntan/Suntan.md)
 ```
 
 - **A place or a body?**  A last segment in the body above's `system` is a
@@ -99,6 +101,12 @@ it (`js/targetPath.js`):
   place's is its body's: a view near it is in that body's frame, with no
   `from=`.  With `F` the camera rides
   the satellite again once restored.
+- **A Suntan craft's frame is its own** (`suntan:relay` names its own frame,
+  no `from=`): the camera rides it metres off, and the Sun's frame, 2.5e10
+  m away, would put four decimals of a degree 190 km out.  The altitude is
+  over a fixed 6 m and `cq` is relative to the craft, so the view comes
+  back to the metre whatever the model or the ride did.  With `F` the camera
+  rides it again; the link waits for the app's mission to be built.
 - **With a view** (`@…`, below) the camera is put back where the link had
   it, in its frame, and the target is set without turning it.
 

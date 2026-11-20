@@ -64,6 +64,33 @@ describe('ThreeUi exposure compensation', () => {
     expect(ui._exposureGoal).toBeCloseTo(exposureAt(AU), 20)
   })
 
+  it('keys the exposure to a targeted Suntan craft at its distance from the Sun', () => {
+    // A craft's target object is the Sun, a star, which keys nothing: the
+    // exposure stayed at the last body's, and 37 suns at the relay burned
+    // its model white.
+    const AU = 1.496e11
+    const sun = new Object3D
+    sun.props = {name: 'sun', type: 'star', radius: {scalar: 6.957e8}}
+    const relay = new Object3D
+    relay.props = {name: 'Suntan relay', radius: {scalar: 7.7}, albedo: 0.6}
+    relay.position.set(0, 0, 35.5 * 6.957e8)
+    const ui = fakeUi(0)
+    ui._exposureGoal = exposureAt(AU)
+    ui._exposureBodyPos = new Vector3
+    ui._exposureSunPos = new Vector3
+    let craft = relay
+    ui.sceneManager = {targetCraftNode: () => craft}
+    targets.obj = sun
+    ThreeUi.prototype._updateExposure.call(ui)
+    expect(ui._exposureGoal).toBeCloseTo(exposureAt(35.5 * 6.957e8), 20)
+    expect(exposureAt(AU) / ui._exposureGoal).toBeGreaterThan(30)
+    // No craft targeted: the Sun keys nothing, the goal stays.
+    craft = null
+    ui._exposureGoal = exposureAt(AU)
+    ThreeUi.prototype._updateExposure.call(ui)
+    expect(ui._exposureGoal).toBe(exposureAt(AU))
+  })
+
   it('multiplies the metered exposure by 2^EV', () => {
     for (const ev of [0, 1, -1, 4 / 3, -2 / 3, 5]) {
       const ui = fakeUi(ev)
@@ -254,6 +281,29 @@ describe('ThreeUi exposure on the way to a body', () => {
     expect(withEarth._sunlitBodies(withEarth._arrivalView, moon).length).toBe(1)
     expect(withEarth._approach.gain).toBeLessThan(alone._approach.gain)
     expect(withEarth._approach.gain).toBeCloseTo(1, 9)
+  })
+
+  it('takes a Suntan craft whose model shows as a sunlit body, in the frame only', () => {
+    // Not in the scene's objects: the scene hands them in (sunlitCraft).
+    const ui = stoppedDown()
+    const relay = new Object3D()
+    relay.props = {name: 'Suntan relay', radius: {scalar: 7.7}, albedo: 0.6}
+    relay.position.set(0, 0, 2.47e10)
+    relay.updateMatrixWorld()
+    ui.sceneManager = {objects: {}, sunlitCraft: () => [relay]}
+    ui.camera.position.set(0, 0, 2.47e10 + 40)
+    ui.camera.lookAt(relay.position)
+    ui.camera.updateMatrixWorld()
+    const [entry, ...rest] = ui._sunlitBodies()
+    expect(rest.length).toBe(0)
+    expect(entry.albedo).toBe(0.6)
+    expect(entry.keyedExposure).toBeCloseTo(exposureAt(2.47e10), 20)
+    // 40 m off a 7.7 m craft it's a good share of the frame, and anchors.
+    expect(entry.frameFraction).toBeGreaterThan(0.05)
+    // Turned away, it's not in the frame.
+    ui.camera.lookAt(0, 0, 2.47e10 + 1000)
+    ui.camera.updateMatrixWorld()
+    expect(ui._sunlitBodies().length).toBe(0)
   })
 
   it('a travel to a star, or no travel, leaves the exposure to the meter', () => {

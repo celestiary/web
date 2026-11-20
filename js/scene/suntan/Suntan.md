@@ -129,6 +129,19 @@ perihelia are smooth.  Rings and names mark the relay and, from its release,
 the lander, placed each frame from `stateAt` (`preAnimCb`).  The panel's
 *Trajectory* switch hides the lines and keeps the marks.
 
+**Each line goes through the craft on it**, as a planet's orbit line goes
+through the planet (`bodyLine.js`, DESIGN.md "Through the body's centre,
+close up").  Drawn plainly, float32 vertices 2.5e10 m out were good to
+2 km, and 720 chords over the relay's orbit sag 235 km inside it, so up
+close the line jumped about the craft and missed it.  Each leg's ellipse
+is kept in float64 (`SuntanTrack.js` `LegLine`), written relative to the
+craft, with a fine arc of the same ellipse spliced in round it; the arc's
+256 steps a segment still sag metres at this scale, so the craft's own
+place is a knot of the arc (`knot: true`), re-spliced each frame it moves.
+A line follows the relay, or the lander once it flies alone, while either
+is on its orbit (the relay orbit is drawn twice, before the release and
+after, and both follow); the rest are drawn plainly.
+
 ## The app
 
 Opened from the drawer it builds the mission (`Scene.getSuntan`, a dynamic
@@ -166,7 +179,7 @@ release.  The breadcrumb reads *Sun › Suntan relay*.
 
 **Zooming in on it**: riding a craft, its node is the camera's body for the
 zoom and the ground floor (`zoom.js` `homeBody`: a node with `isCraftNode`
-and its own `props.radius`, 6 m, about the flight system's half-length).
+and its own `props.radius`: 6 m until the model is in, then the model's, below).
 It was the Sun's, whose 0.7 million km radius about the craft held the camera
 far off; now the zoom eases in from the 3 million km arrival to a few metres
 from the mark (headless: 3e9 m to 7 m in 35 halvings, the near plane
@@ -177,11 +190,62 @@ following to 0.1 m).
   while the app isn't running; `Scene.onSuntanChange` rebuilds the index).
 - **Stopping the app while riding one** leaves it for the Sun's frame with
   the camera where it is (`rehangPlatform`), and the Sun the target.
-- **A link doesn't name a craft**: it has no path of its own, so a link
-  made riding one is the camera's place in the Sun's frame, the Sun the
-  target.
+- **A link names the craft and rides it** (design/URLs.md, `suntan:`):
+  `#suntan:relay@lat,lng,alt;…;s=F;apps:…`.  Riding a craft, the view is in
+  the craft's own frame (`Celestiary._cameraFrame`: the node, with a fixed
+  6 m radius for the altitude, `linkRadius`, which the model's coming in
+  doesn't move), and `cq` is the camera relative to the node
+  (`Scene.linkCameraQuaternion`), whatever the platform's turn.  In the
+  Sun's frame, as it was, the relay is 2.5e10 m off, where the link's four
+  decimals of a degree are 190 km: a link made 40 m off the craft opened
+  in the Sun's glare, the craft lost.  Followed, it waits for the Sun and
+  the mission (`_loadFrame`, `getSuntan`), hangs the camera on the node
+  (`_restoreCraftView`) and rides it again (`setFollowing`, as a
+  satellite's link does).  Headless, a link written 40 m off the relay
+  opened 0.1 m from there (the altitude's metre) and 0.005° in direction.
+  Without the craft in flight at the link's time it goes to the Sun.
 
 ![Riding the relay](../../../screens/suntan/find.png)
+
+## The model on the craft
+
+The flight system's model rides each craft: this folder's STEP assembly
+(`design/suntan/cad/`), exported to GLB by Bldrs Share and re-encoded from
+Draco to meshopt for the loader (models.md: three's `GLTFLoader` with the
+meshopt decoder, which bundles; Draco's decoder runs in a worker built from
+its own source, which the build's `keepNames` breaks).  Fetched when the
+app starts (`install.js`, `loadModel`), 190 KB; until it's in the craft are
+their marks alone.
+
+- **Metres, +Y at the Sun**: Share writes STEP's +Z, the heat shield's
+  normal, as glTF's +Y.  Each frame the model is turned so +Y faces the Sun
+  and the wheel's axle (Z) lies along the orbit's normal, the wheel turning
+  in the plane of the motion (`craftModel.js` `craftQuaternion`).
+- **The lander flies off**: the relay carries the whole stack; at release a
+  copy of the rim lander nearest the Sun appears on the lander's node and
+  the wheel's own is hidden (`prepareCraftModels`).
+- **Centred on its box**, so the craft's node is its middle; the node's
+  zoom radius is the model's (half the box's diagonal: 7.7 m for the stack,
+  0.6 m for a lander), where it was a 6 m stand-in.
+- **Marks by their object's position**: the ring and the name of each craft
+  are one vertex at the origin, moved by the object's position, a double.
+  As vertices at the craft's place, float32s good to 2 km at 35 R☉, they
+  jumped about the still model as the camera closed in (PLAYBOOK.md, "A
+  mark you ride must be placed by its object, not its vertex").
+- **Exposed as a planet is** (HDR.md, "Metered exposure").  At the relay's
+  35.5 R☉ the model is lit by 37 suns.  A craft's target object is the Sun,
+  a star, which keys nothing, so the exposure stayed at the last body's
+  (Earth's, at most), and the meter, reading a star field round a speck,
+  ran the gain to the dark-adapted 1e6: the model was a white blot.  Now a
+  targeted craft keys the exposure at its own distance from the Sun
+  (`Scene.targetCraftNode`, `ThreeUi._updateExposure`), and each craft
+  whose model shows is a sunlit body for the meter's anchor
+  (`Scene.sunlitCraft`, `ThreeUi._sunlitBodies`; albedo 0.6, the shield's
+  white): far off it's a speck in a star field, as Jupiter from Earth is;
+  close up it anchors the gain, its shield shows at its albedo, and the
+  stars go out.  Headless, sunward of the relay at 40 m: gain 1 (from
+  1e6), the shield off-white with no pixel blown (from 1,477); at 30 km,
+  the star field's gain, as before.
 
 **The panel is in the first load**, as the other apps' are, with its token
 codec; that cost 8 KB minified and 2 KB gzipped, so `esbuild/budget.js`'s
@@ -216,5 +280,6 @@ list would have added 4 KB more, so the list is a native `<select>`.
   1.53 g/m², at any distance (trajectory.md).
 - The entry: heating in the gas at 600 km/s, and a sensor mode for the
   condensed-surface proposals beside the standard picture.
-- The CAD model in the scene: the STEP assembly as a glTF, loaded at the
-  craft (models.md's loader).
+- The Sun's glare when looking past a craft toward the Sun: drawn and
+  metered as anywhere ([Sun.md, glare](../Sun.md#glare)), it veils a view
+  within 100° of the Sun, the craft's included.
