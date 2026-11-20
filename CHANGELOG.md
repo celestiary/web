@@ -52,6 +52,19 @@ telescope's 3.5° field and it sharpens to Rubin's own resolution; the object's 
 - Permalink: [Open this view](https://celestiary.org/#sun/ed138@-30.2445,-70.7494,1.689km;from=sun/earth;t=9630.807563jd;cq=0.7319,0.5529,0.1076,-0.3834;fov=2deg;s=LTF;time:pause;apps:open,view=rubin;apps.rubin:image=1)
 - Featured: yes
 
+### 2026 ED138's path stays on it in Rubin's narrowest views
+
+With Rubin's optics limit off and the field zoomed far past Rubin's pixels, the apparent path's
+ring now sits on 2026 ED138 and holds still, and the path runs through the body, where the ring
+jumped between frames and drifted off it.
+
+- Date: 2026-11-20
+- PR: [#355](https://github.com/celestiary/web/pull/355)
+- Issue: [#340](https://github.com/celestiary/web/issues/340)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: none
+- Kind: fix
+
 ### A link to a body by its name alone opens it
 
 A link such as celestiary.org/#earth or #moon stayed on the loading screen. It now opens on that body
