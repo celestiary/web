@@ -1,6 +1,32 @@
 {
   "entries": [
     {
+      "id": "2026-11-20-lay-jwst-s-and-hubble-s-images-on-the-sky-and",
+      "date": "2026-11-20",
+      "headline": "Lay JWST's and Hubble's images on the sky, and fly to their famous fields",
+      "text": "The layers control (top right, or Layers on a phone) now has Sky imagery, on every view: switch on JWST's NIRCam or MIRI, or one of Hubble's cameras, and buttons take you to the Pillars of Creation, the Southern Ring, Stephan's Quintet, the Sombrero, Eta Carinae and more, with the telescopes' own images over the stars. Hubble's and JWST's surveys are in grey (the only colour ones online are unavailable for now); Rubin's Virgo field, also in the list, is in colour.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 370,
+          "url": "https://github.com/celestiary/web/pull/370"
+        },
+        {
+          "kind": "issue",
+          "number": 360,
+          "url": "https://github.com/celestiary/web/issues/360"
+        }
+      ],
+      "epic": {
+        "number": 321,
+        "title": "The Rubin Observatory and 2026 ED138",
+        "url": "https://github.com/celestiary/web/issues/321"
+      },
+      "permalink": "#sun@0,-90,23.604464Gm;t=9820.337596jd;cq=0.0036,-0.9956,0.0829,0.0436;fov=0.07deg;s=F;time:pause;sky:jwst-nircam",
+      "image": null,
+      "featured": true
+    },
+    {
       "id": "2026-11-20-new-york-s-city-rebuilt-from-every-surveyed",
       "date": "2026-11-20",
       "headline": "New York's city, rebuilt from every surveyed building",
