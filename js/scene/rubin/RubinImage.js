@@ -148,7 +148,8 @@ export function tileGeometry(manifest, l, x, y, radius = RADIUS) {
       const w = pixToWorld(manifest.wcs, px, py)
       equatorialToScene(w.ra, w.dec, v)
       positions.push(v[0] * radius, v[1] * radius, v[2] * radius)
-      uvs.push(b.fx * i / GRID, b.fy * j / GRID)
+      // The tile's own image, short at the edges: the whole texture.
+      uvs.push(i / GRID, j / GRID)
     }
   }
   for (let j = 0; j < GRID; j++) {

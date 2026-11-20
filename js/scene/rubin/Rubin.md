@@ -502,8 +502,22 @@ round and the 0.5° frame came out smeared into swirls on SwiftShader, where
 the tile itself is crisp: the perspective-correct interpolation at w = 1e15.
 On a unit sphere, with the clip depth put at the far plane in the vertex
 shader as the stars' is (so the bodies still hide it), it is crisp.  At
-0.02° (level 5 enlarged about 4×) a faint line shows along a tile's edge;
-not yet looked into.
+0.02° (level 5 enlarged about 4×) a faint line shows along a tile's edge
+(placed there by the WCS: the frame's tile boundary, diagonal with the
+image's 24° turn).  Ruled out: the wrap (three's default, clamp to edge),
+and the neighbours' edge vertices (both from the same pixel coordinate,
+`tileBox`).  The likely cause is that the tiles share no edge pixel: each
+clamps its own last half texel under linear filtering and mipmaps, so the
+seam is a texel wide; the fix is a pyramid cut with a pixel of overlap (a
+re-tile and a new set of LFS objects), left for now.  On the way, edge
+tiles (short images) were mapped with UVs short of 1, stretching their
+first part across the tile; they span the whole texture now.
+
+From the seat's link (the changelog's: #334's seat view at a 2° field,
+the night of 15 May 2026 paused, `apps.rubin:image=1`), in a fresh page:
+the switch reads on, the tiles load and draw, the frame's centre is at
+image pixel (12994, 14127), inside, and 2026 ED138's ring at (12996,
+14126), on it.
 
 ## Checked
 

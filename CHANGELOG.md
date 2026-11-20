@@ -49,7 +49,7 @@ telescope's 3.5° field and it sharpens to Rubin's own resolution; the object's 
 - PR: [#357](https://github.com/celestiary/web/pull/357)
 - Issue: [#333](https://github.com/celestiary/web/issues/333)
 - Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
-- Permalink: none
+- Permalink: [Open this view](https://celestiary.org/#sun/ed138@-30.2445,-70.7494,1.689km;from=sun/earth;t=9630.807563jd;cq=0.7319,0.5529,0.1076,-0.3834;fov=2deg;s=LTF;time:pause;apps:open,view=rubin;apps.rubin:image=1)
 - Featured: yes
 
 ### A link to a body by its name alone opens it
