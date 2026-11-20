@@ -1,6 +1,26 @@
 {
   "entries": [
     {
+      "id": "2026-11-20-new-york-s-city-rebuilt-from-every-surveyed",
+      "date": "2026-11-20",
+      "headline": "New York's city, rebuilt from every surveyed building",
+      "text": "New York (3D city) in the layers control now draws the latest Slop New York: every Manhattan building from the city's survey, with its own footprint and height, street trees where the NYC tree inventory puts them, subway entrances where the MTA's are, and fire escapes, storefronts and entrances up close.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 353,
+          "url": "https://github.com/celestiary/web/pull/353"
+        }
+      ],
+      "epic": {
+        "number": 110,
+        "title": "Earth appearance parity across the Cesium swap",
+        "url": "https://github.com/celestiary/web/issues/110"
+      },
+      "permalink": "#sun/earth@40.5025,-74.0298,780m;t=9792.377067jd;cq=0.2348,-0.1201,-0.2007,0.9435;fov=45deg;s=alpoU;time:pause;layers:nyc",
+      "image": null
+    },
+    {
       "id": "2026-11-20-a-link-to-a-body-by-its-name-alone-opens-it",
       "date": "2026-11-20",
       "headline": "A link to a body by its name alone opens it",
