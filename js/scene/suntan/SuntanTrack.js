@@ -101,6 +101,12 @@ export default class SuntanTrack extends Group {
       // the Sun (zoom.js homeBody).
       node.isCraftNode = true
       node.props = {name: SUNTAN_CRAFT[id].name, radius: {scalar: CRAFT_RADIUS_M}, albedo: CRAFT_ALBEDO}
+      // The link's frame when the camera rides it (Celestiary._cameraFrame,
+      // design/URLs.md `suntan:`): its path, and a radius the view's
+      // altitude is over that stays put when the model comes in and
+      // replaces the zoom's.
+      node.craftId = id
+      node.linkRadius = CRAFT_RADIUS_M
       this.nodes[id] = node
     }
     if (layer !== null) {

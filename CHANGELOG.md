@@ -43,12 +43,13 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 Find the relay or the lander in the Suntan app and zoom in: the flight system's 3D model rides
 each craft, its heat shield turned to the Sun and its sling wheel rolling along the orbit, and at
-release one lander leaves the wheel and flies on alone.
+release one lander leaves the wheel and flies on alone. Up close the view adapts to the craft's
+glare, its orbit line runs through it, and a link to the view brings you back to it.
 
 - Date: 2026-11-20
 - PR: [#367](https://github.com/celestiary/web/pull/367)
 - Epic: [#120](https://github.com/celestiary/web/issues/120) Missions and models
-- Permalink: none
+- Permalink: [Open this view](https://celestiary.org/#suntan:relay@26.8162,-51.8428,34m;t=9979.535268jd;cq=-0.2435,0.3056,0.0812,0.9169;fov=45deg;s=F;time:pause;apps:open,view=suntan)
 
 ### Zooming out after leaving a planet's orbit stays near the planet
 

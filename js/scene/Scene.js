@@ -3249,6 +3249,15 @@ export default class Scene {
    */
   linkCameraQuaternion() {
     const camera = this.ui.camera
+    // Riding a Suntan craft, relative to its node, the link's frame
+    // (Celestiary._cameraFrame, _restoreCraftView): the platform's turn on
+    // it is whatever the ride left.
+    const craft = camera.platform.parent
+    if (craft?.isCraftNode) {
+      craft.updateWorldMatrix(true, false)
+      const platform = camera.platform.getWorldQuaternion(new Quaternion())
+      return craft.getWorldQuaternion(new Quaternion()).invert().multiply(platform).multiply(camera.quaternion)
+    }
     const body = this._spinBody
     if (!body || camera.platform.parent !== body || Shared.targets.landed || !body.orbitPosition) {
       return camera.quaternion.clone()

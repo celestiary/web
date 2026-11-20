@@ -69,8 +69,11 @@ export const STATIC_BUDGET = {
   // turning about its target (#361: Scene pivotBody, ThreeUi _updatePivot,
   // dragControls getPivot, under a KB), 2,450.  2,451 for the Suntan craft's
   // exposure (Scene.targetCraftNode and sunlitCraft, asked by ThreeUI each
-  // frame, and the keying in ThreeUI: a fraction of a KB).
-  totalMinifiedKB: 2451,
+  // frame, and the keying in ThreeUI: a fraction of a KB).  2,453 for a link
+  // that names a Suntan craft and keeps the view on it (the `suntan:` path,
+  // the craft's frame and its restore in Celestiary, which reads a link
+  // before anything else loads: 1.5 KB).
+  totalMinifiedKB: 2453,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,

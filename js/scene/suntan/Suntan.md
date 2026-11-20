@@ -190,9 +190,20 @@ following to 0.1 m).
   while the app isn't running; `Scene.onSuntanChange` rebuilds the index).
 - **Stopping the app while riding one** leaves it for the Sun's frame with
   the camera where it is (`rehangPlatform`), and the Sun the target.
-- **A link doesn't name a craft**: it has no path of its own, so a link
-  made riding one is the camera's place in the Sun's frame, the Sun the
-  target.
+- **A link names the craft and rides it** (design/URLs.md, `suntan:`):
+  `#suntan:relay@lat,lng,alt;…;s=F;apps:…`.  Riding a craft, the view is in
+  the craft's own frame (`Celestiary._cameraFrame`: the node, with a fixed
+  6 m radius for the altitude, `linkRadius`, which the model's coming in
+  doesn't move), and `cq` is the camera relative to the node
+  (`Scene.linkCameraQuaternion`), whatever the platform's turn.  In the
+  Sun's frame, as it was, the relay is 2.5e10 m off, where the link's four
+  decimals of a degree are 190 km: a link made 40 m off the craft opened
+  in the Sun's glare, the craft lost.  Followed, it waits for the Sun and
+  the mission (`_loadFrame`, `getSuntan`), hangs the camera on the node
+  (`_restoreCraftView`) and rides it again (`setFollowing`, as a
+  satellite's link does).  Headless, a link written 40 m off the relay
+  opened 0.1 m from there (the altitude's metre) and 0.005° in direction.
+  Without the craft in flight at the link's time it goes to the Sun.
 
 ![Riding the relay](../../../screens/suntan/find.png)
 
