@@ -55,8 +55,11 @@ export const STATIC_BUDGET = {
   // riding the telescope's pointing on the cadence, half a KB, Scene and
   // the panel both first load), 2,371.  With the camera turning with a
   // body low over its ground (#344: Scene _syncSpin, _hungOn,
-  // linkCameraQuaternion), 2,372.
-  totalMinifiedKB: 2372,
+  // linkCameraQuaternion), 2,372.  2,437 with three.js 0.187 (from 0.171:
+  // three itself grew, 776 KB to 846 KB in the build, 64.9 KB of it in the
+  // first load, its WebGLRenderer and core; nothing of celestiary's), so
+  // 2,438 for a KB of room.
+  totalMinifiedKB: 2438,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -72,9 +75,11 @@ export const STATIC_BUDGET = {
   // arrival then fading, its info icon, and Gaia's and NASA GIBS's credits;
   // credits.js, CreditsFooter.jsx, scene/gibs.js; chrome, so in the first
   // load with the footer).  741 with the seat's aim (#332: 740.2, a
-  // fifth of a KB over).
-  totalGzipKB: 741,
-  // The largest single first-load file, minified.  Main: 695 KB.
+  // fifth of a KB over).  757, so 758, with three.js 0.187 (from 0.171:
+  // 740.6 to 756.7, three's own growth, as above).
+  totalGzipKB: 758,
+  // The largest single first-load file, minified.  Main: 695 KB.  759 with
+  // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,
 }
 
@@ -85,12 +90,15 @@ export const STATIC_BUDGET = {
  * 591 KB minified, 164 KB gzipped, nearly all one file (three tree-shaken
  * with the rest); the snapshots load after.  Lowered from 910 / 260 / 765,
  * set when it was a second entry of the app's build and shared its chunks.
+ * Raised by three.js 0.187's growth (from 0.171: 612 to 669 KB minified,
+ * 171 to 185 KB gzipped, all three's), from 650 / 180 / 650, so the room
+ * stays what it was.
  */
 export const LAYER_BUDGET = {
   entries: ['js/layer/layer.js'],
-  totalMinifiedKB: 650,
-  totalGzipKB: 180,
-  largestChunkMinifiedKB: 650,
+  totalMinifiedKB: 708,
+  totalGzipKB: 194,
+  largestChunkMinifiedKB: 708,
 }
 
 
