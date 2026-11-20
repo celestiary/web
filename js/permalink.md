@@ -84,7 +84,10 @@ positions at any epoch.
 
 ### Camera reference frame
 
-`cq` is the camera quaternion expressed in **platform-local space**.  The camera platform is a
+`cq` is the camera quaternion expressed in **platform-local space**, the orbit's: low over a
+body the camera rides its spinning node (DESIGN.md [follow](../DESIGN.md#follow), `SPIN_IN_M`), and
+the link takes its rotation back into the orbit's frame (`Scene.linkCameraQuaternion`), so it is
+written as on the orbit.  The camera platform is a
 Three.js `Object3D` parented to the target's `orbitPosition`, with its −Z axis pointing toward
 the solar system origin (`platform.lookAt(origin)`).  Restoring at the same `t` places the
 platform in the same orientation, so `cq` reproduces the exact viewing direction.
