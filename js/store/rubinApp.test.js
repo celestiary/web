@@ -19,12 +19,16 @@ describe('apps.rubin token', () => {
     expect(decodeRubinToken(undefined)).toEqual(DEFAULT_RUBIN)
     expect(DEFAULT_RUBIN.optics).toBe(true)
     expect(decodeRubinToken('path=0,night=20544,shell=0')).toEqual(
-        {path: false, nightMs: Date.UTC(2026, 3, 1), shell: false, optics: true, pixel: false})
+        {path: false, nightMs: Date.UTC(2026, 3, 1), shell: false, optics: true, pixel: false, cadence: false})
     expect(decodeRubinToken('optics=0')).toEqual({...DEFAULT_RUBIN, optics: false})
     expect(DEFAULT_RUBIN.pixel).toBe(false)
     expect(decodeRubinToken('pixel=1')).toEqual({...DEFAULT_RUBIN, pixel: true})
     expect(decodeRubinToken('path=2,night=x,shell=no,optics=off,pixel=on')).toEqual(DEFAULT_RUBIN)
-    const s = {path: false, nightMs: Date.UTC(2026, 6, 20), shell: false, optics: false, pixel: true}
+    expect(DEFAULT_RUBIN.cadence).toBe(false)
+    expect(encodeRubinToken({...DEFAULT_RUBIN, cadence: true})).toBe('cadence=1')
+    expect(decodeRubinToken('cadence=1')).toEqual({...DEFAULT_RUBIN, cadence: true})
+    expect(decodeRubinToken('cadence=yes')).toEqual(DEFAULT_RUBIN)
+    const s = {path: false, nightMs: Date.UTC(2026, 6, 20), shell: false, optics: false, pixel: true, cadence: true}
     expect(decodeRubinToken(encodeRubinToken(s))).toEqual(s)
   })
 })

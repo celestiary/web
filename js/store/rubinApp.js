@@ -32,7 +32,9 @@ export const DEFAULT_NIGHT_MS = Date.UTC(2026, 4, 15)
  * the apparent path is drawn, the night the run's slider is on (ms at
  * 0h UTC), whether the observatory's shell (the enclosure and dome)
  * is drawn, whether Rubin's optics hold the field, and whether Rubin's
- * pixel is drawn at the body (Rubin.md, "The optics").
+ * pixel is drawn at the body (Rubin.md, "The optics"), and whether the
+ * telescope keeps the survey's modelled cadence rather than staring at the
+ * body (Rubin.md, "Cadence").
  */
 export const DEFAULT_RUBIN = Object.freeze({
   path: true,
@@ -40,6 +42,7 @@ export const DEFAULT_RUBIN = Object.freeze({
   shell: true,
   optics: true,
   pixel: false,
+  cadence: false,
 })
 
 const MS_PER_DAY = 86400e3
@@ -60,6 +63,7 @@ export function encodeRubinToken(s) {
     shell: s.shell === d.shell ? null : (s.shell ? 1 : 0),
     optics: s.optics === d.optics ? null : (s.optics ? 1 : 0),
     pixel: (s.pixel === true) === d.pixel ? null : (s.pixel === true ? 1 : 0),
+    cadence: (s.cadence === true) === d.cadence ? null : (s.cadence === true ? 1 : 0),
   })
   return value || null
 }
@@ -80,6 +84,7 @@ export function decodeRubinToken(value) {
     shell: named.shell === '1' ? true : named.shell === '0' ? false : d.shell,
     optics: named.optics === '1' ? true : named.optics === '0' ? false : d.optics,
     pixel: named.pixel === '1' ? true : named.pixel === '0' ? false : d.pixel,
+    cadence: named.cadence === '1' ? true : named.cadence === '0' ? false : d.cadence,
   }
 }
 

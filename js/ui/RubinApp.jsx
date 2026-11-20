@@ -94,6 +94,8 @@ export default function RubinApp({celestiary}) {
   const [shell, setShell] = useState(saved.shell)
   const [optics, setOptics] = useState(saved.optics !== false)
   const [pixel, setPixel] = useState(saved.pixel === true)
+  const [cadence, setCadence] = useState(saved.cadence === true)
+  const [visit, setVisit] = useState(null)
   const [field, setField] = useState(null)
   const [ready, setReady] = useState(false)
   const [readout, setReadout] = useState(null)
@@ -160,16 +162,24 @@ export default function RubinApp({celestiary}) {
     }
   }, [pixel, ready])
 
+  // The survey's cadence or the stare (Rubin.md, "Cadence").
+  useEffect(() => {
+    if (rubinRef.current) {
+      rubinRef.current.cadence.enabled = cadence
+    }
+  }, [cadence, ready])
+
   // Report the state, for the permalink.
   useEffect(() => {
-    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell, optics, pixel}})
-  }, [dispatchWidgets, path, nightMs, shell, optics, pixel])
+    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell, optics, pixel, cadence}})
+  }, [dispatchWidgets, path, nightMs, shell, optics, pixel, cadence])
 
   // The telescope's pointing and the field, a few times a second.
   useEffect(() => {
     const timer = setInterval(() => {
       const state = rubinRef.current?.observatory.state
       setReadout(state ? {...state, paused: time.isPaused, ms: time.simTime} : null)
+      setVisit(rubinRef.current?.cadence.readout(time.simTime) ?? null)
       const heightPx = ui.renderer?.domElement?.height || ui.height
       setField(fieldReadout(ui.camera.fov, ui.fieldRange?.() ?? null, heightPx, RUBIN))
     }, READOUT_MS)
@@ -252,7 +262,7 @@ export default function RubinApp({celestiary}) {
     }
     watchRef.current = false
     watchNight()
-    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell, optics, pixel}})
+    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell, optics, pixel, cadence}})
   })
 
   const nightDay = Math.round((nightMs - RUN_START_MS) / MS_PER_DAY)
@@ -315,9 +325,20 @@ export default function RubinApp({celestiary}) {
           <div>2026 ED138 {el >= 0 ? `${el.toFixed(1)}° up` : `${(-el).toFixed(1)}° below the horizon`}</div>
           <div>Sun {readout.sunEl.toFixed(1)}°, dome {readout.open ? 'open' : 'shut'}</div>
           <div>{readout.tracking ?
-            `Tracking: azimuth ${readout.az.toFixed(1)}°, elevation ${readout.el.toFixed(1)}°` :
+            `${readout.cadence ? (readout.slewing ? 'Slewing' : 'On the field') : 'Tracking'}: azimuth ${
+              readout.az.toFixed(1)}°, elevation ${readout.el.toFixed(1)}°` :
             'Parked at the zenith'}</div>
+          {visit?.lines.map((line, i) => <div key={i} data-testid={`rubin-cadence-${i}`}>{line}</div>)}
         </Box>}
+      <FormControlLabel
+        control={<Switch checked={cadence} onChange={(e) => setCadence(e.target.checked)} size='small'
+          data-testid='rubin-cadence-switch'/>}
+        label='Survey cadence'
+      />
+      <Typography variant='caption' color='text.secondary' display='block' sx={{mb: 1}}>
+        A survey night instead of the stare: 30 s visits to 3.5° fields, each again 33 min later, drawn on the
+        sky. A model of Rubin&apos;s published rules, not its log, which isn&apos;t public yet.
+      </Typography>
       <Divider sx={{my: 1.5}}/>
       <FormControlLabel
         control={<Switch checked={optics} onChange={(e) => setOptics(e.target.checked)} size='small'
