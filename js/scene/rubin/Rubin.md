@@ -481,6 +481,26 @@ exposure and any metered gain.  It reads as the press image, not as what
 the eye would see from the seat; a physical rendering would want the
 calibrated data, which isn't public.
 
+**Checked in the page** (headless Chromium on SwiftShader, 600 × 341, the
+camera at Earth looking at the field, the clock paused on 15 May 2026):
+the tiles draw at levels 0, 3 and 5 for 3.5°, 0.5° and 0.02°, with no
+shader errors, and the app's apparent path of 2026 ED138 enters the drawn
+image in March and leaves it in July, as the WCS puts it.  Star on star,
+by the CPU through the page's own matrices: the six stars.dat stars in the
+frame that the fit matched (HIP 89500, 89616, 89354, 89166, 90039, 89373,
+G 7 to 9.7) lie 0.5″ to 2.8″ from where the layer draws their image
+(0.1 to 0.54 px at 0.5°, 2.4 to 13 px at 0.02°).  Most of it is the
+catalogue's, not the image's: the same stars are 0.2″ to 2.2″ from Gaia
+DR3 in stars.dat (its Hipparcos J2000 positions, without proper motion to
+2016, let alone to the image's 2026), and the worst, HIP 89354, is the one
+furthest from Gaia (2.2″).  Against Gaia the image sits at the fit's
+0.6″.  The bright stars are saturated in the composite, so their centroids
+are the least sure (HIP 89500 split into four detections, 0.5″ to 1.8″).
+On SwiftShader the 0.5° frame looks mottled, the stars smeared into
+swirls, where the tile itself is crisp: not yet explained (the 1e15 m
+sphere's w in the perspective-correct interpolation is a suspect); to be
+looked at on a real GPU.
+
 ## Checked
 
 - The tests above, and `ed138.test.js`.
