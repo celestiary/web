@@ -12,8 +12,8 @@ import {equatorialToScene, pixToWorld} from './wcs.js'
 // which precesses it to the date with the stars, and each tile is drawn
 // centred on the camera, so there is no parallax anywhere in the system.
 //
-// Drawn after the opaque bodies with depth test on and no depth write, over
-// the star points (the photograph has its own stars, which land on Gaia's to
+// Drawn after the opaque bodies with depth test on and no depth write, its
+// depth at the far plane as the stars' is, over the star points (the photograph has its own stars, which land on Gaia's to
 // its fit's 0.6″) and under the overlays (the path, the pixel).  The tiles
 // are display-referred sRGB, written through sceneReferred so the tone map
 // gives each texel back as it was: the picture reads as the photograph at
@@ -26,8 +26,16 @@ import {equatorialToScene, pixToWorld} from './wcs.js'
 
 /** Each tile's mesh, vertices a side less one. */
 export const GRID = 8
-/** The sphere's radius, metres: any; the tiles are drawn centred on the camera. */
-export const RADIUS = 1e15
+/**
+ * The sphere's radius, metres.  The tiles are drawn centred on the camera
+ * and their depth is put at the far plane in the vertex shader, so it is a
+ * direction only: a unit sphere.  At 1e15 m the frame was smeared into
+ * swirls on SwiftShader (the perspective-correct interpolation at w = 1e15),
+ * where at 1e7 m it was crisp.
+ */
+export const RADIUS = 1
+/** Clip z as a fraction of w: the stars' (exposure.js STAR_FAR_PLANE_INSIDE), so bodies in front hide it. */
+const FAR_PLANE_INSIDE = 0.999999
 /** The level drawn whole under the detail. */
 export const BASE_LEVEL = 2
 export const MAX_TILES = 96
@@ -180,6 +188,9 @@ function newMaterial(sceneReferred) {
 void main() {
   vUv = uv;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  // At the far plane, as the stars are: behind every body, whatever the
+  // sphere's radius.
+  gl_Position.z = ${FAR_PLANE_INSIDE} * gl_Position.w;
 }`,
     // The texel as it is: display-referred sRGB (the texture is read without
     // decoding), which sceneReferred turns into what the tone map gives back.

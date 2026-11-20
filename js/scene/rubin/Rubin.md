@@ -472,8 +472,9 @@ anywhere.  The level is the coarsest whose pixel fits a screen pixel
 about 0.25°), only the tiles in the view's circle are fetched, six at a
 time, from `preAnimCb` (no DOM work in a synchronous path), level 2 drawn
 whole under the detail while it loads, 96 tiles kept.  Drawn after the
-opaque bodies, depth-tested without writing depth, **over the star
-points** (the photograph has its own stars) and under the overlays (the
+opaque bodies, depth-tested without writing depth, its depth at the far
+plane as the stars' is (a unit sphere: the radius is only a direction),
+**over the star points** (the photograph has its own stars) and under the overlays (the
 path, the pixel marker).  **Its brightness is the photograph's**: the
 tiles are display-referred sRGB, read undecoded and written through
 `sceneReferred`, so the tone map gives each texel back as it was, at any
@@ -496,10 +497,13 @@ DR3 in stars.dat (its Hipparcos J2000 positions, without proper motion to
 furthest from Gaia (2.2″).  Against Gaia the image sits at the fit's
 0.6″.  The bright stars are saturated in the composite, so their centroids
 are the least sure (HIP 89500 split into four detections, 0.5″ to 1.8″).
-On SwiftShader the 0.5° frame looks mottled, the stars smeared into
-swirls, where the tile itself is crisp: not yet explained (the 1e15 m
-sphere's w in the perspective-correct interpolation is a suspect); to be
-looked at on a real GPU.
+The first build drew the tiles on a sphere 1e15 m
+round and the 0.5° frame came out smeared into swirls on SwiftShader, where
+the tile itself is crisp: the perspective-correct interpolation at w = 1e15.
+On a unit sphere, with the clip depth put at the far plane in the vertex
+shader as the stars' is (so the bodies still hide it), it is crisp.  At
+0.02° (level 5 enlarged about 4×) a faint line shows along a tile's edge;
+not yet looked into.
 
 ## Checked
 
