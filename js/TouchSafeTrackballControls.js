@@ -13,14 +13,22 @@ import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.j
  * other with no position, and every touch move from then on throws reading
  * it (TrackballControls onTouchMove, onTouchEnd).
  *
+ * (Since three r182 it listens for pointerup on the document, where an up
+ * over HTML bubbles to, unless the HTML stops it there.)
+ *
  * So: every pointer is captured, so its up or cancel comes back here; a
  * pointer is listed once; and one with no position reads as where it went
  * down.
  */
 export default class TouchSafeTrackballControls extends TrackballControls {
-  /** Also capture every pointer down, after TrackballControls' own handler. */
-  connect() {
-    super.connect()
+  /**
+   * Also capture every pointer down, after TrackballControls' own handler.
+   *
+   * @param {HTMLElement} element Controls.connect takes the element (three
+   *   r175); without it the base reads domElement before it's set
+   */
+  connect(element) {
+    super.connect(element)
     // Set here, as the base constructor connects before this one's fields.
     this._captureEveryPointer ??= (event) => {
       if (this.enabled) {
