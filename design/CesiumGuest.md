@@ -647,6 +647,24 @@ atmosphere and labels moved on; now it's composed for this frame's camera.
   correction lands in the canvas's projection now (`_ecefProjection`), not
   the frame's, since the copy stretches a frame drawn at the old size to the
   new one.
+- **A late frame's distances decode by its own view's scale**
+  ([#344](https://github.com/celestiary/web/issues/344)).  The atmosphere
+  reads the guest's distances from its alpha, encoded with a scale that
+  follows the camera's height (`distanceScale`, 40 km + 5 h).  A late
+  frame was decoded with the scale of the view posted last, not the one it
+  was drawn for, so low over the ground, where the height changes fast,
+  the haze over it jumped: white flicker with the atmosphere on, none with
+  it off.  `GuestPages` keeps each posted view's scale by its id
+  (`_sent`, the last 64) and a day part's frame-end names the one it
+  drained (`body.drainedView`); `_decodeInto` takes that
+  (`_frameDistanceScale`).  The distances themselves need no moving: Cesium
+  computes them from the scene's depth, which the corrected frame's log
+  depth already puts at this frame's camera (moving them as well made the
+  check below worse).  `yarn cesium-guest-check --dolly 0.95` (the camera
+  moved straight down to 95% of its height, the guest held, the held frame
+  composed there against the guest's own frame there): 3.28 decoded by the
+  frame's scale, 3.81 by the posted view's, with about ±1 between runs.
+  Not shown here: that it ends the flicker on a real GPU.
 - **The night lights' part** is `'emission'` (RFC 0002 §6.3's name) from
   `GUEST_VERSION` 3; the host takes `'lights'` too, from an older page.
 
