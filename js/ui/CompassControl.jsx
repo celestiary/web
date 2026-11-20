@@ -91,6 +91,9 @@ export default function CompassControl({celestiary}) {
     if (!h) {
       return
     }
+    // A press and a move would otherwise start selecting the page's text,
+    // which the camera menu then showed highlighted.
+    e.preventDefault()
     const [cx, cy] = center()
     drag.current = {x: e.clientX, y: e.clientY, angle: angleAround(e.clientX, e.clientY, cx, cy), h, moved: false}
     e.currentTarget.setPointerCapture?.(e.pointerId)

@@ -1136,6 +1136,12 @@ button {
 
 /* The camera control's label (ui/CameraModeControl.jsx; design/UI.md, the
    camera control): lit for a moment when the height switches it. */
+.camera-mode,
+.camera-mode-menu {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .camera-mode {
   display: inline-flex;
   align-items: center;
@@ -1167,6 +1173,8 @@ button {
 /* The compass (ui/CompassControl.jsx; design/UI.md, the camera control):
    its needle's accent end points north on the ground under the camera. */
 .compass {
+  user-select: none;
+  -webkit-user-select: none;
   display: inline-flex;
   padding: 0;
   border: none;
