@@ -52,7 +52,7 @@ published survey rules, not its log, whose visit lists aren't public yet.
 - PR: [#354](https://github.com/celestiary/web/pull/354)
 - Issue: [#332](https://github.com/celestiary/web/issues/332)
 - Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
-- Permalink: [Open this view](https://celestiary.org/#sun@0,-90,23.604464Gm;t=9630.708805jd;cq=0,0,0,1;fov=3.5deg;s=F;time:pause;apps:open,view=rubin;apps.rubin:cadence=1)
+- Permalink: [Open this view](https://celestiary.org/#sun/ed138@-30.2446,-70.7494,2.684km;from=sun/earth;t=9630.783523jd;cq=-0.1325,0.8944,0.4018,-0.1454;fov=30deg;s=LTF;time:pause;apps:open,view=rubin;apps.rubin:optics=0,cadence=1)
 - Featured: yes
 
 ### A link to a body by its name alone opens it
