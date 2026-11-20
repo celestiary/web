@@ -292,6 +292,12 @@ export default class Scene {
     this.loadRubin = () => import('./rubin/install.js')
     // The Suntan feature, the same way (getSuntan).
     this.loadSuntan = () => import('./suntan/install.js')
+    // A sky survey's imagery over the stars from the start, by its key: the
+    // `?sky=` parameter (sky/Sky.md), until the surveys have a control.
+    const sky = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('sky')
+    if (sky) {
+      this.showSky(sky)
+    }
     // Whether vsopAt is VSOP87C itself yet (Animation.vsopReady): set by
     // Celestiary.  Absent, as in tests, it's taken as ready.
     this.vsopReady = null
@@ -332,6 +338,14 @@ export default class Scene {
     // The body whose spinning node the camera rides while it follows the
     // body low over its ground (SPIN_IN_M, syncFollow); null on the orbit.
     this._spinBody = null
+    // Turning with the body held by hand (`y`, the camera control): 'on'
+    // turns with it at any height, 'off' rides its orbit at any height,
+    // null is automatic (SPIN_IN_M).  Going to a body or landing clears it.
+    this._spinHold = null
+    // Set by Celestiary: called with the camera's state (cameraMode) when it
+    // changes, for the camera control.
+    this.onCameraMode = null
+    this._cameraModeKey = null
     // Populations round bodies (population/Population.md), by body: Earth's
     // satellites (satellites/Satellites.md), their chunk and snapshot
     // imported when something first needs them (loadSatellites), and any
@@ -420,6 +434,7 @@ export default class Scene {
       A: false,
       T: Shared.targets.track,
       F: Boolean(Shared.targets.follow),
+      Y: this._spinHold === 'on' && Boolean(Shared.targets.follow) && !Shared.targets.landed,
     }
   }
 
@@ -2830,6 +2845,7 @@ export default class Scene {
   /** Out of the seat (rideSeat), the camera staying where it is. */
   leaveSeat() {
     this.seat = null
+    this.seatAim = null
   }
 
 
@@ -2981,6 +2997,7 @@ export default class Scene {
    */
   _followArrival(node) {
     const was = Boolean(Shared.targets.follow)
+    this._spinHold = null
     Shared.targets.follow = node
     this._followHome = null
     this._detachFrom = null
@@ -3091,6 +3108,105 @@ export default class Scene {
     }
     this._syncFollowHang(want)
     this._syncSpin(want)
+    this._announceCameraMode()
+  }
+
+
+  /**
+   * How the camera moves, for the camera control (design/UI.md, the camera
+   * control):
+   * - `fixed`: left behind in the frame above, the body moving on without it
+   *   (following off);
+   * - `orbit`: riding the body's orbit, the body turning under it;
+   * - `turning`: turning with the body, the ground still under it;
+   * - `standing`: landed on it;
+   * - null at a star or a galaxy, where there is no body to ride.
+   *
+   * `auto` says whether turning or riding is the height's choice (SPIN_IN_M)
+   * rather than one held by hand (`y`, setCameraMode); `body` is the body's
+   * name, the frame's for a camera left behind.
+   *
+   * @returns {{mode: ?string, auto: boolean, body: ?string}}
+   */
+  cameraMode() {
+    const platform = this.ui.camera.platform
+    const body = Shared.targets.cur?.props?.name ?? null
+    if (!platform.parent || platform.parent === this._starAnchor || !body) {
+      return {mode: null, auto: false, body: null}
+    }
+    if (Shared.targets.landed) {
+      return {mode: 'standing', auto: false, body}
+    }
+    if (!Shared.targets.follow) {
+      return {mode: 'fixed', auto: false, body}
+    }
+    const spun = Boolean(this._spinBody) && platform.parent === this._spinBody
+    return {mode: spun ? 'turning' : 'orbit', auto: this._spinHold === null, body}
+  }
+
+
+  /**
+   * Set how the camera moves (cameraMode): `fixed` leaves the body (as `f`
+   * off), `orbit` and `turning` ride it (as `f` on) and hold riding its
+   * orbit or turning with it at any height, `auto` lets the height choose
+   * again.  `standing` isn't set here: it needs a place (land).  Landed,
+   * nothing changes but `auto`: the camera is pinned to the ground until a
+   * go leaves it.
+   *
+   * @param {string} mode 'fixed', 'orbit', 'turning' or 'auto'
+   */
+  setCameraMode(mode) {
+    if (Shared.targets.landed) {
+      return
+    }
+    if (mode === 'fixed') {
+      if (Shared.targets.follow) {
+        this.setFollowing(false)
+      }
+    } else if (mode === 'orbit' || mode === 'turning' || mode === 'auto') {
+      if (!Shared.targets.follow) {
+        this.setFollowing(true)
+      }
+      this._spinHold = mode === 'auto' ? null : (mode === 'turning' ? 'on' : 'off')
+      this.syncFollow()
+    }
+    this.onSettingsChange?.()
+  }
+
+
+  /**
+   * `y`: turn with the body, or ride its orbit if the camera turns with it
+   * already (Celestia's Orbit Synchronously), held either way.
+   */
+  toggleTurning() {
+    this.setCameraMode(this.cameraMode().mode === 'turning' ? 'orbit' : 'turning')
+  }
+
+
+  /**
+   * Turning held as a link had it (`Y`), the camera in its frame and
+   * following restored (Celestiary._arrive).
+   *
+   * @param {boolean} on
+   */
+  restoreTurning(on) {
+    if (on && Shared.targets.follow && !Shared.targets.landed) {
+      this._spinHold = 'on'
+    }
+  }
+
+
+  /** Tell the camera control when cameraMode changes (from syncFollow, each frame). */
+  _announceCameraMode() {
+    if (!this.onCameraMode) {
+      return
+    }
+    const state = this.cameraMode()
+    const key = `${state.mode}:${state.auto}:${state.body}`
+    if (key !== this._cameraModeKey) {
+      this._cameraModeKey = key
+      this.onCameraMode(state)
+    }
   }
 
 
@@ -3157,13 +3273,20 @@ export default class Scene {
     if (!body || body.orbitPosition !== want || !(r > 0)) {
       return
     }
-    body.updateWorldMatrix(true, false)
-    this.ui.camera.updateWorldMatrix(true, false)
-    const h = this.ui.camera.getWorldPosition(_spinCam).distanceTo(body.getWorldPosition(_spinBodyPos)) - r
-    if (!this._spinBody && h < SPIN_IN_M) {
+    let spin
+    if (this._spinHold) {
+      // Held by hand (`y`, the camera control): at any height.
+      spin = this._spinHold === 'on'
+    } else {
+      body.updateWorldMatrix(true, false)
+      this.ui.camera.updateWorldMatrix(true, false)
+      const h = this.ui.camera.getWorldPosition(_spinCam).distanceTo(body.getWorldPosition(_spinBodyPos)) - r
+      spin = this._spinBody ? h <= SPIN_OUT_M : h < SPIN_IN_M
+    }
+    if (!this._spinBody && spin) {
       rehangPlatform(platform, this.ui.camera, body)
       this._spinBody = body
-    } else if (this._spinBody && h > SPIN_OUT_M) {
+    } else if (this._spinBody && !spin) {
       this._unspin()
     }
   }
@@ -3481,6 +3604,19 @@ export default class Scene {
       dataUrl, addCredit, removeCredit,
     })
     return this.rubin
+  }
+
+
+  /**
+   * A sky survey's imagery (HiPS tiles, sky/Sky.md) drawn over the stars,
+   * by its key (`jwst-nircam`): lazily loaded.
+   *
+   * @param {string} key
+   * @returns {Promise<?object>} The layer, or null for a key no survey has
+   */
+  async showSky(key) {
+    const {showSurvey} = await import('./sky/install.js')
+    return showSurvey(this, key, {sceneReferred, addCredit, removeCredit})
   }
 
 

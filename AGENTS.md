@@ -57,6 +57,7 @@ tried and dropped.
 | The widgets drawer and dock (apps, pin, stop) | DESIGN.md [widgets drawer and dock](DESIGN.md#widgets-drawer-and-dock) |
 | Human expansion (an app: BFS spread across the stars) | [js/scene/Colonization.md](js/scene/Colonization.md) |
 | The Rubin Observatory on Cerro Pachón following 2026 ED138, its first dwarf planet candidate (an app: the model, its pointing, the object's apparent path, the body's JPL elements; Rubin's image on the sky, its WCS and tiles) | [js/scene/rubin/Rubin.md](js/scene/rubin/Rubin.md); the image: [the imagery](js/scene/rubin/Rubin.md#the-imagery) |
+| Sky imagery as HiPS surveys (HEALPix tiles on the sky): the layer, a survey's manifest and coverage (MOC), the tile's orientation in its cell, Rubin's First Look, ESASky's JWST, adding Hubble's | [js/scene/sky/Sky.md](js/scene/sky/Sky.md) |
 | Suntan (an app: a concept mission to the Sun's surface on Parker Solar Probe's path): the mission model and how it's checked against Parker, its sensors (sunlight, temperatures by layer, wind, field), the panel; the research, trajectory numbers and STEP model in `design/suntan/` | [js/scene/suntan/Suntan.md](js/scene/suntan/Suntan.md) |
 | Other galaxies: SPARC's 175 discs from their parameters, their data and cross-match, levels of detail, rotation curves | [js/scene/Galaxies.md](js/scene/Galaxies.md); the model they share with the Milky Way, [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
 | Social previews via the portal proxy | [portal/DESIGN.md](portal/DESIGN.md) |
@@ -547,6 +548,18 @@ tried and dropped.
   - `asc-planetarynames-data.s3.us-west-2.amazonaws.com` (the IAU
     Gazetteer's per-body downloads, for `tools/places/build.mjs`; the
     site itself, `planetarynames.wr.usgs.gov`, is refused).
+  - `skies.esac.esa.int` (ESA's ESASky HiPS: Hubble's and JWST's surveys,
+    `properties`, `Moc.fits` and tiles, CORS `*`; the sky layer's real-tile
+    check runs on its JWST NIRCam survey, [Sky.md](js/scene/sky/Sky.md)).
+    CDS's HiPS host, `alasky.cds.unistra.fr`, is reachable but answers
+    every static HiPS path (properties, tiles, `Moc.fits`) with a "Page
+    unavailable" 404 from here, and its MocServer every MOC with a 413
+    (records answer); the mirror `alaskybis` resets the connection.  A
+    visitor's browser got the same 404 (2026-11-20), so don't take a CDS
+    HiPS as working because its record says so.
+  - `images.rubinobservatory.org` (Rubin's own HiPS, the tiles its
+    SkyViewer draws: the First Look's Virgo field, CORS `*`), and
+    `skyviewer.app` (the viewer's page, whose source names them).
 
   If one is denied, ask the user to add it to the environment's allowed
   hosts, and carry on with what doesn't need it.

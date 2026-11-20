@@ -53,6 +53,33 @@ simulated by date; ordinary light hides all of this. There is no button for it y
 - PR: [#358](https://github.com/celestiary/web/pull/358)
 - Epic: [#164](https://github.com/celestiary/web/issues/164) Stars up close: a dynamic Sun, and every star from its physical parameters
 - Permalink: none
+### Rubin's First Look on the sky, and the survey ride says when it's there
+
+In the Rubin Observatory app, "Rubin's image" now also lays Rubin's First Look of June 2025 on the
+sky where it was taken: the Virgo Cluster, 24 square degrees of galaxies from Rubin's own image
+tiles, sharper as you zoom in. Buttons under the switch turn the view to each imaged field. On the
+survey cadence, the panel says when the telescope's field holds Rubin's images. A new layer draws them, one that can show other sky surveys the same way: a
+link with `?sky=jwst-nircam` lays JWST's NIRCam images on the sky, the Pillars of Creation among
+them. The Trifid and Lagoon nebulae, the First Look's other field, will show when CDS's tile service
+answers again.
+
+- Date: 2026-11-20
+- PR: [#365](https://github.com/celestiary/web/pull/365)
+- Issue: [#360](https://github.com/celestiary/web/issues/360)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: [Open this view](https://celestiary.org/#sun/ed138@-30.2446,-70.7494,2.684km;from=sun/earth;t=9630.583333jd;cq=0.1938,0.97,-0.093,-0.1132;fov=3.5deg;s=LF;time:pause;apps:open,view=rubin;apps.rubin:optics=0,image=1)
+
+### The camera says how it's moving, and you can change it
+
+A label by the time controls says how the camera moves: riding a planet's orbit, turning with it so the ground stays
+put, standing on it, or fixed in space. It notes when the height chose for you, and lights up when that changes.
+Tap it to choose another way, with each one's key; *y* turns with the planet at any height.
+
+- Date: 2026-11-20
+- PR: [#368](https://github.com/celestiary/web/pull/368)
+- Issue: [#361](https://github.com/celestiary/web/issues/361)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@7.0316,-7.5554,624m;t=9819.841738jd;cq=-0.3849,0.6474,-0.3869,-0.5319;fov=45deg;s=alpoGF;time:pause)
 
 ### Zooming out after leaving a planet's orbit stays near the planet
 

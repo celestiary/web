@@ -220,7 +220,8 @@ turn following on silently) and, once the target is set, calls `Scene.restoreFol
 `pl.settings.F` **or the frame being the target's own body** (no `from=`, or the same one).  A link
 from before `F` has no letter and always rode its frame body, so it reads as following; a link in
 another body's frame without `F` reads as detached.  Neither moves the camera; `restoreFollowing`
-sets the body followed to the camera's frame (`Shared.targets.cur`), not the target.  The readout
+sets the body followed to the camera's frame (`Shared.targets.cur`), not the target.  `Y` (turning with
+the body held by hand, `y`) is read after it (`Scene.restoreTurning`).  The readout
 hears of it only when the link doesn't follow ("Following off").  A camera in the target's own frame
 that had left another body reads as following (one `f` leaves it), the one state the link can't tell
 apart.

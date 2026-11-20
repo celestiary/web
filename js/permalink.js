@@ -90,6 +90,7 @@ export const SETTINGS_DEFAULTS = Object.freeze({
   L: false, // landed at surface — see Scene.land
   T: false, // tracking the target — see Scene.track
   F: false, // following the target's orbit — see Scene.follow
+  Y: false, // turning with the body held by hand ('y') — see Scene.setCameraMode
   A: false, // AR-fallback — enter AR sky view if device supports
 })
 
