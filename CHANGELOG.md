@@ -52,6 +52,48 @@ over Earth), and the clouds up close flickered while the clock ran.
 - Permalink: [Open this view](https://celestiary.org/#sun/earth@7.0316,-7.5554,624m;t=9819.841738jd;cq=-0.3849,0.6474,-0.3869,-0.5319;fov=45deg;s=alpoGF)
 - Kind: fix
 
+### Rubin surveys the sky, visit by visit
+
+The Rubin Observatory app's new *Survey cadence* switch has the telescope work as a survey night
+does, rather than staring at 2026 ED138: 30-second visits to 3.5° fields, a few seconds' slew
+between neighbours, each field visited again about 33 minutes later, and the object's field among
+them. With it on, *Watch the night* rides the telescope from field to field, about a visit a
+second. The night's fields are drawn on the sky as circles, the current one bright, and the panel
+counts the visits and the time to the object's next. The schedule is a model from Rubin's
+published survey rules, not its log, whose visit lists aren't public yet.
+
+- Date: 2026-11-20
+- PR: [#354](https://github.com/celestiary/web/pull/354)
+- Issue: [#332](https://github.com/celestiary/web/issues/332)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: [Open this view](https://celestiary.org/#sun/ed138@-30.2446,-70.7494,2.684km;from=sun/earth;t=9630.783523jd;cq=-0.1325,0.8944,0.4018,-0.1454;fov=30deg;s=LTF;time:pause;apps:open,view=rubin;apps.rubin:optics=0,cadence=1)
+- Featured: yes
+
+### Rubin's discovery image, on the sky where it was taken
+
+Turn on "Rubin's image" in the Rubin app and NOIRLab's picture of the field where Rubin found 2026
+ED138 lies over the stars it shows, placed by those stars to under an arcsecond. Zoom in from the
+telescope's 3.5° field and it sharpens to Rubin's own resolution; the object's path crosses it.
+
+- Date: 2026-11-20
+- PR: [#357](https://github.com/celestiary/web/pull/357)
+- Issue: [#333](https://github.com/celestiary/web/issues/333)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: [Open this view](https://celestiary.org/#sun/ed138@-30.2445,-70.7494,1.689km;from=sun/earth;t=9630.807563jd;cq=0.7319,0.5529,0.1076,-0.3834;fov=2deg;s=LTF;time:pause;apps:open,view=rubin;apps.rubin:image=1)
+- Featured: yes
+
+### 2026 ED138's path stays on it in Rubin's narrowest views
+
+With Rubin's optics limit off and the field zoomed far past Rubin's pixels, the apparent path's
+ring now sits on 2026 ED138 and holds still, and the path runs through the body, where the ring
+jumped between frames and drifted off it.
+
+- Date: 2026-11-20
+- PR: [#355](https://github.com/celestiary/web/pull/355)
+- Issue: [#340](https://github.com/celestiary/web/issues/340)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: none
+- Kind: fix
 ### A link to a body by its name alone opens it
 
 A link such as celestiary.org/#earth or #moon stayed on the loading screen. It now opens on that body

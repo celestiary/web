@@ -55,7 +55,7 @@ tried and dropped.
 | Star discs and colours: temperature from class, blackbody colour, limb darkening, granulation, spots | [js/scene/Stars.md](js/scene/Stars.md) |
 | The widgets drawer and dock (apps, pin, stop) | DESIGN.md [widgets drawer and dock](DESIGN.md#widgets-drawer-and-dock) |
 | Human expansion (an app: BFS spread across the stars) | [js/scene/Colonization.md](js/scene/Colonization.md) |
-| The Rubin Observatory on Cerro Pachón following 2026 ED138, its first dwarf planet candidate (an app: the model, its pointing, the object's apparent path, the body's JPL elements) | [js/scene/rubin/Rubin.md](js/scene/rubin/Rubin.md) |
+| The Rubin Observatory on Cerro Pachón following 2026 ED138, its first dwarf planet candidate (an app: the model, its pointing, the object's apparent path, the body's JPL elements; Rubin's image on the sky, its WCS and tiles) | [js/scene/rubin/Rubin.md](js/scene/rubin/Rubin.md); the image: [the imagery](js/scene/rubin/Rubin.md#the-imagery) |
 | Other galaxies: SPARC's 175 discs from their parameters, their data and cross-match, levels of detail, rotation curves | [js/scene/Galaxies.md](js/scene/Galaxies.md); the model they share with the Milky Way, [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
 | Social previews via the portal proxy | [portal/DESIGN.md](portal/DESIGN.md) |
 | Where code lives | DESIGN.md [key files](DESIGN.md#key-files-reference) |
@@ -512,6 +512,10 @@ tried and dropped.
   - `ssd-api.jpl.nasa.gov` (JPL's three-body periodic orbit catalogue, for
     `public/data/periodicOrbits.json`: `bun tools/periodic/fetchJpl.mjs`;
     [Lagrange.md](js/scene/Lagrange.md#three-body-orbits)).
+  - `storage.noirlab.edu` (NOIRLab's image downloads: the large JPEG of
+    noirlab2626d that `tools/rubin/pyramid.py` tiles for Rubin's image,
+    [Rubin.md](js/scene/rubin/Rubin.md#the-imagery); its Zoomify pyramid
+    sends no CORS).
   - `noirlab.edu` (NOIRLab's 3D models, for `tools/models/build.sh`'s
     Rubin telescope, and its press releases; `rubinobservatory.org` is
     allowed too).  `curl` through the sandbox proxy reaches it where

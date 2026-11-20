@@ -1255,6 +1255,37 @@ single point beyond (the `planet LOD`'s second level, `js/scene/farPoint.js`,
 - **Not in the `V` groups.**  Bodies aren't annotations; the far point
   stays with the body.
 
+### Relative-to-eye anchors
+
+float32 holds a number to 6e-8 of itself: a vertex 7e12 m from its node
+(2026 ED138 at 47 au) to 5e5 m, which in a 0.00016° field on 500 px is 13
+screen pixels ([#334](https://github.com/celestiary/web/issues/334)).
+Three's matrices are float64 on the CPU (JS numbers) and float32 only once
+uploaded, and `modelViewMatrix` is composed there, `camera.matrixWorldInverse`
+× `matrixWorld`, so the camera is already subtracted in float64: the
+uploaded translation is the node's place in view space, whose x and y are
+small near the line of sight and float32 holds to 6e-8 of themselves.  So
+a far thing is drawn **relative to the eye** by keeping its points in
+float64 on the CPU and handing the GPU float32 *offsets from an anchor*
+near where the camera looks, with the anchor as the node's `position`, and
+re-writing the offsets when the anchor moves (`js/scene/relativeToEye.js`
+`writeOffsets`, [#340](https://github.com/celestiary/web/issues/340)).  No
+shader change and no per-frame camera uniform: the ordinary model-view
+does it.  `relativeToEye.js` also has `gpuNdc`, a point's projection in
+float32 arithmetic as the GPU does it, against `exactNdc`, for tests and
+probes: a point 7e12 m off from a camera 1e7 m from the origin lands 6.4
+px off as an absolute vertex, 2e-8 px anchored.
+
+Who does it: the Rubin app's apparent path and its ring (anchored at the
+body's place at the frame's time, [Rubin.md](js/scene/rubin/Rubin.md#the-apparent-path));
+the orbit lines (`bodyLine.js`, an origin at the body); a body's mesh,
+far point and Rubin's pixel marker (a vertex at the node's origin, so
+nothing large in an attribute).  The stars, their labels and the
+asterisms are the other case, vertices at light-years in one node's
+frame that can't all be near an anchor, and send the camera's position as
+float32 high and low parts instead (`rte.js`).  The depth is not fixed
+this way: a body at 47 au is still at the cleared depth's precision.
+
 ### Cesium layers
 
 Near Earth, a Layers control (`js/ui/LayersButton.jsx`) offers a Cesium
