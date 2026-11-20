@@ -3,15 +3,23 @@ import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.j
 import TouchSafeTrackballControls from './TouchSafeTrackballControls.js'
 
 
-/** @returns {object} Just enough of an element for TrackballControls */
+/**
+ * Just enough of an element for TrackballControls.  Since three r182 it
+ * listens for pointermove and pointerup on the element's document, where
+ * they bubble to; here the document's listeners are the element's.
+ *
+ * @returns {object}
+ */
 function fakeElement() {
   const listeners = {}
+  const add = (type, fn) => (listeners[type] ??= new Set()).add(fn)
+  const remove = (type, fn) => listeners[type]?.delete(fn)
   const el = {
     style: {},
     captured: [],
-    ownerDocument: {addEventListener() {}, removeEventListener() {}, documentElement: {clientLeft: 0, clientTop: 0}},
-    addEventListener: (type, fn) => (listeners[type] ??= new Set()).add(fn),
-    removeEventListener: (type, fn) => listeners[type]?.delete(fn),
+    ownerDocument: {addEventListener: add, removeEventListener: remove, documentElement: {clientLeft: 0, clientTop: 0}},
+    addEventListener: add,
+    removeEventListener: remove,
     setPointerCapture: (id) => el.captured.push(id),
     releasePointerCapture() {},
     getBoundingClientRect: () => ({left: 0, top: 0, width: 400, height: 600}),

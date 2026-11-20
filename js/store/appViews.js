@@ -1,4 +1,5 @@
 import {RUBIN_TARGET, askRubinWatch} from './rubinApp.js'
+import {askSuntan} from './suntanApp.js'
 
 
 // The apps' ways in, as search results (search/providers/ViewsProvider.js;
@@ -21,5 +22,13 @@ export const APP_VIEWS = [
     path: `milkyway/sun/${RUBIN_TARGET}`,
     target: RUBIN_TARGET,
     open: (celestiary) => askRubinWatch(celestiary.ui.useStore),
+  },
+  {
+    id: 'suntan',
+    name: 'Suntan: fly a concept mission to the Sun',
+    aliases: ['suntan', 'parker solar probe', 'land on the sun', 'sun lander', 'mission to the sun'],
+    path: 'milkyway/sun',
+    target: 'sun',
+    open: (celestiary) => askSuntan(celestiary.ui.useStore),
   },
 ]

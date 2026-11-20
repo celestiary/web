@@ -134,6 +134,17 @@ describe('homeBody', () => {
     expect(homeBody(starAnchor, earth, moon)).toBe(moon)
     expect(homeBody(earth, null, moon)).toBe(moon)
   })
+
+  it('is a ridden craft itself, so the zoom eases in to it and not to its body\'s ground', () => {
+    const sun = {orbitPosition: {}, props: {radius: {scalar: 6.957e8}}}
+    const craft = {isCraftNode: true, props: {radius: {scalar: 6}}}
+    expect(homeBody(craft, sun, sun)).toBe(craft)
+    // From 3 million km, a step in towards it keeps going, where the Sun's
+    // radius about the craft held it 0.7 million km off.
+    expect(asymptoticZoomDist(3e9, 0.5 * 3e9, craft.props.radius.scalar + 1)).toBeCloseTo(1.5e9, -6)
+    expect(asymptoticZoomDist(1e3, 0.5e3, craft.props.radius.scalar + 1)).toBeLessThan(510)
+    expect(asymptoticZoomDist(3e9, 0.1 * 3e9, sun.props.radius.scalar + 1)).toBeGreaterThan(6.9e8)
+  })
 })
 
 

@@ -679,7 +679,14 @@ spaces](HDR.md#colour-spaces-stored-values)).
   as the Moon has.
 - **three's specular lobe** (MeshPhysicalMaterial's, F0 0.04 at roughness
   0.8) adds 0.02-0.05 mag at a small phase and 0.33 at Venus's crescent,
-  where it is grazing.
+  where it is grazing.  Measured on three.js 0.171; since 0.186
+  (mrdoob/three.js#33985, in celestiary from three.js 0.187) the diffuse is
+  less what that lobe reflects, × (1 − F) with F Schlick's at the half
+  angle: 4% at a small phase, more toward a crescent (F 0.18 at Venus's
+  143°).  At the upgrade's views, in the HDR buffer, Saturn's globe came
+  out 3.6% fainter, Mars 3.2% (a crescent), Earth 0.4%, the Moon unchanged
+  (its photometric function replaces the line, lunarSurface.js); the
+  table above is from before, not re-measured.
 - **Saturn's rings** add 0.22 mag to Horizons' Saturn (Mallama & Hilton's
   ring term at this tilt, the rings 7.4° open to Earth (sub-Earth latitude
   −9.04° planetodetic), two days from opposition, so the rings' opposition

@@ -29,8 +29,9 @@ export function goToEntry(entry, celestiary) {
     celestiary.scene.goTo(entry.payload.galaxy, entry.displayName)
     return
   }
-  if (entry.kind === 'satellite' && entry.payload?.target) {
-    // Targeted, then gone to: Scene.goTo goes to a targeted satellite.
+  if ((entry.kind === 'satellite' || entry.kind === 'craft') && entry.payload?.target) {
+    // Targeted, then gone to: Scene.goTo goes to a targeted satellite or
+    // Suntan craft.
     celestiary.scene.setTarget(entry.payload.target, {look: false})
     celestiary.scene.goTo()
     return
@@ -102,7 +103,7 @@ function entryTarget(entry, celestiary) {
   if (entry.payload?.galaxy) {
     return {kind: 'galaxy', galaxy: entry.payload.galaxy, name: entry.displayName}
   }
-  if (entry.kind === 'satellite' && entry.payload?.target) {
+  if ((entry.kind === 'satellite' || entry.kind === 'craft') && entry.payload?.target) {
     return entry.payload.target
   }
   if (entry.kind === 'place' && entry.payload) {

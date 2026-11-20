@@ -15,6 +15,7 @@ import SatellitesProvider from './search/providers/SatellitesProvider'
 import PlacesProvider from './search/providers/PlacesProvider'
 import SceneProvider from './search/providers/SceneProvider'
 import StarsProvider from './search/providers/StarsProvider'
+import SuntanProvider from './search/providers/SuntanProvider'
 import ViewsProvider from './search/providers/ViewsProvider'
 import {APP_VIEWS} from './store/appViews.js'
 import ThreeUi from './ThreeUI'
@@ -660,6 +661,9 @@ export default class Celestiary {
     // The apps' ways in (store/appViews.js): "Watch 2026 ED138 from the
     // Rubin Observatory".
     searchIndex.register(new ViewsProvider(APP_VIEWS))
+    // The Suntan app's craft, while it runs (suntan/Suntan.md).
+    searchIndex.register(new SuntanProvider(this.scene))
+    this.scene.onSuntanChange = () => searchIndex.invalidate()
     // Each body's population, as it comes in; Earth's satellites fetched
     // for the first search, as the galaxies, below (Satellites.md).
     this.scene.onPopulationAdded((population) => {
@@ -1234,7 +1238,7 @@ export default class Celestiary {
       this.scene.goTo(label.galaxy, label.name)
       return
     }
-    if (label.kind === 'satellite') {
+    if (label.kind === 'satellite' || label.kind === 'craft') {
       this.scene.setTarget(label, {look: false})
       this.scene.goTo()
       return

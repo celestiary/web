@@ -51,6 +51,19 @@ it.
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
 - Permalink: none
 - Kind: fix
+### Fly a concept mission to the Sun's surface, and read its sensors
+
+The new Suntan app in the drawer follows Parker Solar Probe's seven Venus flybys to the Sun,
+settles a relay into an orbit that turns with the Sun's surface and drops a lander to the
+photosphere. Step through the mission's events, find and ride either craft, and read its
+simulated sunlight, temperatures, solar wind and magnetic field as it goes. Search for "Suntan"
+to open it, from the homepage too.
+
+- Date: 2026-11-20
+- PR: [#363](https://github.com/celestiary/web/pull/363)
+- Epic: [#120](https://github.com/celestiary/web/issues/120) Missions and models
+- Permalink: [Open this view](https://celestiary.org/#sun@65,-90,328.421067Gm;t=9979.535155jd;cq=-0.5373,0,0,0.8434;fov=45deg;s=F;time:pause;apps:open,view=suntan)
+- Featured: yes
 
 ### The ground holds still under you low over a planet, and Earth's clouds stop flickering
 
@@ -122,7 +135,8 @@ like #sun/earth does, as do #earth/moon, #mars and the rest.
 Behind the scenes: celestiary's own sky inside another app's world, the sky guest
 ([#350](https://github.com/celestiary/web/pull/350)), first for exo.cafe's abode, and with its shadow drawing
 only the metered frames on portal-netgl 0.6.11 ([#351](https://github.com/celestiary/web/pull/351)); and in
-Cesium's iframe mode, a late frame's distances read as it drew them ([#352](https://github.com/celestiary/web/pull/352)).
+Cesium's iframe mode, a late frame's distances read as it drew them ([#352](https://github.com/celestiary/web/pull/352)); and
+three.js 0.187, from 0.171 ([#366](https://github.com/celestiary/web/pull/366)).
 
 ## October 2026
 

@@ -152,6 +152,19 @@ the scene, so the panel previews it.  The views live in `store/`, not
 with the panels in `ui/apps.jsx`: the search needs none of their React,
 and Celestiary's test imports the index.
 
+The Suntan app is one too ("Suntan: fly a concept mission to the Sun",
+`askSuntan`, which opens the drawer on it), so it can be found from the
+homepage.
+
+### Suntan's craft
+
+While the Suntan app runs its relay and lander are results of kind `craft`
+(`providers/SuntanProvider.js`, registered once and empty while the app
+isn't running; `Scene.onSuntanChange` invalidates the index when it starts
+or stops).  Go targets one and goes to it, riding it as a satellite is
+ridden; a pick targets it, the panel showing the Sun
+([Suntan.md](../scene/suntan/Suntan.md#finding-the-craft)).
+
 ### Populations
 
 A body's population (Earth's satellites: js/scene/population/Population.md)
