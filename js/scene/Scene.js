@@ -17,6 +17,8 @@ import OrbitDiagram from './orbitDiagram.js'
 import {CODES, keyOfCode} from './orbitElements.js'
 import {G, collinearDistances, hillRadius, massKg, synchronousOrbit} from './lagrange.js'
 import {sceneReferred} from './hdr.js'
+import {addCredit, removeCredit} from '../credits.js'
+import {dataUrl} from '../dataUrl.js'
 import {REGIMES, semiMajorAxisOf, sunSyncInclination} from './regimes.js'
 import {FAMILIES, PERIODIC_DATA_URL, familyMember, familyOfCode, sampleMember, southern} from './periodicOrbits.js'
 import {manifolds} from './manifolds.js'
@@ -71,6 +73,18 @@ function massRatio(body, primary) {
 /** Default observer altitude for Scene.land — eye height. */
 export const DEFAULT_LAND_ALT_M = 2
 
+/**
+ * Near the ground of a body it follows, the camera turns with the body
+ * (Scene.syncFollow, DESIGN.md "Follow"): below this height over its
+ * sphere, m, it rides the body's spinning node rather than its orbit, so
+ * the ground stays put under it as time runs.  Up from SPIN_OUT_M it goes
+ * back to the orbit; between the two it stays as it was, so a camera
+ * near the line doesn't switch every frame.
+ */
+export const SPIN_IN_M = 30e3
+/** See SPIN_IN_M. */
+export const SPIN_OUT_M = 40e3
+
 
 /**
  * Format lat/lng as a compact, human-readable string for the dblclick
@@ -90,6 +104,9 @@ export function formatLatLng(lat, lng) {
 
 
 const STEP_BACK = 10
+// Scratch for _syncSpin.
+const _spinCam = new Vector3()
+const _spinBodyPos = new Vector3()
 // How soon a guest page's ground height must come to aim a landing again,
 // ms (_reaimLanding): later, the approach is under way, and the ground floor
 // lifts the camera instead.
@@ -305,6 +322,9 @@ export default class Scene {
     // A node the camera rides in place of its own position, landed: the
     // Rubin Observatory's seat (rideSeat); null when it isn't.
     this.seat = null
+    // The body whose spinning node the camera rides while it follows the
+    // body low over its ground (SPIN_IN_M, syncFollow); null on the orbit.
+    this._spinBody = null
     // Populations round bodies (population/Population.md), by body: Earth's
     // satellites (satellites/Satellites.md), their chunk and snapshot
     // imported when something first needs them (loadSatellites), and any
@@ -2734,8 +2754,12 @@ export default class Scene {
    *   seat's zenith); else the camera keeps its roll
    * @param {boolean} [opts.instant] Put the camera in the seat now, facing
    *   as it does
+   * @param {Quaternion} [opts.aim] Ride the seat's orientation too: every
+   *   frame the camera's is the seat's times this (a telescope's
+   *   boresight: the Rubin app's survey cadence), over the user's own and
+   *   in place of tracking, which the caller turns off
    */
-  rideSeat(seat, {lookAt = null, up = null, instant = false} = {}) {
+  rideSeat(seat, {lookAt = null, up = null, instant = false, aim = null} = {}) {
     let body = seat
     while (body && !(body.props?.radius?.scalar > 0)) {
       body = body.parent
@@ -2763,6 +2787,7 @@ export default class Scene {
     state?.setLanded?.(true)
     Shared.targets.landed = true
     this.seat = seat
+    this.seatAim = aim
   }
 
 
@@ -2790,6 +2815,10 @@ export default class Scene {
     const platform = this.ui.camera.platform
     platform.updateWorldMatrix(true, false)
     this.ui.camera.position.copy(platform.worldToLocal(seat.getWorldPosition(this._seatPos ??= new Vector3)))
+    if (this.seatAim && !Shared.targets.tween) {
+      const seatQuat = seat.getWorldQuaternion(this._seatQuat ??= new Quaternion)
+      platform.getWorldQuaternion(this.ui.camera.quaternion).invert().multiply(seatQuat).multiply(this.seatAim)
+    }
   }
 
 
@@ -2864,7 +2893,7 @@ export default class Scene {
       this._detachFrom = null
     } else if (was) {
       const node = Shared.targets.follow
-      const hung = this.ui.camera.platform.parent === node || Shared.targets.landed
+      const hung = this._hungOn() === node || Shared.targets.landed
       let why = null
       if (hung && Shared.targets.landed) {
         why = 'landed'
@@ -3014,34 +3043,136 @@ export default class Scene {
       return
     }
     const platform = this.ui.camera.platform
+    if (this._spinBody && (platform.parent !== this._spinBody || Shared.targets.landed)) {
+      // Something else hung the platform (going, landing, a seat).
+      this._spinBody = null
+    }
     const want = Shared.targets.follow
+    if (this._spinBody && want !== this._spinBody.orbitPosition) {
+      // Following something else, or nothing: back on the orbit first, so
+      // what follows sees the frame it knows.
+      this._unspin()
+    }
+    this._syncFollowHang(want)
+    this._syncSpin(want)
+  }
+
+
+  /**
+   * The platform on the node following asks for (syncFollow), the body's
+   * spinning node standing for its orbit (`_hungOn`).
+   *
+   * @param {?object} want The node followed (`Shared.targets.follow`)
+   */
+  _syncFollowHang(want) {
+    const parent = this._hungOn()
     let home = this._followHome
-    if (home && platform.parent !== home.anchor) {
+    if (home && parent !== home.anchor) {
       // Something else hung the platform (going, landing): its frame stands.
       home = this._followHome = null
     }
     if (!want) {
       const from = this._detachFrom
-      if (from && !Shared.targets.landed && platform.parent === from) {
+      if (from && !Shared.targets.landed && parent === from) {
         this._detachFrom = null
         this._followHome = null
-        const parent = home ? home.parent : this._parentNode(from)
-        if (parent) {
-          this._hangPlatform(parent, home ? home.cur : this._bodyOf(parent))
+        const up = home ? home.parent : this._parentNode(from)
+        if (up) {
+          this._hangPlatform(up, home ? home.cur : this._bodyOf(up))
         }
-      } else if (from && platform.parent !== from) {
+      } else if (from && parent !== from) {
         this._detachFrom = null
       }
       return
     }
-    if (Shared.targets.landed || platform.parent === want || platform.parent === this._starAnchor) {
+    if (Shared.targets.landed || parent === want || parent === this._starAnchor) {
       return
     }
     if (!home) {
-      home = this._followHome = {parent: platform.parent, cur: Shared.targets.cur, anchor: null}
+      home = this._followHome = {parent, cur: Shared.targets.cur, anchor: null}
     }
     this._hangPlatform(want, this._bodyOf(want))
     home.anchor = want
+  }
+
+
+  /**
+   * Low over the ground of the body it follows, the camera turns with it:
+   * below SPIN_IN_M over its sphere the platform goes from the body's
+   * orbit to its spinning node, as landing hangs it, and from SPIN_OUT_M
+   * back, with the camera where it is and facing as it does
+   * (`rehangPlatform`).  So as time runs the ground stays where it is under
+   * the camera and the sky turns, rather than the ground sliding by at the
+   * body's turning (465 m/s at Earth's equator).  That slide was also what
+   * kept Earth's volumetric clouds from ever being still (clouds.md,
+   * "Cost"): their history never ran past 9 frames, and they flickered.
+   * Following stays the body's orbit (`Shared.targets.follow`), and the
+   * link writes the camera in the orbit's frame (`linkCameraQuaternion`).
+   *
+   * @param {?object} want The node followed (`Shared.targets.follow`)
+   */
+  _syncSpin(want) {
+    const platform = this.ui.camera.platform
+    if (!want || Shared.targets.landed) {
+      return
+    }
+    const body = this._spinBody ?? (platform.parent === want ? this._bodyOf(want) : null)
+    const r = body?.props?.radius?.scalar
+    if (!body || body.orbitPosition !== want || !(r > 0)) {
+      return
+    }
+    body.updateWorldMatrix(true, false)
+    this.ui.camera.updateWorldMatrix(true, false)
+    const h = this.ui.camera.getWorldPosition(_spinCam).distanceTo(body.getWorldPosition(_spinBodyPos)) - r
+    if (!this._spinBody && h < SPIN_IN_M) {
+      rehangPlatform(platform, this.ui.camera, body)
+      this._spinBody = body
+    } else if (this._spinBody && h > SPIN_OUT_M) {
+      this._unspin()
+    }
+  }
+
+
+  /** Off the body's spinning node, back on its orbit (`_syncSpin`). */
+  _unspin() {
+    const body = this._spinBody
+    this._spinBody = null
+    if (body?.orbitPosition) {
+      rehangPlatform(this.ui.camera.platform, this.ui.camera, body.orbitPosition)
+    }
+  }
+
+
+  /**
+   * @returns {?object} The node the platform hangs on, for following: the
+   *   body's orbit while it rides the body's spinning node low over the
+   *   ground (`_syncSpin`), which stands for it
+   */
+  _hungOn() {
+    const platform = this.ui.camera.platform
+    if (this._spinBody && platform.parent === this._spinBody && !Shared.targets.landed) {
+      return this._spinBody.orbitPosition
+    }
+    return platform.parent
+  }
+
+
+  /**
+   * @returns {Quaternion} The camera's rotation in the frame a link's `cq`
+   *   is in: its platform's, but the orbit's while it rides the body's
+   *   spinning node (`_syncSpin`), so a link written low over the ground
+   *   reads as any other on the orbit (js/permalink.md)
+   */
+  linkCameraQuaternion() {
+    const camera = this.ui.camera
+    const body = this._spinBody
+    if (!body || camera.platform.parent !== body || Shared.targets.landed || !body.orbitPosition) {
+      return camera.quaternion.clone()
+    }
+    body.updateWorldMatrix(true, false)
+    const orbit = body.orbitPosition.getWorldQuaternion(new Quaternion())
+    const platform = camera.platform.getWorldQuaternion(new Quaternion())
+    return orbit.invert().multiply(platform).multiply(camera.quaternion)
   }
 
 
@@ -3054,6 +3185,7 @@ export default class Scene {
     if (this.ui.camera.platform.parent === anchor) {
       return
     }
+    this._spinBody = null
     rehangPlatform(this.ui.camera.platform, this.ui.camera, anchor)
     Shared.targets.cur = cur
   }
@@ -3283,6 +3415,7 @@ export default class Scene {
     this.rubin ??= installRubin(this, {
       orbitAt, precessionQuaternion, utcToTtJulianDay, J2000_JD, newRings, newLabels, newWideLineStrip, loadModel,
       latLngAltToBodyFixed, sceneReferred, OVERLAY_LAYER: Shared.OVERLAY_LAYER, ASTRO_UNIT_METER: Shared.ASTRO_UNIT_METER,
+      dataUrl, addCredit, removeCredit,
     })
     return this.rubin
   }

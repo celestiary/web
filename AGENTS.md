@@ -23,7 +23,7 @@ tried and dropped.
 | What's planned, in what order, and cross-track decisions (data policy) | [ROADMAP.md](ROADMAP.md): [now / next / later](ROADMAP.md#now--next--later), [tracks](ROADMAP.md#tracks), [the galaxy plan](ROADMAP.md#the-galaxy-plan); epics are issues labelled [`epic`](https://github.com/celestiary/web/issues?q=is%3Aopen+label%3Aepic) |
 | Class hierarchy, scene graph, animation loop | DESIGN.md: [core classes](DESIGN.md#core-class-hierarchy), [scene graph](DESIGN.md#scene-graph-structure-per-planet), [animation loop](DESIGN.md#animation-loop) |
 | Units, frames, coordinates | DESIGN.md [coordinate system & scale](DESIGN.md#coordinate-system--scale); [js/permalink.md](js/permalink.md#coordinate-system) |
-| Camera, navigation, targeting (`goTo`, `setTarget`, keys) | DESIGN.md: [camera controls](DESIGN.md#camera-controls), [navigation](DESIGN.md#navigation-goto-flow), [setTarget and lookAtTarget](DESIGN.md#settarget-lookattarget-c-key) |
+| Camera, navigation, targeting (`goTo`, `setTarget`, keys) | DESIGN.md: [camera controls](DESIGN.md#camera-controls), [follow](DESIGN.md#follow), [navigation](DESIGN.md#navigation-goto-flow), [setTarget and lookAtTarget](DESIGN.md#settarget-lookattarget-c-key); the camera control, proposed: [design/UI.md](design/UI.md#the-camera-control-proposed) |
 | Rendering, overlays and the `v` visibility groups | DESIGN.md: [rendering techniques](DESIGN.md#rendering-techniques), [overlays & visibility groups](DESIGN.md#overlays--visibility-groups) |
 | Cesium layers: Earth, Moon, Mars in place | [CESIUM.md](CESIUM.md): [architecture](CESIUM.md#architecture), [camera, light and ground](CESIUM.md#camera-and-light-coupling), [data](CESIUM.md#data), [atmospheres](CESIUM.md#atmospheres), [tiles and lighting](CESIUM.md#tiles-and-lighting-ion-3d-tiles), [parity check](CESIUM.md#parity-check), [follow-ups](CESIUM.md#follow-ups) |
 | Changing Cesium itself: the fork (celestiary/cesium), the patches in `patches/`, upstreaming | [CESIUM.md, patching Cesium](CESIUM.md#patching-cesium) |
@@ -55,7 +55,7 @@ tried and dropped.
 | Star discs and colours: temperature from class, blackbody colour, limb darkening, granulation, spots | [js/scene/Stars.md](js/scene/Stars.md) |
 | The widgets drawer and dock (apps, pin, stop) | DESIGN.md [widgets drawer and dock](DESIGN.md#widgets-drawer-and-dock) |
 | Human expansion (an app: BFS spread across the stars) | [js/scene/Colonization.md](js/scene/Colonization.md) |
-| The Rubin Observatory on Cerro Pachón following 2026 ED138, its first dwarf planet candidate (an app: the model, its pointing, the object's apparent path, the body's JPL elements) | [js/scene/rubin/Rubin.md](js/scene/rubin/Rubin.md) |
+| The Rubin Observatory on Cerro Pachón following 2026 ED138, its first dwarf planet candidate (an app: the model, its pointing, the object's apparent path, the body's JPL elements; Rubin's image on the sky, its WCS and tiles) | [js/scene/rubin/Rubin.md](js/scene/rubin/Rubin.md); the image: [the imagery](js/scene/rubin/Rubin.md#the-imagery) |
 | Other galaxies: SPARC's 175 discs from their parameters, their data and cross-match, levels of detail, rotation curves | [js/scene/Galaxies.md](js/scene/Galaxies.md); the model they share with the Milky Way, [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
 | Social previews via the portal proxy | [portal/DESIGN.md](portal/DESIGN.md) |
 | Where code lives | DESIGN.md [key files](DESIGN.md#key-files-reference) |
@@ -355,9 +355,11 @@ tried and dropped.
   `python3 -m http.server` doesn't send, so answer it in `page.route` through
   `route.fetch`.  Low over the ground Earth's layer stays warming on
   SwiftShader: set `c.ui.layers.bodies.earth.shown = true` to draw it.  Pause
-  the clock (`;time:pause`): running, the view drifted off the island (the
-  rewritten link's longitude moved 0.2° west in 45 s), and a city out of view never finishes its staged set-up (it replays only
-  in frames that draw it).  The city takes 2.5 to 3.5 minutes at 800x500.
+  the clock (`;time:pause`) for frames that repeat.  Before the camera
+  turned with Earth below 30 km (DESIGN.md [follow](DESIGN.md#follow)), a
+  running view drifted off the island (the rewritten link's longitude moved
+  0.2° west in 45 s), and a city out of view never finishes its staged
+  set-up (it replays only in frames that draw it).  The city takes 2.5 to 3.5 minutes at 800x500.
 - **Cesium is patched on install** (`patches/`, applied by patch-package
   from `postinstall`; [CESIUM.md](CESIUM.md#patching-cesium)).  A fix to
   Cesium goes on a branch of celestiary/cesium with its Cesium specs, then
@@ -510,6 +512,10 @@ tried and dropped.
   - `ssd-api.jpl.nasa.gov` (JPL's three-body periodic orbit catalogue, for
     `public/data/periodicOrbits.json`: `bun tools/periodic/fetchJpl.mjs`;
     [Lagrange.md](js/scene/Lagrange.md#three-body-orbits)).
+  - `storage.noirlab.edu` (NOIRLab's image downloads: the large JPEG of
+    noirlab2626d that `tools/rubin/pyramid.py` tiles for Rubin's image,
+    [Rubin.md](js/scene/rubin/Rubin.md#the-imagery); its Zoomify pyramid
+    sends no CORS).
   - `noirlab.edu` (NOIRLab's 3D models, for `tools/models/build.sh`'s
     Rubin telescope, and its press releases; `rubinobservatory.org` is
     allowed too).  `curl` through the sandbox proxy reaches it where
