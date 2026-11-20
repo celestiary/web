@@ -1,6 +1,6 @@
 import {Group, MeshBasicMaterial, Quaternion, Vector3} from 'three'
 import {SHUTTER_SLIDE_RAD, newRubinModel} from './rubinModel.js'
-import {SITE, altAz, localFrameQuaternion, pointingState} from './rubin.js'
+import {DOME_OPENS_SUN_EL_DEG, SITE, altAz, localFrameQuaternion, mountAngles, pointingState} from './rubin.js'
 
 
 // The Rubin Observatory on Earth's ground (Rubin.md): the model at Cerro
@@ -57,9 +57,12 @@ export default class RubinObservatory extends Group {
    *   `newWideLineStrip` (wideLines.js) and `loadModel` (model.js)
    * @param {object} [opts.site] SITE's shape, for a test
    * @param {Function} [opts.newModel] rubinModel.js newRubinModel, or a stub
+   * @param {(ms: number) => ?{el: number, az: number}} [opts.cadence] The
+   *   survey cadence's pointing at a time (SurveyCadence.pointing), or null
+   *   to follow the body
    */
   constructor({earth, body, deps, groundHeight = () => null, exposure = () => 1, nowMs = () => performance.now(),
-    site = SITE, newModel = newRubinModel}) {
+    site = SITE, newModel = newRubinModel, cadence = () => null}) {
     super()
     this.deps = deps
     this.name = 'rubin'
@@ -69,6 +72,7 @@ export default class RubinObservatory extends Group {
     this.exposure = exposure
     this.nowMs = nowMs
     this.site = site
+    this.cadence = cadence
     this.radius = earth.props.radius.scalar
     this.model = newModel(deps)
     this.add(this.model.group)
@@ -96,7 +100,7 @@ export default class RubinObservatory extends Group {
     // the telescope from outside.
     this.shell = true
     // Each frame, before the bodies move (Animation.animateSystem).
-    this.preAnimCb = () => this.update()
+    this.preAnimCb = (time, jd) => this.update(jd)
     earth.add(this)
   }
 
@@ -115,8 +119,12 @@ export default class RubinObservatory extends Group {
   }
 
 
-  /** A frame: the ground, the glow, the pointing, the shutter. */
-  update() {
+  /**
+   * A frame: the ground, the glow, the pointing, the shutter.
+   *
+   * @param {number} [jd] The frame's Julian Day (UTC), for the cadence
+   */
+  update(jd) {
     const now = this.nowMs()
     const dt = this._lastMs === null ? 0 : (now - this._lastMs) / 1e3
     this._lastMs = now
@@ -134,14 +142,21 @@ export default class RubinObservatory extends Group {
       return
     }
     body.getWorldPosition(tmpBody).sub(tmpWorld).applyQuaternion(tmpQuat)
-    const state = pointingState(tmpBody, tmpSun)
+    let state = pointingState(tmpBody, tmpSun)
+    // On the survey's cadence (Rubin.md, "Cadence"): the visit's field, or
+    // the slew between fields, by night; parked by day as before.
+    const visit = Number.isFinite(jd) ? this.cadence((jd - 2440587.5) * 86400e3) : null
+    if (visit && state.sunEl <= DOME_OPENS_SUN_EL_DEG) {
+      state = {...state, tracking: true, open: true, el: visit.el, az: visit.az, slewing: visit.slewing,
+        cadence: true, ...mountAngles(visit.el, visit.az)}
+    }
     this.state = state
     this._light(state.sunEl)
     const {azimuth, elevation, dome, beam} = this.model
     azimuth.rotation.y = state.azimuthY
     dome.rotation.y = state.azimuthY
     elevation.rotation.x = state.elevationX
-    beam.visible = state.tracking
+    beam.visible = state.tracking && !state.slewing
     this._slideShutter(state.open ? 1 : 0, dt)
   }
 

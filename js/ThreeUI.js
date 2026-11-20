@@ -230,6 +230,7 @@ export default class ThreeUi {
       // ThreeUI construction; both accessors run lazily at pointerdown.
       getDragMode: () => this.useStore?.getState().dragMode,
       getOrbitScale: () => this.orbitScale(),
+      getPivot: () => this.controls?.target ?? null,
       getTurnScale: () => fovTurnScale(this.camera.fov),
       onClick: (e) => this._fireClickCbs(e),
       onDblClick: (e) => this._fireDblClickCbs(e),
@@ -446,7 +447,11 @@ export default class ThreeUi {
     controls.dynamicDampingFactor = 0.3
     // controls.rotateSpeed = 1
     controls.zoomSpeed = 1e1
-    controls.target = camera.platform.position
+    // What the zoom and the orbit drag turn about, in the platform's frame:
+    // its origin, the body the camera rides, but the target when the camera
+    // has been left behind in the frame above (_updatePivot).
+    this._pivot = new Vector3()
+    controls.target = this._pivot
     this.controls = controls
   }
 
@@ -584,6 +589,7 @@ export default class ThreeUi {
       }
       this.clicked = false
     }
+    this._updatePivot()
     const distBefore = this.camera.position.distanceTo(this.controls.target)
     this._savedCamQuat.copy(this.camera.quaternion)
     this.controls.update()
@@ -2165,6 +2171,28 @@ export default class ThreeUi {
     return rotateScale(this.camera.position.distanceTo(this.controls.target) - ground, radius)
   }
 
+  /**
+   * Where the zoom and the orbit drag turn about (`controls.target`), in
+   * the camera platform's frame: the platform's origin, which is the body
+   * the camera rides (gone to, landed, following), or, when the camera has
+   * been left behind in the frame above (`f` off: the Sun's, for a planet),
+   * the target body (Scene.pivotBody), where it is this frame.  Before
+   * #361 the pivot was the platform's origin always, so a camera left
+   * behind near Earth turned and zoomed about the Sun, 1 AU away, and one
+   * wheel step threw it out of the solar system.
+   */
+  _updatePivot() {
+    const body = this.sceneManager?.pivotBody?.() ?? null
+    if (!body) {
+      this._pivot.set(0, 0, 0)
+      return
+    }
+    body.updateWorldMatrix(true, false)
+    this.camera.platform.updateWorldMatrix(true, false)
+    this.camera.platform.worldToLocal(body.getWorldPosition(this._pivot))
+  }
+
+
   /** @returns {object|null} The body the camera is at (zoom.js homeBody) */
   _homeBody() {
     // At a catalogue star (Scene.goTo(star)) its drawn disc, so the zoom
@@ -2179,6 +2207,12 @@ export default class ThreeUi {
     const galaxy = this.camera.platform.parent?.name === 'StarAnchor' ? scene?.galaxyHome?.() : null
     if (galaxy) {
       return galaxy
+    }
+    // Left behind in the frame above, the body the zoom turns about
+    // (_updatePivot), whose ground is the floor.
+    const pivot = scene?.pivotBody?.()
+    if (pivot) {
+      return pivot
     }
     return homeBody(this.camera.platform.parent, targets.cur, targets.obj)
   }

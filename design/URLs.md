@@ -670,6 +670,12 @@ optics=0           Rubin's optics off: the field free (on by default, the
 pixel=1            Rubin's pixel drawn at the body: a square the camera's 0.2″
                    pixel across and a fainter outline at its 0.7″ resolution,
                    to scale on screen (off by default)
+cadence=1          the telescope keeps the survey's modelled cadence of visits,
+                   the night's fields drawn on the sky (off by default: it
+                   stares at 2026 ED138; Rubin.md, "Cadence")
+image=1            Rubin's image, NOIRLab's discovery composite, drawn over
+                   the field where its stars are (off by default; Rubin.md,
+                   "The imagery")
 ```
 
 ```
@@ -677,6 +683,8 @@ pixel=1            Rubin's pixel drawn at the body: a square the camera's 0.2″
 #…;apps:open,view=rubin;apps.rubin:path=0,night=20544   the path off, the slider on 1 April 2026
 #…;apps:open,view=rubin;apps.rubin:shell=0     the telescope in the open
 #…;apps:open,view=rubin;apps.rubin:pixel=1     Rubin's pixel drawn at the body
+#…;apps:open,view=rubin;apps.rubin:cadence=1   the survey's cadence, not the stare
+#…;apps:open,view=rubin;apps.rubin:image=1     Rubin's image over the field
 #…;fov=0.0001615deg;…;apps:open,view=rubin;apps.rubin:optics=0   a field past Rubin's pixels, kept
 ```
 
@@ -687,6 +695,28 @@ pixel=1            Rubin's pixel drawn at the body: a square the camera's 0.2″
   optics are on ([Rubin.md, the optics](../js/scene/rubin/Rubin.md#the-optics)):
   a link's field past the pixel limit opens at the limit, and with
   `optics=0` as written.
+- **A bad value is its default.**
+
+#### `apps.suntan`
+
+The Suntan app ([js/scene/suntan/Suntan.md](../js/scene/suntan/Suntan.md)): a
+concept mission to the Sun's surface on Parker Solar Probe's path, and its
+sensors.
+
+```
+vehicle=lander     the lander's sensors in the panel (the relay's by default)
+paths=0            the trajectory hidden, the craft's marks kept (drawn by
+                   default)
+```
+
+```
+#…;apps:open,view=suntan                              open on the app, the defaults
+#…;apps:open,view=suntan;apps.suntan:vehicle=lander   reading the lander
+#…;apps:view=suntan,pin=suntan;apps.suntan:paths=0    pinned, the marks alone
+```
+
+- **The clock is the `t=` and `time:` tokens'.**  The panel's events, speeds
+  and timeline set the app's clock, which the link carries as ever.
 - **A bad value is its default.**
 
 ### News Token

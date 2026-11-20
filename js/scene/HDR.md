@@ -764,6 +764,57 @@ the telescope field's patch/M stands for an eyepiece whose exit pupil
 fills the pupil.  A camera would also want a response of its own in
 place of the eye's calibration (#208).
 
+### The view as the instrument sees it
+
+A proposal, not built ([#356](https://github.com/celestiary/web/issues/356),
+split from [#340](https://github.com/celestiary/web/issues/340); the
+maintainer's ask on [#334](https://github.com/celestiary/web/issues/334)):
+the frame carried to the eye as an instrument would record it, and a
+switch between that and the scene as drawn, so that a telescope pointed at
+a body we have spacecraft photographs of (Rubin on Saturn, against
+Cassini's) can be compared with them at the instrument's resolution.  The
+stars and the far point already do this point by point (a point's light
+pooled and drawn by the PSF); a resolved disc needs it for the whole
+frame.
+
+- **What it does.**  Two steps over the scene buffer: convolve with the
+  instrument's PSF at its angular size on the screen (a Gaussian, or a
+  Moffat for seeing, `resolutionArcsec` FWHM; a sum of two for a wing),
+  then sample onto the detector's grid, `pixelScaleArcsec` on the sky,
+  each detector pixel the mean of the screen pixels it covers (a box
+  filter, so the light is kept), drawn back as blunt squares.  Both scale
+  with the field: `side = pixelScaleArcsec / 3600 / fov × h` screen pixels,
+  the PixelMarker's law (Rubin.md, Rubin's pixel); at the pixel limit
+  (`side` = 1) the grid is the screen's and only the blur shows, wider than
+  that it's a blur under a pixel and does nothing visible.
+- **Where it sits.**  On `_sceneRT`, in exposure units, after the scene
+  and the Cesium composite and before the atmosphere pass (the air is
+  between the instrument and the sky, so a ground telescope's air is in
+  the light it records: the pass would go after the atmosphere's light for
+  the sky's own glow, which needs the atmosphere pass split at its tone
+  map), and before the one tone map, so the blur mixes light, not display
+  values.  The overlays (labels, lines, the pixel marker) are after it and
+  stay sharp.  The meter reads after it, as the instrument's frame.
+- **The stars.**  Their sprites are already the eye's PSF; under the pass
+  they would be the instrument's PSF instead (`uPoolRadiusDeg` and the
+  core from the instrument) and the pass skips the point layer, or draws
+  them as single-pixel deltas into it.  Which of those is cheaper is the
+  first thing to measure.
+- **Inputs**, all on the instrument record (`observer/instrument.js`):
+  `pixelScaleArcsec`, `resolutionArcsec`, a PSF shape (new: `psf.kind`,
+  Gaussian or Moffat β), and for a camera a response (#208).  None for the
+  naked eye, which hides the switch.
+- **The switch.**  A toggle in the app's panel ("As Rubin records it"),
+  off by default, a field in the app's token (`seen=1`), and `?seen=1`
+  for any instrument; the HDR fallback (`?hdr=0`) skips it.
+- **Cost.**  A separable blur at a few taps a side over the frame and one
+  box downsample: two half-float passes at most, run only with the switch
+  on, behind a `perf.begin('instrument')` marker.
+- **Checks.**  A star's summed light over its pixels the same with the
+  pass on and off (the blur keeps light); a point's FWHM in screen pixels
+  `resolutionArcsec / 3600 / fov × h`; Saturn from the Rubin seat at the
+  pixel limit beside a Cassini frame scaled to Rubin's 0.2″, by eye.
+
 ### A star beside the Moon
 
 The user's three views of HIP 46635 (V 8.4) on #198: 0.4389° over 877

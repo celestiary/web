@@ -8,7 +8,7 @@ Celestiary is a web-based astronomical simulator — an interactive 3D solar sys
 
 | Concern | Library/Tool |
 |---|---|
-| 3D rendering | Three.js 0.171 (WebGL2) |
+| 3D rendering | Three.js 0.187 (WebGL2) |
 | React framework | React 18 + React DOM |
 | UI components | MUI v5 (Material UI) |
 | Routing | Wouter 3 (hash-based for celestial targets, path-based for app sections) |
@@ -849,9 +849,11 @@ Hung on the body, the zoom and the orbit drag are about the body, and `homeBody`
 **The state is what the camera does.**  Going to a body or landing on it (`Scene.goTo`, `land`) hangs the platform on that body's orbit, so the camera rides it, and that is following: it is **on** after them (`Shared.targets.follow` holds the body's `orbitPosition`; the readout says "Following on", Settings ticks it, the link gets `F`).  It was once off after a go, while the camera rode the body all the same, which put the flag and the picture at odds.  A go to a star is off: a star has no orbit.
 
 **`f`:**
-- *Following, camera on the followed body* (after `g`): off, by **leaving it**.  The platform is hung on the body's frame, with the camera where it is and as it faces (`rehangPlatform`): a planet's is the Sun's, a moon's its planet's (`props.parent`).  The body then moves on without the camera, which stays still in that frame.  `Shared.targets.cur`, and so the zoom, the orbit drag and the link's frame (`from=`) and position, are the new frame's.
+- *Following, camera on the followed body* (after `g`): off, by **leaving it**.  The platform is hung on the body's frame, with the camera where it is and as it faces (`rehangPlatform`): a planet's is the Sun's, a moon's its planet's (`props.parent`).  The body then moves on without the camera, which stays still in that frame.  `Shared.targets.cur`, and so the link's frame (`from=`) and position, are the new frame's.  The zoom and the orbit drag turn about the **target** (the body just left, or one targeted since: `Scene.pivotBody`), not the frame's origin: ThreeUi gives the controls a pivot of their own (`_pivot`, `controls.target`), at the platform's origin while the camera rides a body and at the target's position in the platform's frame, each frame, when it has been left behind (`_updatePivot`), with the target's ground the zoom's floor (`_homeBody`) and the orbit drag turning about it (`dragControls` `getPivot`).  Before #361 `controls.target` was the platform's position itself, so a camera left behind near Earth turned and zoomed about the Sun, 1 AU away: one wheel step out took it from 64,000 km to 14.6 million km from Earth (headless); now to 69,000 km.
 - *Not following*: on, for the target.  The platform moves to the target's node (the Sun's frame with Jupiter targeted: the camera rides Jupiter without a jump) and the frame it came from is kept (`_followHome`), so `f` off returns to it rather than to the body's primary.
 - *At the Sun*, or landed: it can't turn off.  The Sun has no frame above it (the root: following it is staying still, so there is nothing to leave), and a landed camera is pinned to the surface (`g` or a search leaves it).  Following stays on and the readout says why ("Following on (nothing above the Sun to leave)").  Two ways round: at the Sun with another body targeted, `f` rides that body instead (this is how to ride Jupiter from the Sun's frame), and `f` again goes back to the Sun's frame; and with a `_followHome` (the Sun ridden from a planet's frame) it goes back there.
+
+**Low over the ground the camera turns with the body** (`Scene._syncSpin`, `SPIN_IN_M`): following a body (on its `orbitPosition`, which doesn't spin), the camera below 30 km over its sphere is hung on the body's spinning node instead, as landing hangs it, with its world pose kept (`rehangPlatform`), and back on the orbit from 40 km (between the two it stays as it was).  On the orbit, a camera at 624 m over Earth slid over the ground at Earth's turning, 460 m/s at 7° N, as time ran: a city drifted out of view (0.2° of longitude in 45 s), and Earth's volumetric clouds, whose history accumulates only while the view is still in the body frame, never settled and flickered ([#344](https://github.com/celestiary/web/issues/344); [clouds.md, cost](js/scene/atmos/clouds.md#cost)).  Now the ground stays put and the sky turns, as it does for someone standing there.  Everything else sees the orbit: following is still the body's `orbitPosition` (`_hungOn` stands it for the spinning node, so `f`, `_followHome` and the readout are as before), it isn't landed (no `L`, the drag mode isn't touched), and a link writes `cq` in the orbit's frame (`linkCameraQuaternion`), so it reads as any other and its restore hangs the camera on the orbit, from where `syncFollow` turns it with the body again.  A go or a landing hangs the platform itself, which ends it; it waits while a go's travel moves the camera (`tween.travels`).
 
 **Interactions:**
 - *Going and landing.*  They hang the platform themselves and turn following on for where they go.  A tween that moves the camera in the platform's frame (`newCameraGoToTween`, `newCameraLandTween`, marked `tween.travels`) would be moved under by a re-hang, so `syncFollow` waits for it and, when it ends, carries on from wherever the camera got to (the look tween only turns the camera and doesn't wait).
@@ -1004,7 +1006,9 @@ a place on one, a catalogue star, an asterism, one of SPARC's galaxies
 (`{kind: 'galaxy', galaxy, name}`, [Galaxies.md](js/scene/Galaxies.md)) or an
 object of a body's population, an Earth satellite first (`{kind: 'satellite',
 id, name, body}`, the body the `obj` as for a place:
-[Population.md](js/scene/population/Population.md)), and **`Scene.setTarget` is
+[Population.md](js/scene/population/Population.md)) or a Suntan craft while
+that app runs (`{kind: 'craft', id, name, body: 'sun'}`, gone to and ridden
+as a satellite is: [Suntan.md](js/scene/suntan/Suntan.md#finding-the-craft)), and **`Scene.setTarget` is
 the only way it changes**: a click on a label, a pick in the search, Look
 at, Go, the keys (`h`, `u`, `0`-`9`), `Scene.goTo` and `Scene.land` (each
 makes where it went the target; a landing at a place keeps the place), and
@@ -1252,6 +1256,37 @@ single point beyond (the `planet LOD`'s second level, `js/scene/farPoint.js`,
   writes are there to test against.
 - **Not in the `V` groups.**  Bodies aren't annotations; the far point
   stays with the body.
+
+### Relative-to-eye anchors
+
+float32 holds a number to 6e-8 of itself: a vertex 7e12 m from its node
+(2026 ED138 at 47 au) to 5e5 m, which in a 0.00016° field on 500 px is 13
+screen pixels ([#334](https://github.com/celestiary/web/issues/334)).
+Three's matrices are float64 on the CPU (JS numbers) and float32 only once
+uploaded, and `modelViewMatrix` is composed there, `camera.matrixWorldInverse`
+× `matrixWorld`, so the camera is already subtracted in float64: the
+uploaded translation is the node's place in view space, whose x and y are
+small near the line of sight and float32 holds to 6e-8 of themselves.  So
+a far thing is drawn **relative to the eye** by keeping its points in
+float64 on the CPU and handing the GPU float32 *offsets from an anchor*
+near where the camera looks, with the anchor as the node's `position`, and
+re-writing the offsets when the anchor moves (`js/scene/relativeToEye.js`
+`writeOffsets`, [#340](https://github.com/celestiary/web/issues/340)).  No
+shader change and no per-frame camera uniform: the ordinary model-view
+does it.  `relativeToEye.js` also has `gpuNdc`, a point's projection in
+float32 arithmetic as the GPU does it, against `exactNdc`, for tests and
+probes: a point 7e12 m off from a camera 1e7 m from the origin lands 6.4
+px off as an absolute vertex, 2e-8 px anchored.
+
+Who does it: the Rubin app's apparent path and its ring (anchored at the
+body's place at the frame's time, [Rubin.md](js/scene/rubin/Rubin.md#the-apparent-path));
+the orbit lines (`bodyLine.js`, an origin at the body); a body's mesh,
+far point and Rubin's pixel marker (a vertex at the node's origin, so
+nothing large in an attribute).  The stars, their labels and the
+asterisms are the other case, vertices at light-years in one node's
+frame that can't all be near an anchor, and send the camera's position as
+float32 high and low parts instead (`rte.js`).  The depth is not fixed
+this way: a body at 47 au is still at the cleared depth's precision.
 
 ### Cesium layers
 
@@ -1577,6 +1612,8 @@ Thin MUI-based overlay panels:
   (below)
 - `ColonizationApp` — the Human Expansion app's panel
   ([Colonization.md](js/scene/Colonization.md))
+- `SuntanApp` — the Suntan app's panel: a concept mission to the Sun's
+  surface, its play controls and sensors ([Suntan.md](js/scene/suntan/Suntan.md))
 - `Settings` — keyboard shortcut reference
 - `About` — app info and star catalog stats
 - `CreditsFooter` — every attribution on screen in one line along the bottom,

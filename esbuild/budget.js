@@ -46,15 +46,36 @@ export const STATIC_BUDGET = {
   // path, under a KB), at the limit, so a KB of room; with a late Cesium guest
   // frame's distance scale (#344: GuestPages _sent, CesiumLayers
   // _frameDistanceScale) 2,368 and a fraction, so a KB of room again.
-  // 2,380, so 2,381, with the Sun's activity view (js/scene/Sun.md, "The activity
-  // view": 12 KB minified, 5 KB gzipped, its filaments included): the EUV
-  // imager's and the coronagraph's branches of the photosphere's and the
-  // corona's shaders, which are one program each with the white-light
-  // picture, so not a chunk of their own; the erupting prominences and the
-  // flares' light curves in the event model the first frame already runs;
-  // and a star's activity against the Sun's (sun/stellarActivity.js, 2 KB),
-  // which Star.js reads as it builds the Sun.
-  totalMinifiedKB: 2381,
+  // Still within 2,369 with Rubin's image (#333: its switch and token field in the
+  // panel; the layer, its WCS and its manifest are in the Rubin chunk
+  // and the data).  With Rubin's survey cadence (#332: the panel's switch,
+  // its caption and the visit readout, the token field; under 1 KB
+  // minified; the schedule and the fields' drawing are in the lazy Rubin
+  // chunk) and the seat's aim (#332: Scene.rideSeat's `aim` and the panel
+  // riding the telescope's pointing on the cadence, half a KB, Scene and
+  // the panel both first load), 2,371.  With the camera turning with a
+  // body low over its ground (#344: Scene _syncSpin, _hungOn,
+  // linkCameraQuaternion), 2,372.
+  // With the Suntan app's panel (ui/SuntanApp.jsx, its icon and token
+  // codec, store/suntanApp.js; chrome in the drawer, as the Rubin panel is,
+  // with its mission and sensors a chunk of their own: scene/suntan/), 2,382
+  // (8 KB more), so 2,383; MUI's Select for its event list would have been 4
+  // more, so it's a native select.  2,384 with its craft findable (the
+  // `craft` target in Scene and the search, SuntanProvider, the app's search
+  // view and the panel's find buttons, a KB), so 2,385.  2,448 with three.js
+  // 0.187 (from 0.171: three itself grew, 776 KB to 846 KB in the build,
+  // about 65 KB of it in the first load, its WebGLRenderer and core; nothing
+  // of celestiary's), so 2,449 for a KB of room.  With a camera left behind
+  // turning about its target (#361: Scene pivotBody, ThreeUi _updatePivot,
+  // dragControls getPivot, under a KB), 2,450.
+  // 2,461, so 2,462 (11 KB more), with the Sun's activity view (#358; js/scene/Sun.md, "The
+  // activity view"): the EUV imager's and the coronagraph's branches of the
+  // photosphere's and the corona's shaders, which are one program each with
+  // the white-light picture, so not a chunk of their own; the flares' light
+  // curves in the event model the first frame already runs; and a star's
+  // activity against the Sun's (sun/stellarActivity.js, 2 KB), which Star.js
+  // reads as it builds the Sun.
+  totalMinifiedKB: 2462,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -69,9 +90,16 @@ export const STATIC_BUDGET = {
   // 739, so 740, for the credits footer (#341: its timing, each credit on
   // arrival then fading, its info icon, and Gaia's and NASA GIBS's credits;
   // credits.js, CreditsFooter.jsx, scene/gibs.js; chrome, so in the first
-  // load with the footer).  743, so 744, for the Sun's activity view (above).
-  totalGzipKB: 744,
-  // The largest single first-load file, minified.  Main: 695 KB.
+  // load with the footer).  741 with the seat's aim (#332: 740.2, a
+  // fifth of a KB over).
+  // 744, so 745, with the Suntan app's panel (2 KB: the panel and its
+  // token, as the Rubin panel; loaded lazily it would split shared chunks as
+  // that one's did).  760, so 761, with three.js 0.187 (from 0.171: about
+  // 16 KB, three's own growth, as above).
+  // 765, so 766 (4 KB more), with the Sun's activity view (#358, above).
+  totalGzipKB: 766,
+  // The largest single first-load file, minified.  Main: 695 KB.  759 with
+  // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,
 }
 
@@ -82,12 +110,15 @@ export const STATIC_BUDGET = {
  * 591 KB minified, 164 KB gzipped, nearly all one file (three tree-shaken
  * with the rest); the snapshots load after.  Lowered from 910 / 260 / 765,
  * set when it was a second entry of the app's build and shared its chunks.
+ * Raised by three.js 0.187's growth (from 0.171: 612 to 669 KB minified,
+ * 171 to 185 KB gzipped, all three's), from 650 / 180 / 650, so the room
+ * stays what it was.
  */
 export const LAYER_BUDGET = {
   entries: ['js/layer/layer.js'],
-  totalMinifiedKB: 650,
-  totalGzipKB: 180,
-  largestChunkMinifiedKB: 650,
+  totalMinifiedKB: 708,
+  totalGzipKB: 194,
+  largestChunkMinifiedKB: 708,
 }
 
 
@@ -104,7 +135,10 @@ export const RUNTIME_BUDGET = {
   // After #259's star tiers (2026-10-20): 26 requests, 925 KB (the
   // catalogue's bright tier is 157 KB of it).  After #258: 25 requests,
   // 2,614 KB (stars.dat was 1,848 KB of it).  Before it: 81, 2,859 KB.
-  ready: {requests: 28, kb: 1020},
+  // With three.js 0.187 (#366) main measured 1,015 to 1,019 KB from run to
+  // run here, and #364's pivot took a CI run to 1,021.8: 1,024 KB, for the
+  // runs' spread.
+  ready: {requests: 28, kb: 1024},
   // After #259: 39 requests, 3,918 KB.  Raised from #258's 29 requests:
   // the catalogue's faint tiers are 12 packs where stars.dat was one file,
   // by design (a deep link needs only its field's; DESIGN.md "The star

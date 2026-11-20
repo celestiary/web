@@ -186,6 +186,102 @@ contrast, right-aligned (`js/ui/CreditsFooter.jsx`, `js/credits.js`).
   seen through stays out.  It's mounted from the start, so Cesium's credits
   have somewhere to go whenever a layer loads.
 
+## The camera control (proposed)
+
+Proposed 2026-11-20, from the maintainer's review of #359 and #344:
+where the camera is carried, and what a drag or a zoom turns about, has
+grown into five keys and an automatic switch that nothing on screen
+announces.  Issue: [#361](https://github.com/celestiary/web/issues/361).
+
+### What's there now
+
+| State | How you get it | What carries the camera | What a zoom and an orbit drag turn about |
+|---|---|---|---|
+| Riding the body's orbit | `g`, a link, `f` on | the body's `orbitPosition`: it moves with the body, the body turns under it | the body's centre |
+| Turning with the body | automatic below 30 km while riding (#359, `SPIN_IN_M`; back from 40 km) | the body's spinning node: the ground stays put, the sky turns | the body's centre |
+| Standing on the body | double-click the ground (`land`), a place | the spinning node, the drag mode set to look around | the body's centre |
+| Left behind | `f` off | the frame above (the Sun's, for a planet): the body moves on without the camera | the target (step 1, below); until then **the frame's origin**, the Sun, 1 AU away, where a zoom step threw the camera out of the solar system |
+| Facing the target | `t`, independent of the rest | (any of the above) | (as above) |
+
+The readout says "Following on/off" and "Tracking on/off" for two
+seconds, and nothing at all when the camera starts or stops turning with
+the body.  Celestia has the same states as menu items (Follow, Orbit
+Synchronously, Lock Phase, Chase; Center, Track) with one-letter keys:
+complete, and hard to hold in mind.
+
+### The control
+
+One control that says what the camera is doing, in words, and changes it
+in one tap.  Google Earth's compass is the model: always there near the
+ground, quiet, and the place you go when the view is confusing.
+
+- **The compass.**  Shown while the camera is within a few radii of a
+  body.  The dial shows north on the body under the camera and turns with
+  the heading.  A tap turns the view north-up; a second tap levels it to
+  the horizon (from the air, straight down).  Dragging the ring turns the
+  heading.  Celestiary has no way back to north-up today.
+- **The label**, beside the compass: how the camera moves, as a sentence
+  about the body.
+
+  | Label | State | Key |
+  |---|---|---|
+  | Fixed in space | the camera stays where it is in the frame above; the body moves on | `f` (toggles with the next) |
+  | Riding Earth's orbit | `orbitPosition` | `f` |
+  | Turning with Earth | the spinning node | `y` (as Celestia's Orbit Synchronously) |
+  | Standing on Earth | landed | (double-click the ground) |
+
+  Tapping it opens the four, each with its key, the current one checked.
+  "Facing Earth" (`t`) is a toggle under them, since it is independent.
+- **Automatic, and said so.**  The default is automatic: riding the orbit
+  high up, turning with the body below 30 km.  The label reads "Turning
+  with Earth (auto)" and lights briefly when the switch happens, so the
+  change #359 makes silently is visible.  Choosing one by hand holds it
+  (riding the orbit low down shows the ground sliding by, as before #359;
+  turning with the body high up keeps a spot under the camera from orbit,
+  like a geostationary view) until the camera goes to another body.
+- **Fixed in space, and free.**  Left behind, the zoom and the orbit drag
+  turn about the target (the body just left, or what the camera faces),
+  not the frame's origin, so the camera can fly freely near it.  How:
+  keep the platform in the frame above, and put the controls' pivot
+  (`controls.target`, now the platform's position by construction,
+  js/follow.js) at the target's position in the platform's frame each
+  frame, with the zoom's floor (`homeBody`) the nearest body.  This is
+  the state's real fix; the label only names it.  Every reader of
+  `controls.target` assumes it is the platform's origin (ThreeUI's zoom,
+  the eye in `_applyAsymptoticZoom`, the orbit scale): check each.  Repro
+  and test in #361.
+- **Phones.**  The compass on the scene, top right, small; the label and
+  its menu in the dock's More panel, beside the drag mode, which is the
+  same kind of choice.
+- **Desktop.**  The compass and label together, in the right column with
+  the time panel and the drag mode pair, which moves under them.
+- **The link.**  Each state is already in the link or follows from it
+  (`F`, `L`, the frame `from=`); "Turning with Earth" held by hand needs a
+  letter (`Y`), "auto" none.
+- **The readout's "Following on/off"** becomes the label's change, and
+  goes from the readout.
+
+### Its steps
+
+1. **Fixed in space turns about the target** (done, #361's first PR):
+   `Scene.pivotBody`, `ThreeUi._updatePivot`, the orbit drag's
+   `getPivot`; one zoom step out after `f` off near Earth goes from 64,000
+   to 69,000 km, where it went to 14.6 million.  No UI change.
+2. **The label and its menu**, the automatic state announced, `y`, the
+   `Y` link letter.
+3. **The compass**: north-up, level, the ring.
+
+### Open questions
+
+- Above which height does the compass hide?  Proposed: 3 radii, where the
+  body is a disc rather than a ground.
+- Should "Standing on Earth" be in the menu at all, since it needs a
+  place?  Proposed: shown when landed, greyed otherwise, with "double-click
+  the ground" as its hint.
+- The Moon and Mars turn slowly enough that "Turning with the Moon" and
+  riding its orbit barely differ near the ground; keep the same rule for
+  every body, for one behaviour.
+
 ## Phases
 
 1. **Tokens, the tiered panel, the phone sheet** (done, #280).  Bodies,
@@ -199,3 +295,5 @@ contrast, right-aligned (`js/ui/CreditsFooter.jsx`, `js/credits.js`).
 5. **The homepage and the rest of the chrome on tokens**; the breadcrumb to
    its last two chips on a phone; retire `.dialog`, `.text-label`,
    `collapsor.js`.
+6. **The camera control** (proposed, [#361](https://github.com/celestiary/web/issues/361); above): the pivot
+   for a camera left behind, then the label saying how the camera moves, then the compass.

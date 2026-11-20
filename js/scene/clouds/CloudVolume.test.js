@@ -98,6 +98,20 @@ describe('inputsUnchanged', () => {
     expect(inputsUnchanged(a, inputs({viewToBody: turned}))).toBe(true)
   })
 
+  it('holds the Sun to the frame before, so its drift at real time keeps a run still', () => {
+    const a = inputs()
+    let prev = a
+    for (let i = 1; i <= 1000; i++) {
+      // 0.75″ a frame, 20 fps at real time: 0.2° in all.
+      const b = inputs({sun: new Vector3(0.6, 0.8, 0).applyAxisAngle(new Vector3(0, 0, 1), i * 3.6e-6)})
+      expect(inputsUnchanged(a, b, prev)).toBe(true)
+      prev = b
+    }
+    // A jump of the Sun from one frame to the next is a change.
+    const jump = inputs({sun: new Vector3(0.6, 0.8, 0).applyAxisAngle(new Vector3(0, 0, 1), (1000 * 3.6e-6) + (STILL_SUN_RAD * 2))})
+    expect(inputsUnchanged(a, jump, prev)).toBe(false)
+  })
+
   it('is a changed view past them, or for any other input', () => {
     const a = inputs()
     expect(inputsUnchanged(a, inputs({eye: new Vector3(6371472 + (STILL_EYE_M * 2), 0, 0)}))).toBe(false)
