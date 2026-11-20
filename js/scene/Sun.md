@@ -335,7 +335,11 @@ the view is those instruments:
   between them, saturating as they do on the detector.  Prominences and
   the chromosphere's rim are the Balmer model's structures at 250 per nm
   of their Hα: a typical prominence 2.5 times the quiet disc, as bright as
-  the network, as they are at 304 Å, and solid: the line is far thicker
+  the network, as they are at 304 Å; the same prominences on the camera's
+  side of the disc are **filaments**, dark ragged ribbons along their
+  spines taking 0.65 of the disc's light, as wide as the sheet's thickness
+  and a quarter of its height (the twelve longest: `uFilament*`).  Off the
+  limb they are solid: the line is far thicker
   than Hα, saturating over 4 Mm of path, not 30 (an erupting one over
   more as it rises and thins, which keeps its strands).
 - **A white-light coronagraph round it** (LASCO): the K-corona and the
@@ -392,7 +396,7 @@ the flare face on; the same Sun in white light (unchanged: the spots, no
 corona); and from 1 AU at 45° with the view on (no field round the
 unresolved disc).
 
-Not yet in the view: filaments dark on the disc, coronal holes on the
+Not yet in the view: coronal holes on the
 disc, flare loops over the limb, the loops of the low corona over the
 regions (171 and 193 Å's picture), a control in the interface and a
 permalink token (it is a URL parameter and a console call for now).

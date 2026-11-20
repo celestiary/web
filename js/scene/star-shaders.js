@@ -1,7 +1,7 @@
 import {EMITTED_GLSL, LUMINOUS_CEILING, LUMINOUS_SHOULDER_GLSL} from './hdr.js'
 import {BLACKBODY_GLSL} from './stellar.js'
 import {VIEW_GLSL} from './sun/activityView.js'
-import {MAX_FLARES, MAX_REGIONS} from './sun/limits.js'
+import {MAX_FILAMENTS, MAX_FLARES, MAX_REGIONS} from './sun/limits.js'
 
 
 /**
@@ -97,6 +97,12 @@ uniform vec4 uFlareContrast[MAX_FLARE_KERNELS];
 // levels of plage (x), the limb (z) and the table's white (w).
 uniform float uEuv;
 uniform vec4 uEuvLevels;
+// Filaments, dark on the disc there: centre and half-length, tangent and
+// half-width (body frame, radians); uEuvLevels.y is their depth.
+const int MAX_FILAMENTS = ${MAX_FILAMENTS};
+uniform float uFilamentCount;
+uniform vec4 uFilamentCentre[MAX_FILAMENTS];
+uniform vec4 uFilamentTangent[MAX_FILAMENTS];
 
 const float LUMINOUS_CEILING = ${LUMINOUS_CEILING.toExponential()};
 const float TAU = 6.28318531;
@@ -411,7 +417,24 @@ void main(void) {
         resolved(1.0, fps));
     vec3 pp = unit * 70.0 + uSeedOffset.yzx;
     float patchy = 0.6 + 0.4 * snoise(pp) * resolved(1.0, footprintOf(pp));
-    float level = (quiet + uEuvLevels.x * plageHere * patchy) * (1.0 + uEuvLevels.z * limb) + flareLevel;
+    // The filaments' absorption: ragged ribbons along their spines.
+    float dark = 0.0;
+    for (int i = 0; i < MAX_FILAMENTS; i++) {
+      if (float(i) >= uFilamentCount) {
+        break;
+      }
+      vec4 fc = uFilamentCentre[i];
+      vec4 ft = uFilamentTangent[i];
+      vec3 off = unit - fc.xyz;
+      float along = dot(off, ft.xyz) / fc.w;
+      if (abs(along) < 1.0 && dot(unit, fc.xyz) > 0.0) {
+        float across = length(off - dot(off, ft.xyz) * ft.xyz) / ft.w;
+        across *= 1.0 + 0.4 * snoise(unit * 60.0 + fc.xyz * 7.0);
+        dark = max(dark, (1.0 - along * along) * exp(-across * across));
+      }
+    }
+    float level = (quiet + uEuvLevels.x * plageHere * patchy) * (1.0 + uEuvLevels.z * limb) *
+        (1.0 - uEuvLevels.y * dark) + flareLevel;
     disc = viewColor(level) * (uEuvLevels.w * base);
   }
   float peak = max(disc.r, max(disc.g, disc.b));

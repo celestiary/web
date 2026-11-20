@@ -27,7 +27,7 @@ import {newSolarWind} from './SolarWind.js'
 import {cmesAt, eruptionOf, flaresAt, prominencesAt} from './solarEvents.js'
 import {sunBodyQuaternion} from './sunFrame.js'
 import {hash2} from './sunRandom.js'
-import {MAX_FLARES, MAX_REGIONS} from './limits.js'
+import {MAX_FILAMENTS, MAX_FLARES, MAX_REGIONS} from './limits.js'
 import {
   CORONA_FRAGMENT,
   CORONA_RADII,
@@ -72,6 +72,8 @@ const SUN_RADIUS_MM = 695.7
 // The impact radius the quiet prominences and the chromosphere reach
 // (solar radii); an erupting one's top is past it.
 const PROMINENCE_MAX_RHO = 1.2
+// A filament's width on the disc takes this share of its height (a model).
+const FILAMENT_LEAN = 0.25
 const J2000_MS = Date.UTC(2000, 0, 1, 12)
 
 
@@ -342,7 +344,10 @@ export default class SunLayers {
       uFlareKernel: {value: vec4s(2 * MAX_FLARES)},
       uFlareContrast: {value: vec4s(2 * MAX_FLARES)},
       uEuv: {value: this.view === VIEW_EUV ? 1 : 0},
-      uEuvLevels: {value: new Vector4(EUV_VIEW.plage, 0, EUV_VIEW.limb, EUV_VIEW.white)},
+      uEuvLevels: {value: new Vector4(EUV_VIEW.plage, EUV_VIEW.filament, EUV_VIEW.limb, EUV_VIEW.white)},
+      uFilamentCount: {value: 0},
+      uFilamentCentre: {value: vec4s(MAX_FILAMENTS)},
+      uFilamentTangent: {value: vec4s(MAX_FILAMENTS)},
     }
     return this._disc
   }
@@ -390,6 +395,18 @@ export default class SunLayers {
         u.uFlareKernel.value[(2 * i) + k].set(...f.kernels[k], euv ? f.euvRadius : f.radius)
         u.uFlareContrast.value[(2 * i) + k].set(now(f), 0, 0, 0)
       }
+    })
+    // In the EUV view, the prominences on the camera's side as filaments:
+    // the longest, each as wide as its sheet's thickness and a share of its
+    // height (it leans from the vertical, and is seen from the side).
+    const filaments = !euv || !this.enabled.prominences ? [] : this.state.prominences
+        .filter((p) => facing(p.centre) > 0)
+        .sort((a, b) => b.halfLength - a.halfLength)
+        .slice(0, MAX_FILAMENTS)
+    u.uFilamentCount.value = filaments.length
+    filaments.forEach((p, i) => {
+      u.uFilamentCentre.value[i].set(...p.centre, p.halfLength)
+      u.uFilamentTangent.value[i].set(...p.tangent, (0.5 * p.thickness) + (FILAMENT_LEAN * p.height))
     })
   }
 

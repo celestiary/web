@@ -5,3 +5,5 @@
  */
 export const MAX_REGIONS = 24
 export const MAX_FLARES = 4
+// The filaments drawn dark on the disc in the activity view.
+export const MAX_FILAMENTS = 12

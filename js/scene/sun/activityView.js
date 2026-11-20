@@ -43,6 +43,9 @@ export const VIEWS = Object.freeze([VIEW_EYE, VIEW_EUV])
  * - `plage`: an active region's plage (EIT 304 Å active regions are 5-10
  *   times the quiet Sun's count rate); the quiet disc itself is drawn at
  *   1.5, its cells at 1.1 and its network to 2.7 (star-shaders.js).
+ * - `filament`: how much of the disc's light a filament takes: the same
+ *   prominences seen against the disc, dark ribbons at a third of the
+ *   quiet disc (He II absorbs in the cool plasma).
  * - `limb`: the limb's brightening, × (1 − μ)² (the line is optically
  *   thick but forms higher toward the limb: a brighter rim).
  * - `corona`: the coronagraph field's level where the corona is the mean
@@ -58,6 +61,7 @@ export const VIEWS = Object.freeze([VIEW_EYE, VIEW_EUV])
 export const EUV_VIEW = Object.freeze({
   white: 1.7,
   plage: 8,
+  filament: 0.65,
   limb: 0.8,
   corona: 5,
   coolPerNm: 250,
