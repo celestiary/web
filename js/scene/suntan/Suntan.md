@@ -203,6 +203,11 @@ their marks alone.
 - **Centred on its box**, so the craft's node is its middle; the node's
   zoom radius is the model's (half the box's diagonal: 7.7 m for the stack,
   0.6 m for a lander), where it was a 6 m stand-in.
+- **Marks by their object's position**: the ring and the name of each craft
+  are one vertex at the origin, moved by the object's position, a double.
+  As vertices at the craft's place, float32s good to 2 km at 35 R☉, they
+  jumped about the still model as the camera closed in (PLAYBOOK.md, "A
+  mark you ride must be placed by its object, not its vertex").
 - **Bright near the Sun.**  At the relay's 35.5 R☉ the model is lit by 37
   suns and the exposure is keyed to the target, the Sun, so it renders near
   white, and looking within 100° of the Sun the glare veils it.  Keying the

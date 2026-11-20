@@ -93,7 +93,6 @@ export default class SuntanTrack extends Group {
     if (layer !== null) {
       this.traverse((o) => o.layers.set(layer))
     }
-    this._at = new Float32Array(3)
     // Animation calls this with the frame's Julian Day (UTC).
     this.preAnimCb = (time, jd) => this.place((jd - UNIX_EPOCH_JD) * DAY)
     this.place(mission.tStart - 1)
@@ -187,15 +186,13 @@ export default class SuntanTrack extends Group {
     if (!state) {
       return
     }
-    toScene(state.r, this._at, 0)
-    const attr = rings.geometry.getAttribute('position')
-    attr.setXYZ(0, ...this._at)
-    attr.needsUpdate = true
-    const labels = rings.label.sheet.positionAttribute
-    if (labels) {
-      labels.setXYZ(0, ...this._at)
-      labels.needsUpdate = true
-    }
+    // The place goes in the objects' positions, which stay doubles until
+    // three takes the camera's out of them (modelViewMatrix), and the one
+    // vertex each stays at the origin.  As a vertex, a float32 at the
+    // relay's 2.5e10 m from the Sun is good to only 2 km, so the mark and
+    // its name jumped about the steady model as the camera closed in.
+    rings.position.set(state.r[0], state.r[2], -state.r[1])
+    rings.label.sprites.position.copy(rings.position)
   }
 
 

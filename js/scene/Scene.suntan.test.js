@@ -120,6 +120,24 @@ describe('Scene and the Suntan app', () => {
     expect(offset().distanceTo(before)).toBeLessThan(1)
   })
 
+  it('puts each mark at its craft by the object\'s position, the vertex at the origin', async () => {
+    // A vertex at 2.5e10 m is a float32 good to 2 km: the mark jumped
+    // about the model as the camera closed in.  Object positions stay
+    // doubles until three takes the camera's out.
+    const {s, scene} = sunOnly()
+    const suntan = await s.getSuntan()
+    suntan.track.place(RELEASE_S)
+    scene.updateMatrixWorld()
+    for (const id of ['relay', 'lander']) {
+      const mark = suntan.track[id]
+      const node = suntan.track.nodes[id]
+      expect(mark.visible).toBe(true)
+      expect(Array.from(mark.geometry.getAttribute('position').array)).toEqual([0, 0, 0])
+      expect(mark.position.equals(node.position)).toBe(true)
+      expect(mark.label.sprites.position.equals(node.position)).toBe(true)
+    }
+  })
+
   it('leaves the craft for the Sun\'s frame when the app stops, the camera where it was', async () => {
     const {s, scene, camera, sun} = sunOnly()
     const suntan = await s.getSuntan()
