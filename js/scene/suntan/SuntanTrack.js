@@ -1,5 +1,4 @@
 import {Group, Object3D, Vector3} from 'three'
-import {BodyLine, MAX_FINE_STEPS} from '../bodyLine.js'
 import {craftQuaternion} from './craftModel.js'
 import {anomalyAt, pointAtAnomaly, sampleAnomalies} from './kepler.js'
 
@@ -51,7 +50,10 @@ export default class SuntanTrack extends Group {
   /**
    * @param {object} mission buildMission's
    * @param {object} deps The first load's helpers (Scene.getSuntan):
-   *   newWideLineStrip, newRings, newLabels
+   *   newWideLineStrip, newRings, newLabels, and bodyLine.js's BodyLine
+   *   and MAX_FINE_STEPS (handed in, not imported, as install.js says: the
+   *   first load has them, and importing them here split them into a chunk
+   *   of their own, a request more on every page's load)
    * @param {number} [layer]
    */
   constructor(mission, deps, layer = null) {
@@ -75,7 +77,7 @@ export default class SuntanTrack extends Group {
       const n = SEGMENTS + 1
       const mesh = deps.newWideLineStrip(new Float32Array(3 * n), {name: `suntan.${leg.id}`, color, width: WIDTH, opacity: OPACITY})
       this.paths.add(mesh)
-      this.lines.push(new LegLine(leg, mesh, n))
+      this.lines.push(new LegLine(leg, mesh, n, deps))
     }
     this._body = new Vector3()
     this.relay = deps.newRings(SUNTAN_COLORS.relay, 1)
@@ -284,8 +286,9 @@ class LegLine {
    * @param {object} leg mission.legs'
    * @param {object} mesh newWideLineStrip's, whose vertices this writes
    * @param {number} n coarse vertices
+   * @param {{BodyLine: Function, MAX_FINE_STEPS: number}} deps bodyLine.js's, handed in
    */
-  constructor(leg, mesh, n) {
+  constructor(leg, mesh, n, {BodyLine, MAX_FINE_STEPS}) {
     this.leg = leg
     this.n = n
     const orbit = leg.orbit

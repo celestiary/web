@@ -18,8 +18,10 @@ export const SUNTAN_MODEL_PATH = 'large/models/suntan/suntan.glb'
  * @param {object} scene The Scene, with the Sun in it
  * @param {object} deps The first load's functions (Scene.getSuntan):
  *   planetsApprox (the planets' places the mission is built on),
- *   newWideLineStrip, newRings, newLabels, OVERLAY_LAYER, and loadModel
- *   (the flight system's model, put on the craft once it's in)
+ *   newWideLineStrip, newRings, newLabels, OVERLAY_LAYER, loadModel
+ *   (the flight system's model, put on the craft once it's in), and
+ *   bodyLine.js's BodyLine and MAX_FINE_STEPS (the legs' lines through the
+ *   craft, SuntanTrack.js)
  * @returns {{mission: object, events: Array<object>, readSensors: Function, formatField: Function,
  *   formatTemperature: Function, track: SuntanTrack, craft: object, nodeOf: Function, dispose: Function}}
  */

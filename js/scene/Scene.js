@@ -39,6 +39,7 @@ import {orbitAt} from './meanElements.js'
 import {loadModel} from './model.js'
 import {newLabels} from './overlayMarks.js'
 import {newWideLineStrip} from './wideLines.js'
+import {BodyLine, MAX_FINE_STEPS} from './bodyLine.js'
 import {planetsApprox} from './planetsApprox.js'
 import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
 import {faceKeepingRoll} from '../faceKeepingRoll.js'
@@ -3675,6 +3676,7 @@ export default class Scene {
     if (!this.suntan) {
       this.suntan = installSuntan(this, {
         planetsApprox, newWideLineStrip, newRings, newLabels, loadModel, OVERLAY_LAYER: Shared.OVERLAY_LAYER,
+        BodyLine, MAX_FINE_STEPS,
       })
       this._joinOverlay('o', this.suntan.track)
       // Its craft are search results while it runs (SuntanProvider).

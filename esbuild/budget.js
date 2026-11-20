@@ -102,9 +102,9 @@ export const STATIC_BUDGET = {
   // token, as the Rubin panel; loaded lazily it would split shared chunks as
   // that one's did).  760, so 761, with three.js 0.187 (from 0.171: about
   // 16 KB, three's own growth, as above).  763, so 764, with the camera
-  // control (#361 step 2, as above).  765, so 766, with the Suntan craft's
+  // control (#361 step 2, as above).  764, so 765, with the Suntan craft's
   // exposure and link (as above).
-  totalGzipKB: 766,
+  totalGzipKB: 765,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,
