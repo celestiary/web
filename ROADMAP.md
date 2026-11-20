@@ -330,6 +330,13 @@ Roadmap and issues groomed (2026-10-08): [#86](https://github.com/celestiary/web
    ([#262](https://github.com/celestiary/web/issues/262)), its limits set from #258's numbers, and `stars.dat` is brightness tiers on the
    point-population engine ([#259](https://github.com/celestiary/web/issues/259), on [#98](https://github.com/celestiary/web/issues/98)), the budget's limits lowered again; all Done recently.  That completes the epic's sub-issues.
 
+3.2. **The camera control** ([#361](https://github.com/celestiary/web/issues/361), in [#118](https://github.com/celestiary/web/issues/118);
+   [design/UI.md, the camera control](design/UI.md#the-camera-control-proposed)): a camera left behind (`f` off) turns
+   about the target rather than the Sun, which throws it out of the solar system on the first zoom (production has
+   it); then a label saying how the camera moves (fixed in space, riding the body's orbit, turning with it, standing on
+   it), automatic below 30 km and announced (#359), with `y` to turn with the body; then a compass for north-up and a
+   level view.
+
 **Next** (the shared engines, below)
 
 4. **Earth's imagery detail layer** ([#92](https://github.com/celestiary/web/issues/92)): Bing is the detail layer and is
