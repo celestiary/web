@@ -39,6 +39,19 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### The ground holds still under you low over a planet, and Earth's clouds stop flickering
+
+Below 30 km the camera now turns with the planet, so the ground stays put under you and the sky turns as
+time runs, as it would for someone there. Before, the ground slid by at the planet's turning (460 m/s
+over Earth), and the clouds up close flickered while the clock ran.
+
+- Date: 2026-11-20
+- PR: [#359](https://github.com/celestiary/web/pull/359)
+- Issue: [#344](https://github.com/celestiary/web/issues/344)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@7.0316,-7.5554,624m;t=9819.841738jd;cq=-0.3849,0.6474,-0.3869,-0.5319;fov=45deg;s=alpoGF)
+- Kind: fix
+
 ### A link to a body by its name alone opens it
 
 A link such as celestiary.org/#earth or #moon stayed on the loading screen. It now opens on that body
