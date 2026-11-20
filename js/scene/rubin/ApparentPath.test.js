@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'bun:test'
 import {Object3D, Vector3} from 'three'
-import ApparentPath from './ApparentPath.js'
+import ApparentPath, {FINE_PER_DAY} from './ApparentPath.js'
 import {ASTRO_UNIT_METER, OVERLAY_LAYER} from '../../shared.js'
 import {newRings} from '../LagrangeMarks.js'
 import {J2000_JD, J2000_OBLIQUITY_DEG, precessionQuaternion, utcToTtJulianDay} from '../celestialFrame.js'
@@ -72,13 +72,64 @@ describe('ApparentPath', () => {
     const mid = path.jds[50] + 0.5
     path.place(mid)
     expect(path.marker.visible).toBe(true)
+    // The ring is at the anchor, its vertex at the origin: the cubic
+    // between the days, off their chord's midpoint by the sag of a day of
+    // Earth's orbit (5.5e6 m), less than 1e7 m.
     const at = path.marker.geometry.getAttribute('position').array
-    for (let k = 0; k < 3; k++) {
-      // float32 at 7e12 m is good to about 5e5 m.
-      expect(Math.abs(at[k] - ((path.points[(3 * 50) + k] + path.points[(3 * 51) + k]) / 2))).toBeLessThan(2e6)
+    expect([...at]).toEqual([0, 0, 0])
+    expect(path.marker.position.equals(path.anchor)).toBe(true)
+    for (const [k, c] of ['x', 'y', 'z'].entries()) {
+      const mean = (path.points[(3 * 50) + k] + path.points[(3 * 51) + k]) / 2
+      expect(Math.abs(path.anchor[c] - mean)).toBeLessThan(1e7)
     }
     path.place(path.jds[path.jds.length - 1] + 1)
     expect(path.marker.visible).toBe(false)
+  })
+
+  it('is on the curve between the days: the cubic within 2e3 m of the body\'s computed place', () => {
+    for (const day of [10.25, 50.5, 100.75, 140.1]) {
+      const jd = path.jds[0] + day
+      path.place(jd)
+      const exact = path.positionJ2000(jd)
+      expect(path.anchor.distanceTo(exact)).toBeLessThan(2e3)
+    }
+  })
+
+  it('draws the line as float32 offsets from the anchor: good to 6e-8 of the offset, not of 7e12 m', () => {
+    path.place(path.jds[0] + 70.3)
+    expect(path.line.position.equals(path.anchor)).toBe(true)
+    const offsets = path.line.geometry.getAttribute('position').array
+    const j = Math.round(70.3 * FINE_PER_DAY)
+    for (const i of [j - 2, j, j + 2]) {
+      for (const [k, c] of ['x', 'y', 'z'].entries()) {
+        const exact = path.fine[(3 * i) + k] - path.anchor[c]
+        // A vertex 1e8 m from the anchor is held to a few metres, 1e-12 rad
+        // at 47 au; unanchored, 5e5 m.
+        expect(Math.abs(offsets[(3 * i) + k] - exact)).toBeLessThanOrEqual((6e-8 * Math.abs(exact)) + 1e-6)
+      }
+    }
+    expect(Math.abs(Math.fround(path.fine[3 * j]) - path.fine[3 * j])).toBeGreaterThan(1)
+  })
+
+  it('samples again when the ephemeris arrives, and the ring follows', () => {
+    let ready = false
+    let shift = 1.7e7
+    const later = new ApparentPath({elements, deps, approximate: () => !ready,
+      earthAt: (jd) => earthAt(jd).add(new Vector3(shift, 0, 0))})
+    const jd = later.jds[60] + 0.3
+    later.place(jd)
+    const before = later.anchor.clone()
+    shift = 0
+    later.place(jd)
+    expect(later.anchor.equals(before)).toBe(true)
+    ready = true
+    later.place(jd)
+    // Earth 1.7e7 m along +X in the date's frame; the path, from Earth, the other way.
+    expect(later.anchor.distanceTo(before)).toBeGreaterThan(1.6e7)
+    expect(later.anchor.distanceTo(later.positionJ2000(jd))).toBeLessThan(2e3)
+    const offsets = later.line.geometry.getAttribute('position').array
+    const j = Math.round((60 + 0.3) * FINE_PER_DAY)
+    expect(Math.abs(offsets[3 * j] - (later.fine[3 * j] - later.anchor.x))).toBeLessThan(10)
   })
 
   it('turns to the date: the precession from J2000, a fraction of a degree', () => {

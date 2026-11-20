@@ -17,6 +17,8 @@ import OrbitDiagram from './orbitDiagram.js'
 import {CODES, keyOfCode} from './orbitElements.js'
 import {G, collinearDistances, hillRadius, massKg, synchronousOrbit} from './lagrange.js'
 import {sceneReferred} from './hdr.js'
+import {addCredit, removeCredit} from '../credits.js'
+import {dataUrl} from '../dataUrl.js'
 import {REGIMES, semiMajorAxisOf, sunSyncInclination} from './regimes.js'
 import {FAMILIES, PERIODIC_DATA_URL, familyMember, familyOfCode, sampleMember, southern} from './periodicOrbits.js'
 import {manifolds} from './manifolds.js'
@@ -3292,6 +3294,7 @@ export default class Scene {
     this.rubin ??= installRubin(this, {
       orbitAt, precessionQuaternion, utcToTtJulianDay, J2000_JD, newRings, newLabels, newWideLineStrip, loadModel,
       latLngAltToBodyFixed, sceneReferred, OVERLAY_LAYER: Shared.OVERLAY_LAYER, ASTRO_UNIT_METER: Shared.ASTRO_UNIT_METER,
+      dataUrl, addCredit, removeCredit,
     })
     return this.rubin
   }

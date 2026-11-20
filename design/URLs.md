@@ -673,6 +673,9 @@ pixel=1            Rubin's pixel drawn at the body: a square the camera's 0.2″
 cadence=1          the telescope keeps the survey's modelled cadence of visits,
                    the night's fields drawn on the sky (off by default: it
                    stares at 2026 ED138; Rubin.md, "Cadence")
+image=1            Rubin's image, NOIRLab's discovery composite, drawn over
+                   the field where its stars are (off by default; Rubin.md,
+                   "The imagery")
 ```
 
 ```
@@ -681,6 +684,7 @@ cadence=1          the telescope keeps the survey's modelled cadence of visits,
 #…;apps:open,view=rubin;apps.rubin:shell=0     the telescope in the open
 #…;apps:open,view=rubin;apps.rubin:pixel=1     Rubin's pixel drawn at the body
 #…;apps:open,view=rubin;apps.rubin:cadence=1   the survey's cadence, not the stare
+#…;apps:open,view=rubin;apps.rubin:image=1     Rubin's image over the field
 #…;fov=0.0001615deg;…;apps:open,view=rubin;apps.rubin:optics=0   a field past Rubin's pixels, kept
 ```
 

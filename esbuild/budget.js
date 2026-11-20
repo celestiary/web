@@ -45,14 +45,16 @@ export const STATIC_BUDGET = {
   // Loader fullPath, _descriptor and _pathOf, Celestiary _loadBody's full
   // path, under a KB), at the limit, so a KB of room; with a late Cesium guest
   // frame's distance scale (#344: GuestPages _sent, CesiumLayers
-  // _frameDistanceScale) 2,368 and a fraction, so a KB of room again.  With
-  // Rubin's survey cadence (#332: the panel's switch, its caption and the
-  // visit readout, the token field; under 1 KB minified; the schedule and
-  // the fields' drawing are in the lazy Rubin chunk) and the seat's aim
-  // (#332: Scene.rideSeat's `aim` and the panel riding the telescope's
-  // pointing on the cadence, half a KB, Scene and the panel both first
-  // load), 2,370.
-  totalMinifiedKB: 2370,
+  // _frameDistanceScale) 2,368 and a fraction, so a KB of room again.
+  // Still within 2,369 with Rubin's image (#333: its switch and token field in the
+  // panel; the layer, its WCS and its manifest are in the Rubin chunk
+  // and the data).  With Rubin's survey cadence (#332: the panel's switch,
+  // its caption and the visit readout, the token field; under 1 KB
+  // minified; the schedule and the fields' drawing are in the lazy Rubin
+  // chunk) and the seat's aim (#332: Scene.rideSeat's `aim` and the panel
+  // riding the telescope's pointing on the cadence, half a KB, Scene and
+  // the panel both first load), 2,371.
+  totalMinifiedKB: 2371,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
