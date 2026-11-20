@@ -41,17 +41,17 @@ function render(state = {}) {
 describe('PhoneDock', () => {
   afterEach(() => useStore.setState({ar: initial.ar}))
 
-  it('holds Time, AR, Apps and More, and no panel until one is asked for', () => {
+  it('holds Time, Layers, AR, Apps and More, and no panel until one is asked for', () => {
     const html = render()
-    for (const id of ['time', 'apps', 'more']) {
+    for (const id of ['time', 'layers', 'apps', 'more']) {
       expect(html).toContain(`data-testid="phone-dock-${id}"`)
     }
     expect(html).toContain('data-testid="ar-button-enter"')
-    expect(html).not.toContain('data-testid="phone-dock-layers"')
     expect(html).not.toContain('dock-panel')
   })
 
-  it('offers Layers near a Cesium body', () => {
+  // Everywhere: the sky imagery's surveys are in its panel (sky/Sky.md).
+  it('offers Layers near a Cesium body too', () => {
     expect(render({layerBody: 'earth'})).toContain('data-testid="phone-dock-layers"')
   })
 

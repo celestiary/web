@@ -1,7 +1,8 @@
-import {Quaternion, Vector3} from 'three'
+import {Vector3} from 'three'
 import HipsLayer from '../sky/HipsLayer.js'
 import {footprintCells} from '../sky/footprint.js'
-import {angle, apply, frameMatrix, lonLatToVec, mocFromCells} from '../sky/hips.js'
+import {angle, lonLatToVec, mocFromCells} from '../sky/hips.js'
+import {skyDirection, skyLayers} from '../sky/install.js'
 import {RUBIN_FIRST_LOOK, RUBIN_VIRGO, surveyCovers} from '../sky/surveys.js'
 import ApparentPath from './ApparentPath.js'
 import PixelMarker from './PixelMarker.js'
@@ -113,7 +114,8 @@ export const IMAGE_MANIFEST_PATH = 'data/rubin/noirlab2626d.json'
 export const IMAGE_CREDIT_ID = 'rubin-image'
 /** Rubin's First Look on the sky (js/scene/sky/Sky.md), with the image. */
 export const FIRST_LOOK_CREDIT_ID = 'rubin-first-look'
-export const VIRGO_CREDIT_ID = 'rubin-virgo'
+/** Rubin's own Virgo tiles' credit: the shared survey layer's (sky/install.js). */
+export const VIRGO_CREDIT_ID = 'sky-rubin-virgo'
 /** The field of view that frames one of Rubin's fields: its camera's, degrees. */
 const RUBIN_FIELD_DEG = 3.5
 /** The First Look's images that aren't the Virgo field, which Rubin's own tiles draw. */
@@ -194,7 +196,6 @@ export function newImageSwitch(scene, deps, {onManifest = null} = {}) {
     text: `Rubin's First Look: ${RUBIN_FIRST_LOOK.credit} (HiPS ${RUBIN_FIRST_LOOK.licence})`,
     href: RUBIN_FIRST_LOOK.source,
   }
-  const virgoCredit = {text: `${RUBIN_VIRGO.title}: ${RUBIN_VIRGO.credit}`, href: RUBIN_VIRGO.source}
   const hips = (survey, id, c) => new HipsLayer({
     survey,
     view,
@@ -227,8 +228,10 @@ export function newImageSwitch(scene, deps, {onManifest = null} = {}) {
   const fetchOk = deps.fetchOk ?? (deps.fetchJson ? () => Promise.resolve(false) :
     (url) => fetch(url).then((r) => r.ok, () => false))
   // A J2000 place's direction in the world now: through the stars' frame.
-  const direction = (raDeg, decDeg) => new Vector3(...apply(frameMatrix('equatorial'), lonLatToVec(raDeg, decDeg)))
-      .applyQuaternion(scene.stellarFrame.getWorldQuaternion(new Quaternion))
+  const direction = (raDeg, decDeg) => skyDirection(scene, raDeg, decDeg)
+  // Rubin's own Virgo tiles are a survey the layers control lists too: one
+  // layer, shared (sky/install.js skyLayers), held while the switch is on.
+  const shared = skyLayers(scene, deps)
   const sw = {
     layer: null,
     firstLook: null,
@@ -263,8 +266,7 @@ export function newImageSwitch(scene, deps, {onManifest = null} = {}) {
       on = value === true
       if (on && !sw.ready) {
         sw.firstLook = hips(FIRST_LOOK_REST, FIRST_LOOK_CREDIT_ID, firstLookCredit)
-        sw.virgo = hips(RUBIN_VIRGO, VIRGO_CREDIT_ID, virgoCredit)
-        scene.stellarFrame.add(sw.firstLook, sw.virgo)
+        scene.stellarFrame.add(sw.firstLook)
         fetchOk(`${RUBIN_FIRST_LOOK.serviceUrls[0]}/properties`).then((ok) => {
           cdsUp = ok
         })
@@ -288,13 +290,17 @@ export function newImageSwitch(scene, deps, {onManifest = null} = {}) {
       sw.apply()
     },
     apply() {
-      for (const layer of [sw.firstLook, sw.virgo]) {
-        if (layer) {
-          layer.visible = on
-          if (!on) {
-            layer.setDrawn(false)
-          }
+      if (sw.firstLook) {
+        sw.firstLook.visible = on
+        if (!on) {
+          sw.firstLook.setDrawn(false)
         }
+      }
+      if (on && !sw.virgo && !disposed) {
+        sw.virgo = shared.acquire(RUBIN_VIRGO.key, 'rubin')
+      } else if (!on && sw.virgo) {
+        shared.release(RUBIN_VIRGO.key, 'rubin')
+        sw.virgo = null
       }
       if (!sw.layer) {
         return
@@ -310,13 +316,14 @@ export function newImageSwitch(scene, deps, {onManifest = null} = {}) {
       disposed = true
       deps.removeCredit?.(IMAGE_CREDIT_ID)
       deps.removeCredit?.(FIRST_LOOK_CREDIT_ID)
-      deps.removeCredit?.(VIRGO_CREDIT_ID)
       sw.layer?.dispose()
       sw.layer = null
       sw.firstLook?.dispose()
       sw.firstLook = null
-      sw.virgo?.dispose()
-      sw.virgo = null
+      if (sw.virgo) {
+        shared.release(RUBIN_VIRGO.key, 'rubin')
+        sw.virgo = null
+      }
     },
   }
   return sw

@@ -767,6 +767,33 @@ export function decodeLayersToken(value) {
 
 
 /**
+ * The `sky:` token (design/URLs.md): the sky-imagery surveys switched on,
+ * by their manifests' keys (js/scene/sky/Sky.md), as flags, sorted.  Left
+ * out (null) when none is.
+ *
+ * @param {Array<string>} [keys]
+ * @returns {?string}
+ */
+export function encodeSkyToken(keys) {
+  const flags = [...new Set((keys ?? []).filter((k) => PLAIN_WORD.test(k)))].sort()
+  return formatTokenValue(flags) || null
+}
+
+
+/**
+ * The inverse of encodeSkyToken.  Every flag is returned, known or not
+ * (the store drops repeats): the scene skips a key no survey has, so a link
+ * from a newer build opens.
+ *
+ * @param {string} [value] The token's value, undefined if the link has none
+ * @returns {Array<string>}
+ */
+export function decodeSkyToken(value) {
+  return parseTokenValue(value).flags.map((k) => k.toLowerCase())
+}
+
+
+/**
  * The `info:` token (design/URLs.md): the info panel's sections as the user
  * left them.  `closed`, the panel folded; `open=` and `shut=` its sections,
  * by their place in a body's props or their panel name, opened or shut

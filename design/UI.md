@@ -75,7 +75,7 @@ bar along the bottom (`js/ui/PhoneDock.jsx`), 56px over the safe area:
 | Button | Shows | Tap |
 |---|---|---|
 | Time | the sim clock, `4:19 PM`, and its rate when not real time | the time panel above the bar: date, rate, rewind, now, pause, forward, calendar |
-| Layers | only near a Cesium body | the layer tiles above the bar |
+| Layers | everywhere | the layers panel above the bar: a Cesium body's layer tiles while near one, and the sky imagery's surveys |
 | AR | the AR sky view | enters it; while on, its controls (calibrate, damping, exit) sit above the bar |
 | Apps | the widgets drawer | opens or closes it, as a sheet above the bar |
 | More | | drag mode, Settings, About, above the bar |

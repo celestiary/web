@@ -269,23 +269,12 @@ export default function RubinApp({celestiary}) {
     }
   }
 
-  // Turn the view to one of Rubin's imaged fields, at the field of view
-  // that frames it; out of the cadence's ride and off tracking, which would
-  // both turn it back.  Landed, a field under the horizon is behind the
-  // ground: say so.
-  const goToField = (f) => {
-    if (scene.seatAim) {
-      scene.leaveSeat()
-    }
-    scene.setTracking(false)
-    const camera = ui.camera
-    const dir = f.direction()
-    const at = camera.getWorldPosition(new Vector3)
-    const body = Shared.targets.landed && Shared.targets.cur
-    const up = body && at.clone().sub(body.getWorldPosition(new Vector3))
-    setFieldNote(up && dir.dot(up) < 0 ? `${f.label} is below the horizon here now.` : '')
-    Shared.targets.tween = newCameraLookTween(camera, at.add(dir.multiplyScalar(SEAT_LOOK_M)))
-    ui.setFov(f.fovDeg)
+  // Turn the view to one of Rubin's imaged fields (sky/install.js
+  // turnToSkyField, loaded with the Rubin feature); landed, a field under
+  // the horizon is behind the ground: say so.
+  const goToField = async (f) => {
+    const {turnToSkyField} = await scene.loadSky()
+    setFieldNote(turnToSkyField(scene, ui, f, {Shared, newCameraLookTween}))
   }
 
   const goToBody = () => {

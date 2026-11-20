@@ -76,7 +76,13 @@ export const STATIC_BUDGET = {
   // The HiPS sky layer (#360) is lazy but for the `?sky=` parameter in
   // Scene (showSky) and the Rubin panel's buttons to its imaged fields
   // (their list and directions are in the lazy code), half a KB: 2,462.
-  totalMinifiedKB: 2462,
+  // 2,461.3 to 2,462.96 with the layers control's sky imagery (#360): the
+  // Layers button everywhere, the loader of its sky section (SkyImagery.jsx;
+  // the section, the surveys and the turn to a field are lazy, handed the
+  // first load's MUI and React so the split leaves MUI's chunks alone),
+  // LayerSwitch shared with the New York toggle, the `sky:` token and the
+  // store's list: 2,463.
+  totalMinifiedKB: 2463,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -97,8 +103,9 @@ export const STATIC_BUDGET = {
   // token, as the Rubin panel; loaded lazily it would split shared chunks as
   // that one's did).  760, so 761, with three.js 0.187 (from 0.171: about
   // 16 KB, three's own growth, as above).  763, so 764, with the camera
-  // control (#361 step 2, as above).
-  totalGzipKB: 764,
+  // control (#361 step 2, as above).  763.7 to 764.4 with the layers
+  // control's sky imagery (#360, as above), so 765.
+  totalGzipKB: 765,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,

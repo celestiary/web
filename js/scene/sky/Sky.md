@@ -14,11 +14,15 @@ first and Hubble's and JWST's are a manifest each.
 | `HipsLayer.js` | The layer: a `Group` under `Scene.stellarFrame`, its tiles chosen and loaded from `preAnimCb` |
 | `tileMaterial.js` | The tile's material, shared with Rubin's discovery image (`rubin/RubinImage.js`) |
 | `surveys.js`, `surveys/*.json` | The manifests, and `surveyCovers` (does a field hold any of a survey) |
+| `install.js` | The surveys' layers in the scene, one per survey, shared (`skyLayers`); the control's rows (`skyRows`, `followControl`), the fields' directions and the turn to one (`surveyFields`, `turnToSkyField`) |
+| `../../ui/SkyImagery.jsx`, `../../ui/SkySection.jsx` | The layers control's sky section: the loader in the first load, the section lazy |
 | `footprint.js` | An image's rectangle on the sky from its AVM, to its HEALPix cells (Rubin's coverage) |
 | `../../../tools/hips/coverage.mjs` | Writes a manifest's coverage, from its footprints or the survey's `Moc.fits` |
 
-All of it is lazily loaded with the Rubin feature (`rubin/install.js`
-imports it); nothing is in the first load.
+All of it is lazily loaded, with the Rubin feature (`rubin/install.js`
+imports it), the layers control's sky section, or a link that has a survey
+on; in the first load are only the section's loader, the `sky:` token and
+the store's list (see [the control](#the-control)).
 
 ## HiPS in brief
 
@@ -116,9 +120,13 @@ fields and that its coverage is near its sky fraction.
 
 | Survey | Service | Orders | Format | Coverage | Used by |
 |---|---|---|---|---|---|
-| Rubin's First Look, the Virgo Cluster, `rubinobs/SVImages_v2/color_ugri` | Rubin's own (`images.rubinobservatory.org/hips/`) | 3 to 11 (0.2″) | webp | 5.79e-4 of the sky (24 deg²) | the Rubin app's "Rubin's image"; `?sky=rubin-virgo` |
+| Rubin's First Look, the Virgo Cluster, `rubinobs/SVImages_v2/color_ugri` | Rubin's own (`images.rubinobservatory.org/hips/`) | 3 to 11 (0.2″) | webp, colour | 5.79e-4 of the sky (24 deg²) | the Rubin app's "Rubin's image"; the control (`rubin-virgo`) |
 | Rubin's First Look, `CDS/P/Rubin/FirstLook` | CDS (`alasky`, mirror `alaskybis`) | 0 to 12 (0.1″) | png, webp | 7.07e-4 of the sky (29 deg²) | the Rubin app's "Rubin's image", for the Trifid and Lagoon only |
-| JWST NIRCam imaging, `ESAVO/P/JWST/NIRCam_Imaging` | ESA's ESASky (`skies.esac.esa.int`) | 0 to 15 (drawn to 13) | png (with alpha) | 3.4e-5 | the real-tile check; no control yet |
+| JWST NIRCam, `ESAVO/P/JWST/NIRCam_Imaging` | ESA's ESASky (`skies.esac.esa.int`) | 0 to 15 (drawn to 13) | png (with alpha), grey | 5.75e-5 | the control (`jwst-nircam`) |
+| JWST MIRI, `ESAVO/P/JWST/P/MIRI_Imaging` | ESASky | 0 to 13 | png (with alpha), grey | 3.48e-5 | the control (`jwst-miri`) |
+| Hubble ACS, `ESAVO/P/HST/ACS-blue` | ESASky | 3 to 14 | jpeg, grey, inverted | 5.97e-4 | the control (`hst-acs`) |
+| Hubble WFC3, `ESAVO/P/HST/WFC3` | ESASky | 3 to 14 | jpeg, grey, inverted | 2.04e-4 | the control (`hst-wfc3`) |
+| Hubble WFPC2, `ESAVO/P/HST/WFPC2` | ESASky | 3 to 13 | jpeg, grey, inverted | 7.79e-4 | the control (`hst-wfpc2`) |
 
 **Rubin's First Look, the Virgo Cluster** is Rubin's own HiPS, the one
 its [SkyViewer](https://skyviewer.app/) draws (found in that page's
@@ -154,28 +162,139 @@ with 404 too** (the maintainer's, on the preview, 2026-11-20:
 Lagoon aren't drawn until CDS serves its tiles again; nothing else of
 Rubin's public imagery holds that field.
 
-**JWST NIRCam** is ESASky's HiPS of the eJWST archive's NIRCam images,
-single band, transparent where there is no data.  It's in the manifests
-as the proof that the layer is general and as the survey its check runs
-on.  No control switches it on yet; a link does: **`?sky=<key>`** in the
-page's query string (`Scene.showSky`, `sky/install.js` `showSurvey`: the
-layer under the stellar frame, loaded lazily, its credit in the footer
-while its tiles are drawn), the key a manifest's `key` (`jwst-nircam`,
-`rubin-first-look`).  The Pillars of Creation in M16, from the Rubin
-site's night sky at a 0.12° field:
+**Hubble and JWST: none in colour that can be reached.**  The maintainer
+asked for Hubble's and JWST's colour surveys (#360, 2026-11-20).  What
+exists and what answers:
+
+- **Every colour HiPS of Hubble or JWST is CDS's**: `CDS/P/HST/EPO`,
+  `CDS/P/HST/color`, `CDS/P/HST/GOODS/color`, `CDS/P/HST/PHAT/color`,
+  `CDS/P/JWST/EPO`, `CDS/P/JWST/First-Images` and the single images
+  (Carina's Cosmic Cliffs, the Cartwheel, SMACS 0723, the Southern Ring,
+  Stephan's Quintet), served from `alasky` and its mirror `alaskybis` only
+  (the MocServer's records, `dataproduct_subtype=color`, every
+  `hips_service_url*`).  CDS's tile host answers each with a 404, to the
+  sandbox and to a visitor's browser; its mirror resets the connection.  So
+  none is offered: a switch that shows nothing isn't.
+- **ESASky's Hubble surveys say "color" and are grey.**  Their records
+  (`dataproduct_subtype = color live`, `isColored = true`, jpeg) are
+  HipsGen's: an RGB jpeg.  But every tile fetched, 98 of them at 19 fields,
+  orders 8 and 11, has R = G = B to the count, and they're stretched
+  dark-on-light (the sky about 225, stars black; no data exactly 0).  Each
+  is one mosaic of all its camera's filters (the `hipsgen_params_*`
+  CONCAT the BLUE, RED, UV and IR runs into it), so no bands to combine
+  either: the one stray per-band survey left, `HST/WFC3-UV`, is ultraviolet
+  alone.  They're shown as their negative (`invert`), labelled "in grey".
+- **ESASky's JWST surveys are grey too**: one HiPS per instrument (NIRCam,
+  MIRI, NIRISS and two coronagraphic), every filter merged, png, R = G = B
+  in every tile looked at.  NIRCam and MIRI are offered, labelled so; no
+  false colour is made of them (two instruments, each all its filters
+  merged, aren't bands to map honestly).
+- **ESASky's own list** (the JSON its web app at `sky.esa.int` loads) is
+  refused by the sandbox's proxy, so it wasn't read; `skies.esac.esa.int`'s
+  directory listings answer 403, and the obvious paths for an outreach or
+  colour survey there (`HST/EPO`, `JWST/EPO`, `JWST/color`, per-filter
+  NIRCam) 404.
+- **Rubin's Virgo field is in colour** (u, g, r, i), and the control has it.
+
+So the control has Hubble and JWST in grey and Rubin in colour.  When CDS's
+tiles answer again, `CDS/P/JWST/EPO` and `CDS/P/HST/EPO` are a manifest
+each (their coverage from `Moc.fits`, which is on the same host).
+
+**A link turns a survey on** too: **`?sky=<key>[,<key>]`** in the
+query string (the first form, still read), or the `sky:` token in the
+fragment ([the control](#the-control)), the key a manifest's `key`.  The
+Pillars of Creation in JWST NIRCam, from the Rubin site's night sky at a
+0.12° field:
 
 ```
 https://celestiary.org/?sky=jwst-nircam#sun/ed138@-30.2446,-70.7494,2.684km;from=sun/earth;t=9630.783523jd;cq=0.014,0.9593,0.1209,-0.2547;fov=0.12deg;s=LF;time:pause
 ```
 
-**Next surveys:** Hubble and JWST in colour.  CDS's registry lists 68
-image HiPS for them, 12 in colour, among them `CDS/P/HST/EPO` and
-`CDS/P/HST/color` (Hubble's outreach images and colour mosaics) and
-`CDS/P/JWST/EPO` and `CDS/P/JWST/First-Images` on CDS, and 11 on
-ESASky (`ESAVO/P/HST/ACS-blue`, `WFC3`, `WFPC2` and the rest, jpeg, and
-JWST's NIRCam, NIRISS and MIRI).  A control to pick one, and a stand-in
-survey labelled as not Rubin's for the fields Rubin has nothing public
-on (DSS2 colour is all-sky), are the maintainer's to decide (#360).
+**A stand-in survey** labelled as not Rubin's, for the fields Rubin has
+nothing public on (DSS2 colour is all-sky, and CDS's), is the
+maintainer's to decide (#360).
+
+### Black as no data, on jpeg
+
+A HiPS tile covers its whole cell, and a survey with no alpha is black
+where it has no data, so the tile material keys black out (`keyBlack`).
+Rubin's webp tiles are exactly 0 there, and the default ramp (clear at 0,
+opaque from 2/255) suits them.  ESASky's Hubble jpegs ring round the edge
+of their data: measured over 46 tiles with no-data regions, the pixels
+within 4 px of a no-data block (a run of exact zeros) take values 1 to 16
+(about 40% at 1 or 2, 98% under 16, almost none from 16 to 64); the data's
+own sky, served dark-on-light, is 100 counts and more.  So a manifest
+gives its own ramp in counts, `"keyBlack": [16, 24]` (clear to 16, opaque
+from 24: `HipsLayer.js` `tileKey`), and `"invert": true` shows the tile's
+negative after the key, which reads the texel as served.  The cost: a
+saturated star or nucleus, 0 as served (white in the negative), is keyed
+too, so its core shows what's under it (measured: Eta Carinae in WFPC2,
+below); a few hundred pixels a 512² tile at M51's core.  Telling those from
+no data needs the neighbourhood, not the texel.
+
+### Showpieces
+
+A survey covers a ten-thousandth of the sky or less, so switched on with
+nothing in view it shows nothing.  Each manifest in the control lists its
+showpiece `fields` (`key`, `label`, RA and Dec, J2000, and the field of view
+that frames it), and the control has a button for each while the survey is
+on.  Each was checked on its tiles (2026-11-20): the tiles at the order its
+field draws (its field over 400 px) within its radius fetched from ESASky,
+all answered 200 bar edge cells outside the data (404, marked missing), and
+the data's centroid within a few hundredths of a degree of the place.
+
+| Survey | Fields |
+|---|---|
+| JWST NIRCam | Pillars of Creation, Cosmic Cliffs (Carina), Stephan's Quintet, SMACS 0723, Southern Ring Nebula, Cartwheel Galaxy |
+| JWST MIRI | Pillars of Creation, Stephan's Quintet, Southern Ring Nebula, Cartwheel Galaxy |
+| Hubble ACS | Ultra Deep Field, Whirlpool (M51), Sombrero (M104), Antennae, Orion Nebula |
+| Hubble WFC3 | Pillars of Creation (2014), Westerlund 2, Ring Nebula (M57), Whirlpool (M51) |
+| Hubble WFPC2 | Pillars of Creation (1995), Eta Carinae, Cartwheel Galaxy, Southern Ring Nebula, Crab Nebula |
+| Rubin's First Look, Virgo | Virgo Cluster, M49 |
+
+Rejected, for no tiles or little data there: ACS at the Pillars (its order-11
+tile 404s), the Crab and the Carina Nebula's centre in ACS (a tenth of the
+field), the Cosmic Cliffs in MIRI (a sixth), the Helix in every survey.
+
+## The control
+
+The **layers control** (top right; the phone dock's *Layers*) is there
+everywhere now: a Cesium body's render layers and New York while the
+camera is near one, as before, and under them, or alone, **Sky imagery**: a
+switch per survey with a line saying what it is (`about`: "all filters
+merged, in grey", "in colour"), and while one is on, its showpiece buttons.
+A button turns the view to the field at its field of view, out of a seat's
+ride and off tracking (`turnToSkyField`, which the Rubin panel's field
+buttons use too); landed, with the field under the horizon, the section
+says so ("… is below the horizon here now.").
+
+- **State:** the store's `skyOn` (store/LayersSlice.js), the keys in the
+  order switched on.  Celestiary follows it: `Scene.setSkySurveys` holds
+  each survey's layer for the control and lets go of the rest
+  (`followControl`).
+- **One layer per survey, shared** (`skyLayers`): the control, a link's
+  `?sky=` and the Rubin app's "Rubin's image" each hold a survey by name
+  (`control`, `link`, `rubin`); the layer is made by the first and freed
+  when the last lets go, so Rubin's Virgo tiles on from the app and the
+  control are one layer, drawn once, credited once (`sky-rubin-virgo`).
+- **In the link:** the `sky:` token, the keys on, sorted
+  (`sky:hst-acs,jwst-nircam`; design/URLs.md, "Sky token").  It's
+  canonical: `?sky=<key>[,<key>]` still works and joins the same list,
+  and the fragment then carries the token.  As the `layers:` token, a link
+  only turns surveys on.
+- **The first load** holds the Layers button, the section's loader
+  (`SkyImagery.jsx`: half a KB), `LayerSwitch` (the New York toggle's row,
+  shared), the token and the store's list.  The section itself
+  (`SkySection.jsx`), the manifests and the layer are one lazy chunk, which
+  imports nothing of the first load's: it's handed React and the MUI
+  components, since a lazy chunk sharing MUI's modules re-split the first
+  load's chunks (5 KB more gzipped, measured), and so did one importing
+  `react/jsx-runtime` (the section's JSX is the classic runtime's, on the
+  React handed in).
+- **Credits:** each survey's in the footer while its tiles are drawn
+  (`sky-<key>`), from its record: ESASky's say whose data (eHST/ESA,
+  eJWST) and that the HiPS is ESA/ESDC's, under ESASky's terms (no
+  `hips_license` in their records).
 
 ### Coverage
 
@@ -233,6 +352,49 @@ field in April and May.
   through the proxy with its CA pinned (AGENTS.md).
 
 ## Checked
+
+- **The control, headless** (Chromium on SwiftShader, 800 × 500, ESASky
+  and Rubin's host through the proxy, 2026-11-20), from `#sun` with the
+  Sun's glare off and the clock paused, driven as a visitor would: the
+  Layers button, a survey's switch, a showpiece's button, for each survey
+  in turn, then the switch off.  The store's `skyOn` and the layer held
+  followed each switch, the link gained `sky:<key>` and lost it, and after
+  the last switch off no layer was held.  Per survey at one field, the
+  tiles every one answered (ESASky's 404s for edge cells outside the data
+  come without CORS headers, so the console reports them as CORS errors;
+  the layer marks them missing), and the image against the sky:
+  - JWST NIRCam, the Southern Ring at 0.03° (0.216″ a pixel): order 11,
+    21 tiles, none missing; HD 87892, the nebula's bright central star,
+    0.10″ from its catalogue place projected through the camera.
+  - JWST MIRI, the same view: order 11, 11 tiles, 1 missing; against the
+    NIRCam frame by phase correlation, 0.22″ (one pixel); the scene's two
+    catalogue stars there 1.0″ and 1.9″ from the image's (the mid-infrared
+    nebula round them).
+  - Hubble ACS, the Sombrero at 0.12° (0.86″ a pixel): order 9, 8 tiles,
+    3 missing; the one catalogue star in the frame 2.8″ (3 px) from the
+    image's.  The nucleus is saturated, 0 as served, so keyed (below).
+  - Hubble WFC3, the Ring Nebula at 0.03°: order 11, 14 tiles, 9 missing
+    (the WFC3 pointings are small); the ring's light centred 1.1″ from the
+    central star.
+  - Hubble WFPC2, Eta Carinae at 0.03°: order 11, 27 tiles, none missing;
+    eight catalogue stars 0.4″ to 1.0″ from the image's.
+  - Rubin's Virgo, M49 at 0.2° (1.44″ a pixel): order 9, 20 tiles, none
+    missing; the nucleus 0.07″ from its place.
+- **A link opened in a fresh page restores the control**: the Pillars in
+  JWST NIRCam (`…;fov=0.07deg;…;sky:jwst-nircam`) came up with the switch
+  on, the layer held for `control`, order 10, 10 tiles drawn; and
+  `?sky=hst-wfc3` with the same view, the switch on and the fragment
+  rewritten with `sky:hst-wfc3`.
+- **The jpeg key, rendered**: the Sombrero in ACS with the first key
+  (16 to 24 counts on the texel alone) had a bright rim, two or three
+  pixels, along every edge of the data, the blend of the no-data black and
+  the sky under the negative; keyed on the darkest neighbour too, it's
+  gone.  Saturated cores show as holes (the Sombrero's nucleus and a star
+  to its west).
+- From `#sun` at these narrow fields the meter raises the gain on a frame
+  with nothing bright in it, and the scene's faint diffuse light shows as
+  grey round the image, and through MIRI's and Hubble's keyed sky: the
+  scene's, not the layer's; from a dark site it's black.
 
 - `hips.test.js`, `HipsLayer.test.js`, and the Rubin tests (`RubinImage`'s
   switch and First Look credit, the readout's line in `SurveyCadence`).
