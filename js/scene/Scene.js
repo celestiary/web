@@ -1577,6 +1577,27 @@ export default class Scene {
   }
 
 
+  /**
+   * @returns {?object} the targeted Suntan craft's node, while it has a
+   *   place: what keys the exposure (ThreeUi._updateExposure), as a
+   *   targeted planet does, where its target object is the Sun
+   */
+  targetCraftNode() {
+    const label = Shared.targets.label
+    return label?.kind === 'craft' ? this._craftNode(label) : null
+  }
+
+
+  /**
+   * @returns {Array<object>} the Suntan craft whose models show, each a node
+   *   with props (radius, albedo): sunlit bodies for the meter's anchor
+   *   (ThreeUi._sunlitBodies), as the planets and moons are
+   */
+  sunlitCraft() {
+    return this.suntan?.track.sunlitNodes() ?? []
+  }
+
+
   /** @returns {Map<string, Set<string>>} the three-body orbits on, by secondary */
   getPeriodic() {
     return this._periodic

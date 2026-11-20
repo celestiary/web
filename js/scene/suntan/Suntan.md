@@ -221,11 +221,20 @@ their marks alone.
   As vertices at the craft's place, float32s good to 2 km at 35 R☉, they
   jumped about the still model as the camera closed in (PLAYBOOK.md, "A
   mark you ride must be placed by its object, not its vertex").
-- **Bright near the Sun.**  At the relay's 35.5 R☉ the model is lit by 37
-  suns and the exposure is keyed to the target, the Sun, so it renders near
-  white, and looking within 100° of the Sun the glare veils it.  Keying the
-  exposure to the ridden craft (tried) didn't settle it under the glare: a
-  follow-up.
+- **Exposed as a planet is** (HDR.md, "Metered exposure").  At the relay's
+  35.5 R☉ the model is lit by 37 suns.  A craft's target object is the Sun,
+  a star, which keys nothing, so the exposure stayed at the last body's
+  (Earth's, at most), and the meter, reading a star field round a speck,
+  ran the gain to the dark-adapted 1e6: the model was a white blot.  Now a
+  targeted craft keys the exposure at its own distance from the Sun
+  (`Scene.targetCraftNode`, `ThreeUi._updateExposure`), and each craft
+  whose model shows is a sunlit body for the meter's anchor
+  (`Scene.sunlitCraft`, `ThreeUi._sunlitBodies`; albedo 0.6, the shield's
+  white): far off it's a speck in a star field, as Jupiter from Earth is;
+  close up it anchors the gain, its shield shows at its albedo, and the
+  stars go out.  Headless, sunward of the relay at 40 m: gain 1 (from
+  1e6), the shield off-white with no pixel blown (from 1,477); at 30 km,
+  the star field's gain, as before.
 
 **The panel is in the first load**, as the other apps' are, with its token
 codec; that cost 8 KB minified and 2 KB gzipped, so `esbuild/budget.js`'s
@@ -260,4 +269,6 @@ list would have added 4 KB more, so the list is a native `<select>`.
   1.53 g/m², at any distance (trajectory.md).
 - The entry: heating in the gas at 600 km/s, and a sensor mode for the
   condensed-surface proposals beside the standard picture.
-- Exposure and glare for a camera riding a craft near the Sun (above).
+- The Sun's glare when looking past a craft toward the Sun: drawn and
+  metered as anywhere ([Sun.md, glare](../Sun.md#glare)), it veils a view
+  within 100° of the Sun, the craft's included.

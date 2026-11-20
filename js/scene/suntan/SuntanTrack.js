@@ -25,6 +25,10 @@ const CRAFT_ARRIVAL_M = 3e9
 // system's half-length in design/suntan/cad/ (11.7 m long).  The camera then
 // eases in to a few metres from the mark.
 const CRAFT_RADIUS_M = 6
+// The craft's Bond albedo, for the meter's sunlit-body anchor (ThreeUi
+// _sunlitBodies): its sunward face is the heat shield's white coating, as
+// Parker's is (alumina, about 0.6 reflective), and it's what's seen lit.
+const CRAFT_ALBEDO = 0.6
 
 /** The craft as targets (Scene.setTarget's `{kind: 'craft'}`), by id. */
 export const SUNTAN_CRAFT = Object.freeze({
@@ -96,7 +100,7 @@ export default class SuntanTrack extends Group {
       // Riding it, the zoom and the ground floor are about the craft, not
       // the Sun (zoom.js homeBody).
       node.isCraftNode = true
-      node.props = {name: SUNTAN_CRAFT[id].name, radius: {scalar: CRAFT_RADIUS_M}}
+      node.props = {name: SUNTAN_CRAFT[id].name, radius: {scalar: CRAFT_RADIUS_M}, albedo: CRAFT_ALBEDO}
       this.nodes[id] = node
     }
     if (layer !== null) {
@@ -190,6 +194,22 @@ export default class SuntanTrack extends Group {
       this.nodes.lander.props.radius.scalar = models.lander.radius
     }
     this.place(this._lastT ?? this.mission.tStart - 1)
+  }
+
+
+  /**
+   * @returns {Array<object>} the nodes whose model shows now, for the
+   *   meter's sunlit-body anchor (Scene.sunlitCraft): a mark alone is no
+   *   sunlit surface
+   */
+  sunlitNodes() {
+    if (!this.models) {
+      return []
+    }
+    const {relay, lander} = this.models
+    return [[this.nodes.relay, relay], [this.nodes.lander, lander]]
+        .filter(([node, model]) => model?.visible && node.inFlight)
+        .map(([node]) => node)
   }
 
 
