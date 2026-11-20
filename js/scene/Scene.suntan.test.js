@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'bun:test'
-import {BufferGeometry, Float32BufferAttribute, Object3D, PerspectiveCamera, Points, Scene as ThreeScene,
-  Vector3} from 'three'
+import {BoxGeometry, BufferGeometry, Float32BufferAttribute, Group, Mesh, Object3D, PerspectiveCamera, Points,
+  Scene as ThreeScene, Vector3} from 'three'
 import * as Shared from '../shared.js'
 // Scene's side of the Suntan app (suntan/Suntan.md): building the mission
 // under the Sun, its craft as targets, going to one and riding it, and
@@ -49,12 +49,34 @@ function sunOnly() {
       newRings: stubRings,
       newLabels: () => ({sheet: {positionAttribute: null}, sprites: new Object3D()}),
       newWideLineStrip: () => new Object3D(),
+      loadModel: () => modelPromise,
     }),
   })
   return {s, scene, camera, sun}
 }
 
 const RELEASE_S = Date.parse('2027-04-29T12:00:00Z') / 1000
+// The flight system's model as loadModel hands it over; never in unless a
+// test says (there's no fetch or decoder in bun).
+let modelPromise = new Promise(() => {})
+
+
+/** @returns {Group} An assembly of the GLB's shape: a shield and a wheel of landers */
+function assembly() {
+  const root = new Group()
+  root.add(new Mesh(new BoxGeometry(2.3, 0.1, 2.3)))
+  const wheel = new Group()
+  wheel.position.y = -7
+  root.add(wheel)
+  for (const y of [4, -4]) {
+    const lander = new Group()
+    lander.name = 'Lander'
+    lander.position.y = y
+    lander.add(new Mesh(new BoxGeometry(1.2, 1.2, 1.2)))
+    wheel.add(lander)
+  }
+  return root
+}
 
 
 describe('Scene and the Suntan app', () => {
@@ -117,5 +139,31 @@ describe('Scene and the Suntan app', () => {
     expect(Shared.targets.label).toBe(null)
     expect(s.suntan).toBe(null)
     expect(changes).toBe(1)
+  })
+
+  it('puts the flight system\'s model on the craft, the lander flying off on its own after release', async () => {
+    modelPromise = Promise.resolve(assembly())
+    try {
+      const {s} = sunOnly()
+      const suntan = await s.getSuntan()
+      await modelPromise
+      await Promise.resolve()
+      const {relay, lander, released} = suntan.track.models
+      expect(relay.parent).toBe(suntan.track.nodes.relay)
+      expect(lander.parent).toBe(suntan.track.nodes.lander)
+      // The zoom's size is the model's now.
+      expect(suntan.track.nodes.relay.props.radius.scalar).toBeCloseTo(relay.radius, 9)
+      // Before release one stack; after, the copy flies and the wheel's own is gone.
+      suntan.track.place(Date.parse('2027-03-01T00:00:00Z') / 1000)
+      expect([relay.visible, lander.visible, released.visible]).toEqual([true, false, true])
+      suntan.track.place(RELEASE_S)
+      expect([relay.visible, lander.visible, released.visible]).toEqual([true, true, false])
+      // Its shield faces the Sun.
+      const up = new Vector3(0, 1, 0).applyQuaternion(relay.quaternion)
+      const sunward = suntan.track.nodes.relay.position.clone().negate().normalize()
+      expect(up.dot(sunward)).toBeCloseTo(1, 6)
+    } finally {
+      modelPromise = new Promise(() => {})
+    }
   })
 })

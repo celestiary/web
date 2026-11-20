@@ -166,7 +166,7 @@ release.  The breadcrumb reads *Sun › Suntan relay*.
 
 **Zooming in on it**: riding a craft, its node is the camera's body for the
 zoom and the ground floor (`zoom.js` `homeBody`: a node with `isCraftNode`
-and its own `props.radius`, 6 m, about the flight system's half-length).
+and its own `props.radius`: 6 m until the model is in, then the model's, below).
 It was the Sun's, whose 0.7 million km radius about the craft held the camera
 far off; now the zoom eases in from the 3 million km arrival to a few metres
 from the mark (headless: 3e9 m to 7 m in 35 halvings, the near plane
@@ -182,6 +182,32 @@ following to 0.1 m).
   target.
 
 ![Riding the relay](../../../screens/suntan/find.png)
+
+## The model on the craft
+
+The flight system's model rides each craft: this folder's STEP assembly
+(`design/suntan/cad/`), exported to GLB by Bldrs Share and re-encoded from
+Draco to meshopt for the loader (models.md: three's `GLTFLoader` with the
+meshopt decoder, which bundles; Draco's decoder runs in a worker built from
+its own source, which the build's `keepNames` breaks).  Fetched when the
+app starts (`install.js`, `loadModel`), 190 KB; until it's in the craft are
+their marks alone.
+
+- **Metres, +Y at the Sun**: Share writes STEP's +Z, the heat shield's
+  normal, as glTF's +Y.  Each frame the model is turned so +Y faces the Sun
+  and the wheel's axle (Z) lies along the orbit's normal, the wheel turning
+  in the plane of the motion (`craftModel.js` `craftQuaternion`).
+- **The lander flies off**: the relay carries the whole stack; at release a
+  copy of the rim lander nearest the Sun appears on the lander's node and
+  the wheel's own is hidden (`prepareCraftModels`).
+- **Centred on its box**, so the craft's node is its middle; the node's
+  zoom radius is the model's (half the box's diagonal: 7.7 m for the stack,
+  0.6 m for a lander), where it was a 6 m stand-in.
+- **Bright near the Sun.**  At the relay's 35.5 R☉ the model is lit by 37
+  suns and the exposure is keyed to the target, the Sun, so it renders near
+  white, and looking within 100° of the Sun the glare veils it.  Keying the
+  exposure to the ridden craft (tried) didn't settle it under the glare: a
+  follow-up.
 
 **The panel is in the first load**, as the other apps' are, with its token
 codec; that cost 8 KB minified and 2 KB gzipped, so `esbuild/budget.js`'s
@@ -216,5 +242,4 @@ list would have added 4 KB more, so the list is a native `<select>`.
   1.53 g/m², at any distance (trajectory.md).
 - The entry: heating in the gas at 600 km/s, and a sensor mode for the
   condensed-surface proposals beside the standard picture.
-- The CAD model in the scene: the STEP assembly as a glTF, loaded at the
-  craft (models.md's loader).
+- Exposure and glare for a camera riding a craft near the Sun (above).

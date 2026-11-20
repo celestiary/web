@@ -1,4 +1,5 @@
 import {Group, Object3D} from 'three'
+import {craftQuaternion} from './craftModel.js'
 import {sampleTimes} from './kepler.js'
 
 
@@ -106,6 +107,7 @@ export default class SuntanTrack extends Group {
    * @param {number} t Unix seconds
    */
   place(t) {
+    this._lastT = t
     const relay = this.mission.stateAt(t, 'relay')
     const lander = this.mission.stateAt(t, 'lander')
     const separate = lander !== null && lander.leg.vehicle === 'lander'
@@ -115,6 +117,51 @@ export default class SuntanTrack extends Group {
     // then arrives at the relay it rides on.
     this._placeNode(this.nodes.relay, relay)
     this._placeNode(this.nodes.lander, lander)
+    // The models (craftModel.js), once loaded: the stack on the relay, with
+    // its rim lander until the copy on the lander's node flies off.
+    if (this.models) {
+      const {relay: relayModel, lander: landerModel, released} = this.models
+      this._orient(relayModel, relay)
+      if (landerModel) {
+        this._orient(landerModel, separate ? lander : null)
+      }
+      if (released) {
+        released.visible = !separate
+      }
+    }
+  }
+
+
+  /**
+   * Put the flight system's models on the craft (install.js, once the GLB
+   * is in), and size each craft for the zoom by its model (zoom.js
+   * homeBody), where the nodes had a stand-in.
+   *
+   * @param {{relay: object, lander: ?object, released: ?object}} models
+   *   craftModel.js prepareCraftModels'
+   */
+  attachModels(models) {
+    this.models = models
+    this.nodes.relay.add(models.relay)
+    this.nodes.relay.props.radius.scalar = models.relay.radius
+    if (models.lander) {
+      this.nodes.lander.add(models.lander)
+      this.nodes.lander.props.radius.scalar = models.lander.radius
+    }
+    this.place(this._lastT ?? this.mission.tStart - 1)
+  }
+
+
+  /**
+   * @param {object} model A centred model group
+   * @param {?object} state mission.stateAt's; null hides it
+   */
+  _orient(model, state) {
+    model.visible = state !== null
+    if (state) {
+      const {r, v} = state
+      craftQuaternion([r[0], r[2], -r[1]], [v[0], v[2], -v[1]], model.quaternion)
+    }
   }
 
 

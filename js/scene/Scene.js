@@ -3481,7 +3481,7 @@ export default class Scene {
     }
     if (!this.suntan) {
       this.suntan = installSuntan(this, {
-        planetsApprox, newWideLineStrip, newRings, newLabels, OVERLAY_LAYER: Shared.OVERLAY_LAYER,
+        planetsApprox, newWideLineStrip, newRings, newLabels, loadModel, OVERLAY_LAYER: Shared.OVERLAY_LAYER,
       })
       this._joinOverlay('o', this.suntan.track)
       // Its craft are search results while it runs (SuntanProvider).
