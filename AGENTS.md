@@ -245,7 +245,9 @@ tried and dropped.
   in, the guest's frame and the way back.  `--pan deg` checks a late frame
   corrected to the camera: the guest held, its frame of one view composed
   at a view turned `deg`, against the guest's own frame there, with the
-  correction and without (`guestReproject`).
+  correction and without (`guestReproject`); `--dolly f` moves the camera
+  straight down to f × its height instead, and also decodes the held
+  frame's distances by the posted view's scale, as before #344.
 - **The credits footer headless** (design/UI.md [the credits
   footer](design/UI.md#the-credits-footer)): a timed credit is in the line
   for 8 s from its data's arrival, and a SwiftShader screenshot with the
