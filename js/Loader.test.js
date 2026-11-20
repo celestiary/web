@@ -83,7 +83,10 @@ describe('Loader and the bodies\' bundle', () => {
     expect(asked).toEqual([BODIES_URL])
     expect(names.length).toBe(Object.keys(BUNDLE.bodies).length)
     expect(new Set(names)).toEqual(new Set(Object.keys(BUNDLE.bodies)))
-    expect(loader.pathByName.moon).toBe('milkyway/sun/earth/moon')
+    // As the links name it, from below the root (design/URLs.md).
+    expect(loader.pathByName.moon).toBe('sun/earth/moon')
+    expect(loader.pathByName.sun).toBe('sun')
+    expect(loader.pathByName.milkyway).toBe('milkyway')
     expect(loader.loaded.earth).toEqual(JSON.parse(readFileSync('./public/data/earth/index.json', 'utf8')))
   })
 
@@ -124,6 +127,101 @@ describe('Loader and the bodies\' bundle', () => {
     const loader = new Loader()
     const err = await new Promise((resolve) => loader.loadPath('nosuchbody', () => {}, () => {}, resolve))
     expect(err).toBeTruthy()
+  })
+})
+
+
+// Opening a body by its path below the Sun (#336): the app loads the milky
+// way, then, in its done callback, the link's path, while the milky way's
+// system (the Sun) is still in flight.  The scene adds a body to its parent
+// (Scene.add), so a body that comes before its parent never gets in, and
+// the page never leaves its loading screen.
+describe('a path below the Sun (#336)', () => {
+  const warn = console.warn
+  beforeEach(() => {
+    _resetBodyBundle()
+    console.warn = () => {}
+  })
+  afterEach(() => {
+    global.fetch = realFetch
+    console.warn = warn
+    _resetBodyBundle()
+  })
+
+  /**
+   * Load as Celestiary.load does, adding each body as Scene.add does.
+   *
+   * @param {Loader} loader
+   * @param {Function} toPath The link's path → the path to load
+   * @param {string} link
+   * @returns {Promise<{added: Array<string>, orphans: Array<string>}>} Once
+   *   the link's body is in, or 200 ms
+   */
+  function openLink(loader, toPath, link) {
+    const added = new Set(['milkyway'])
+    const orphans = []
+    const target = link.split('/').pop()
+    return new Promise((resolve) => {
+      const onLoad = (name, obj) => {
+        if (name === 'milkyway') {
+          // Its own, the scene's root.
+        } else if (added.has(obj.parent)) {
+          added.add(name)
+        } else {
+          orphans.push(name)
+        }
+        if (name === target) {
+          setTimeout(() => resolve({added: [...added], orphans}), 20)
+        }
+      }
+      loader.loadPath('milkyway', onLoad, () => {
+        // As _loadBody: now for a path it has, else once the full path is.
+        const load = (path) => loader.loadPath(path, onLoad, () => {})
+        const path = toPath(link)
+        if (typeof path === 'string') {
+          load(path)
+        } else {
+          path.then(load)
+        }
+      })
+      setTimeout(() => resolve({added: [...added], orphans}), 200)
+    })
+  }
+
+  it('loaded as it is, brought Earth before the Sun', async () => {
+    serve()
+    const {orphans} = await openLink(new Loader(), (link) => link, 'earth')
+    expect(orphans).toContain('earth')
+  })
+
+  for (const [link, full] of [['earth', 'sun/earth'], ['moon', 'sun/earth/moon'], ['earth/moon', 'sun/earth/moon'],
+    ['mars', 'sun/mars'], ['jupiter', 'sun/jupiter'], ['io', 'sun/jupiter/io'], ['webb', 'sun/earth/webb'],
+    ['sun', 'sun'], ['sun/earth', 'sun/earth'], ['milkyway', 'milkyway'], ['nosuchbody', 'nosuchbody'],
+    ['nosuchbody/moon', 'nosuchbody/moon']]) {
+    it(`'${link}' is '${full}'`, async () => {
+      serve()
+      expect(await new Loader().fullPath(link, 'milkyway')).toBe(full)
+    })
+  }
+
+  it('its full path: the parents first, every body in, named as links name them', async () => {
+    for (const link of ['earth', 'moon', 'earth/moon', 'mars', 'jupiter', 'sun']) {
+      _resetBodyBundle()
+      serve()
+      const loader = new Loader()
+      const {added, orphans} = await openLink(loader, (l) => loader.fullPath(l, 'milkyway'), link)
+      expect(orphans, link).toEqual([])
+      const target = link.split('/').pop()
+      expect(added, link).toContain(target)
+      expect(loader.pathByName.earth, link).toBe('sun/earth')
+      expect(loader.pathByName[target], link).toBe(target === 'sun' ? 'sun' :
+        (target === 'moon' ? 'sun/earth/moon' : `sun/${target}`))
+    }
+  })
+
+  it('finds the parents from the bodies\' own files when the bundle fails', async () => {
+    serve({bundle: false})
+    expect(await new Loader().fullPath('moon', 'milkyway')).toBe('sun/earth/moon')
   })
 })
 
