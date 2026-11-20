@@ -1006,7 +1006,9 @@ a place on one, a catalogue star, an asterism, one of SPARC's galaxies
 (`{kind: 'galaxy', galaxy, name}`, [Galaxies.md](js/scene/Galaxies.md)) or an
 object of a body's population, an Earth satellite first (`{kind: 'satellite',
 id, name, body}`, the body the `obj` as for a place:
-[Population.md](js/scene/population/Population.md)), and **`Scene.setTarget` is
+[Population.md](js/scene/population/Population.md)) or a Suntan craft while
+that app runs (`{kind: 'craft', id, name, body: 'sun'}`, gone to and ridden
+as a satellite is: [Suntan.md](js/scene/suntan/Suntan.md#finding-the-craft)), and **`Scene.setTarget` is
 the only way it changes**: a click on a label, a pick in the search, Look
 at, Go, the keys (`h`, `u`, `0`-`9`), `Scene.goTo` and `Scene.land` (each
 makes where it went the target; a landing at a place keeps the place), and
@@ -1610,6 +1612,8 @@ Thin MUI-based overlay panels:
   (below)
 - `ColonizationApp` — the Human Expansion app's panel
   ([Colonization.md](js/scene/Colonization.md))
+- `SuntanApp` — the Suntan app's panel: a concept mission to the Sun's
+  surface, its play controls and sensors ([Suntan.md](js/scene/suntan/Suntan.md))
 - `Settings` — keyboard shortcut reference
 - `About` — app info and star catalog stats
 - `CreditsFooter` — every attribution on screen in one line along the bottom,

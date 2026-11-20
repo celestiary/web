@@ -1,6 +1,7 @@
 import {formatTokenValue, parseTokenValue, parseValueList} from '../permalink.js'
 import {EXPANSION_APP_ID, decodeExpansionToken, encodeExpansionToken} from './ColonizationSlice.js'
 import {RUBIN_APP_ID, decodeRubinToken, encodeRubinToken} from './rubinApp.js'
+import {SUNTAN_APP_ID, decodeSuntanToken, encodeSuntanToken} from './suntanApp.js'
 import {INITIAL_WIDGETS, TRAY} from './WidgetsSlice.js'
 
 
@@ -16,6 +17,7 @@ import {INITIAL_WIDGETS, TRAY} from './WidgetsSlice.js'
 export const APP_CODECS = Object.freeze({
   [EXPANSION_APP_ID]: {encode: encodeExpansionToken, decode: decodeExpansionToken},
   [RUBIN_APP_ID]: {encode: encodeRubinToken, decode: decodeRubinToken},
+  [SUNTAN_APP_ID]: {encode: encodeSuntanToken, decode: decodeSuntanToken},
 })
 
 export const APPS_TOKEN = 'apps'
