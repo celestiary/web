@@ -1,4 +1,4 @@
-import SuntanTrack from './SuntanTrack.js'
+import SuntanTrack, {SUNTAN_CRAFT} from './SuntanTrack.js'
 import {missionEvents} from './events.js'
 import {buildMission} from './mission.js'
 import {formatField, formatTemperature, readSensors} from './sensors.js'
@@ -16,7 +16,7 @@ import {formatField, formatTemperature, readSensors} from './sensors.js'
  *   planetsApprox (the planets' places the mission is built on),
  *   newWideLineStrip, newRings, newLabels, and OVERLAY_LAYER
  * @returns {{mission: object, events: Array<object>, readSensors: Function, formatField: Function,
- *   formatTemperature: Function, track: SuntanTrack, dispose: Function}}
+ *   formatTemperature: Function, track: SuntanTrack, craft: object, nodeOf: Function, dispose: Function}}
  */
 export function installSuntan(scene, deps) {
   const sun = scene.objects['sun.orbitPosition']
@@ -29,7 +29,7 @@ export function installSuntan(scene, deps) {
   // "Before the ephemeris loads"), invisible at the scale of the paths.
   const mission = buildMission(deps.planetsApprox)
   const track = new SuntanTrack(mission, deps, deps.OVERLAY_LAYER)
-  sun.add(track)
+  sun.add(track, ...Object.values(track.nodes))
   return {
     mission,
     events: missionEvents(mission),
@@ -37,6 +37,12 @@ export function installSuntan(scene, deps) {
     formatField,
     formatTemperature,
     track,
+    craft: SUNTAN_CRAFT,
+    /**
+     * @param {string} id 'relay' or 'lander'
+     * @returns {?object} its node, while the mission has it in flight
+     */
+    nodeOf: (id) => (track.nodes[id]?.inFlight ? track.nodes[id] : null),
     dispose: () => track.dispose(),
   }
 }

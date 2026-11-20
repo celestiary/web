@@ -123,6 +123,19 @@ export default function SuntanApp({celestiary}) {
   }
   // Go to the Sun, then, once there, lift the camera over the ecliptic's
   // north (scene +Y): from the go's own side the paths are edge-on.
+  // Go to a craft and ride it (Scene.goTo, as for a satellite): the camera
+  // arrives a few million km off and moves with it as time runs.  Before
+  // launch there's nothing to find.
+  const findCraft = (id) => {
+    const target = suntanRef.current?.craft[id]
+    if (!target || !suntanRef.current.nodeOf(id)) {
+      return
+    }
+    scene.setTarget(target, {look: false})
+    scene.goTo()
+  }
+  const inFlight = Boolean(suntan) && t >= suntan.mission.tStart
+
   const viewFromAbove = () => {
     scene.setTarget('sun')
     scene.goTo()
@@ -151,6 +164,14 @@ export default function SuntanApp({celestiary}) {
         legs are rebuilt from its flown perihelia; the rest is sized here.
       </Typography>
       <Stack direction='row' spacing={1} useFlexGap flexWrap='wrap' alignItems='center' sx={{mb: 1}}>
+        <Button variant='outlined' size='small' onClick={() => findCraft('relay')} disabled={!inFlight}
+          data-testid='suntan-find-relay'>
+          Find the relay
+        </Button>
+        <Button variant='outlined' size='small' onClick={() => findCraft('lander')} disabled={!inFlight}
+          data-testid='suntan-find-lander'>
+          Find the lander
+        </Button>
         <Button variant='outlined' size='small' onClick={viewFromAbove} data-testid='suntan-view'>
           View from above
         </Button>

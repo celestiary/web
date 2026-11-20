@@ -1,4 +1,4 @@
-import {Group} from 'three'
+import {Group, Object3D} from 'three'
 import {sampleTimes} from './kepler.js'
 
 
@@ -14,6 +14,16 @@ const OPACITY = 0.9
 const SEGMENTS = 720
 const UNIX_EPOCH_JD = 2440587.5
 const DAY = 86400
+// How far from a craft a go to it arrives (Scene.goTo): the craft is a
+// point, so near enough to see the paths bend round it, far enough that
+// at the photosphere the Sun doesn't fill the view.
+const CRAFT_ARRIVAL_M = 3e9
+
+/** The craft as targets (Scene.setTarget's `{kind: 'craft'}`), by id. */
+export const SUNTAN_CRAFT = Object.freeze({
+  relay: Object.freeze({kind: 'craft', id: 'relay', name: 'Suntan relay', body: 'sun'}),
+  lander: Object.freeze({kind: 'craft', id: 'lander', name: 'Suntan lander', body: 'sun'}),
+})
 
 /** Colours by leg, then by phase. */
 export const SUNTAN_COLORS = Object.freeze({
@@ -58,6 +68,19 @@ export default class SuntanTrack extends Group {
     this.relay.label = deps.newLabels([{text: 'Suntan relay', color: SUNTAN_COLORS.relay}])
     this.lander.label = deps.newLabels([{text: 'Suntan lander', color: SUNTAN_COLORS.descent}])
     this.add(this.paths, this.relay, this.lander, this.relay.label.sprites, this.lander.label.sprites)
+    // Each craft's node, where it is at the clock's time, for a go to it
+    // and for riding it (Scene._craftNode, goTo): the camera's platform
+    // hangs on it as on a satellite's.  Not in this group, whose visibility
+    // the orbits (`o`) and the panel switch: install.js puts them under
+    // the Sun beside it.
+    this.nodes = {}
+    for (const id of Object.keys(SUNTAN_CRAFT)) {
+      const node = new Object3D()
+      node.name = `suntan.${id}.node`
+      node.arrivalDistance = CRAFT_ARRIVAL_M
+      node.inFlight = false
+      this.nodes[id] = node
+    }
     if (layer !== null) {
       this.traverse((o) => o.layers.set(layer))
     }
@@ -80,6 +103,22 @@ export default class SuntanTrack extends Group {
     const separate = lander !== null && lander.leg.vehicle === 'lander'
     this._mark(this.relay, relay)
     this._mark(this.lander, separate ? lander : null)
+    // The lander's node is the stack's until release, so a go to it before
+    // then arrives at the relay it rides on.
+    this._placeNode(this.nodes.relay, relay)
+    this._placeNode(this.nodes.lander, lander)
+  }
+
+
+  /**
+   * @param {object} node One of this.nodes
+   * @param {?object} state mission.stateAt's; null before launch
+   */
+  _placeNode(node, state) {
+    node.inFlight = state !== null
+    if (state) {
+      node.position.set(state.r[0], state.r[2], -state.r[1])
+    }
   }
 
 
@@ -105,13 +144,16 @@ export default class SuntanTrack extends Group {
   }
 
 
-  /** Free the GPU buffers. */
+  /** Free the GPU buffers, and take the craft's nodes out of the scene. */
   dispose() {
     this.traverse((o) => {
       o.geometry?.dispose()
       o.material?.dispose()
     })
     this.removeFromParent()
+    for (const node of Object.values(this.nodes)) {
+      node.removeFromParent()
+    }
   }
 }
 

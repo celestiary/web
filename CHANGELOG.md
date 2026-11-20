@@ -43,8 +43,9 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 The new Suntan app in the drawer follows Parker Solar Probe's seven Venus flybys to the Sun,
 settles a relay into an orbit that turns with the Sun's surface and drops a lander to the
-photosphere. Step through the mission's events and read either craft's simulated sunlight,
-temperatures, solar wind and magnetic field as it goes.
+photosphere. Step through the mission's events, find and ride either craft, and read its
+simulated sunlight, temperatures, solar wind and magnetic field as it goes. Search for "Suntan"
+to open it, from the homepage too.
 
 - Date: 2026-11-20
 - PR: [#363](https://github.com/celestiary/web/pull/363)

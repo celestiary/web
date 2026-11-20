@@ -140,9 +140,40 @@ import: none of the mission is in the first load); its X removes it
   to 49 days a second), a timeline from launch to two rotations after the
   landing, and a list of the 14 events to jump to.  It drives the app's own
   clock, so the time panel follows.
+- **Find the relay**, **Find the lander**: goes to the craft and rides it
+  (below).
 - **View from above**: goes to the Sun, then lifts the camera over the
   ecliptic's north, where the paths aren't edge-on.
 - **Sensors**: the relay's or the lander's readings, a few times a second.
+
+**In the search from the start**: "Suntan: fly a concept mission to the
+Sun" (`store/appViews.js`, `askSuntan`) opens the drawer on the app, so it
+can be looked up from the homepage ("suntan", "parker solar probe", "land
+on the sun").
+
+## Finding the craft
+
+At the paths' scale the craft is a ring a few pixels across, so the app
+makes it a target the camera can go to.  A Suntan craft is a target kind of
+its own, `{kind: 'craft', id: 'relay' | 'lander', name, body: 'sun'}`
+(`SuntanTrack.js` `SUNTAN_CRAFT`), handled where a satellite is: the Sun is
+the body (`obj`), the craft the `label`; `Scene._craftNode` gives its node,
+which `SuntanTrack.place` moves each frame (`install.js` `nodeOf`, null
+before launch); `Scene.goTo` arrives 3 million km off and hangs the camera
+on the node, so it rides the craft as time runs, and following is the
+node's (`_followable`).  The lander's node is the stack's until its
+release.  The breadcrumb reads *Sun › Suntan relay*.
+
+- **The panel's buttons**, and **the search** while the app runs: the relay
+  and the lander are results (`search/providers/SuntanProvider.js`, empty
+  while the app isn't running; `Scene.onSuntanChange` rebuilds the index).
+- **Stopping the app while riding one** leaves it for the Sun's frame with
+  the camera where it is (`rehangPlatform`), and the Sun the target.
+- **A link doesn't name a craft**: it has no path of its own, so a link
+  made riding one is the camera's place in the Sun's frame, the Sun the
+  target.
+
+![Riding the relay](../../../screens/suntan/find.png)
 
 **The panel is in the first load**, as the other apps' are, with its token
 codec; that cost 8 KB minified and 2 KB gzipped, so `esbuild/budget.js`'s
@@ -160,6 +191,13 @@ list would have added 4 KB more, so the list is a native `<select>`.
   release, the next event and back, and the relay/lander switch read as
   expected; the *Trajectory* switch hides the lines and the link carries
   `apps.suntan:vehicle=lander,paths=0`; no page errors.
+- Finding (`Scene.suntan.test.js`): the mission under the Sun with its craft
+  nodes, a go to the lander riding it a day on, the Sun's frame again with
+  the camera in place when the app stops.  Headless: "suntan" in the
+  homepage's search lists the app first and opens it; "suntan lander" lists
+  the lander while it runs; *Find the relay* hangs the camera on its node
+  3,000,000 km off, where it stays with time running at 18 h/s; stopping
+  leaves the camera on the Sun.
 
 ## Not yet
 

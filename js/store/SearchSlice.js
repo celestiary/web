@@ -21,7 +21,7 @@ export default function createSearchSlice(set, get) {
     committedTarget: null,
     setCommittedTarget: (target, path = []) => set(() => ({
       committedTarget: target,
-      committedPath: ['body', 'place', 'satellite'].includes(target?.kind) ? path : [],
+      committedPath: ['body', 'place', 'satellite', 'craft'].includes(target?.kind) ? path : [],
       committedStar: target?.kind === 'star' ?
         {hipId: target.star.hipId, displayName: target.name, star: target.star} : null,
       committedGalaxy: target?.kind === 'galaxy' ? target.galaxy : null,
@@ -148,6 +148,11 @@ export function breadcrumbItems(target, committedPath, labelOf = () => undefined
   }
   if (target?.kind === 'satellite') {
     items.push({label: target.name, hash: `sat:${target.id}`})
+  }
+  // A Suntan craft has no link of its own (suntan/Suntan.md): its crumb
+  // opens the Sun.
+  if (target?.kind === 'craft') {
+    items.push({label: target.name, hash: 'sun'})
   }
   return items
 }

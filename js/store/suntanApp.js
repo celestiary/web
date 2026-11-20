@@ -89,3 +89,16 @@ export function formatSunlight(wattsPerSquareMetre) {
   return wattsPerSquareMetre >= 1e6 ?
     `${(wattsPerSquareMetre / 1e6).toFixed(1)} MW/m²` : `${(wattsPerSquareMetre / 1e3).toFixed(0)} kW/m²`
 }
+
+
+/**
+ * Open the Suntan app: the drawer on it, the app running, which builds the
+ * mission.  The search's "Suntan: fly a concept mission to the Sun"
+ * (appViews.js), there from the first load, so the app can be looked up
+ * from the homepage.
+ *
+ * @param {Function} store The zustand store (useStore)
+ */
+export function askSuntan(store) {
+  store.getState().dispatchWidgets({type: 'openApp', id: SUNTAN_APP_ID})
+}
