@@ -3,6 +3,7 @@ import {Quaternion} from 'three'
 import SurveyCadence, {FIELD_SKY_M, duration, raDecToScene, sceneToRaDec} from './SurveyCadence.js'
 import {FIELD_DIAMETER_DEG, jdOf, raDecToAltAz} from './cadence.js'
 import {SITE} from './rubin.js'
+import {imageryLine} from './install.js'
 
 
 const deps = {
@@ -90,5 +91,37 @@ describe('SurveyCadence', () => {
     c.enabled = false
     c.place(jdOf(MID_MS))
     expect(c.visible).toBe(false)
+  })
+})
+
+
+describe('the readout\'s imagery line', () => {
+  it('says when the visit\'s field holds Rubin\'s First Look, asking once a field', () => {
+    // 5 August 2026: the model's night visits fields over the Trifid and Lagoon image.
+    const nightMs = Date.UTC(2026, 7, 5, 5)
+    let asked = 0
+    const c = new SurveyCadence({deps, targetAt: () => TARGET, imagery: (ra, dec, r) => {
+      asked++
+      return imageryLine(ra, dec, r, null)
+    }})
+    c.enabled = true
+    const {visits} = c.nightFor(nightMs)
+    const inField = visits.find((v) => imageryLine(v.raDeg, v.decDeg, FIELD_DIAMETER_DEG / 2, null))
+    expect(inField).toBeTruthy()
+    // On the field (past the slew, the shutter open).
+    const r = c.readout(inField.tMs + 1000)
+    expect(r.slewing).toBe(false)
+    expect(r.imagery).toBe('Rubin\'s image covers this field: First Look, the Trifid and Lagoon nebulae')
+    expect(r.lines.at(-1)).toBe(r.imagery)
+    const n = asked
+    c.readout(inField.tMs + 2000)
+    expect(asked).toBe(n)
+    // A field far from both: no line.
+    const away = visits.find((v) => Math.abs(v.decDeg + 24) > 15 && !v.isTarget)
+    const ra = c.readout(away.tMs + 1000)
+    if (!ra.slewing) {
+      expect(ra.imagery).toBe(null)
+      expect(ra.lines.length).toBe(2)
+    }
   })
 })

@@ -8,6 +8,7 @@ import useStore from '../store/useStore'
 // can't load: stand-ins, keeping the test ids the dock's states show.
 mock.module('./TimePanel', () => ({default: () => <div data-testid='time-panel'/>}))
 mock.module('./DragModeToggle', () => ({default: () => <div data-testid='drag-mode'/>}))
+mock.module('./CameraModeControl', () => ({default: () => <div data-testid='camera-mode'/>}))
 // The mock is process-global, and LayersButton.test.jsx tests the module's
 // other exports: keep them, from the real module by a name the mock doesn't
 // take (AGENTS.md, mock.module), and stand in for LayerOptions only.

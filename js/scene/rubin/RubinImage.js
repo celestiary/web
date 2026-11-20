@@ -1,5 +1,5 @@
-import {BufferGeometry, DoubleSide, Float32BufferAttribute, Group, Mesh, NoColorSpace, Quaternion,
-  ShaderMaterial, TextureLoader, Vector3} from 'three'
+import {BufferGeometry, Float32BufferAttribute, Group, Mesh, Quaternion, TextureLoader, Vector3} from 'three'
+import {TILE_RENDER_ORDER, disposeTileMesh, newTileMaterial, prepareTileTexture} from '../sky/tileMaterial.js'
 import {equatorialToScene, pixToWorld} from './wcs.js'
 
 
@@ -12,7 +12,7 @@ import {equatorialToScene, pixToWorld} from './wcs.js'
 // which precesses it to the date with the stars, and each tile is drawn
 // centred on the camera, so there is no parallax anywhere in the system.
 //
-// Drawn after the opaque bodies with depth test on and no depth write, its
+// The material is the sky tiles' (sky/tileMaterial.js).  Drawn after the opaque bodies with depth test on and no depth write, its
 // depth at the far plane as the stars' is, over the star points (the photograph has its own stars, which land on Gaia's to
 // its fit's 0.6″) and under the overlays (the path, the pixel).  The tiles
 // are display-referred sRGB, written through sceneReferred so the tone map
@@ -34,14 +34,10 @@ export const GRID = 8
  * where at 1e7 m it was crisp.
  */
 export const RADIUS = 1
-/** Clip z as a fraction of w: the stars' (exposure.js STAR_FAR_PLANE_INSIDE), so bodies in front hide it. */
-const FAR_PLANE_INSIDE = 0.999999
 /** The level drawn whole under the detail. */
 export const BASE_LEVEL = 2
 export const MAX_TILES = 96
 export const MAX_LOADING = 6
-/** After the bodies and the stars, before the overlays. */
-const RENDER_ORDER = 10
 
 const toRad = Math.PI / 180
 const tmpQuat = new Quaternion
@@ -177,44 +173,6 @@ export function tilePath(pattern, level, x, y) {
 }
 
 
-/**
- * @param {Function} sceneReferred hdr.js's, handed in
- * @returns {ShaderMaterial}
- */
-function newMaterial(sceneReferred) {
-  const material = new ShaderMaterial({
-    uniforms: {map: {value: null}, uOpacity: {value: 1}},
-    vertexShader: `varying vec2 vUv;
-void main() {
-  vUv = uv;
-  // The turn only (mat3): the tiles are at the camera, exactly.  With the
-  // mesh moved to the camera's place and the whole matrix used, the two
-  // places, each 1.5e11 m from the origin, left a few 1e-5 m of difference
-  // between them: tens of arcseconds on a 1 m sphere, new each frame, so
-  // the picture shook more the further in the field went.
-  gl_Position = projectionMatrix * vec4(mat3(modelViewMatrix) * position, 1.0);
-  // At the far plane, as the stars are: behind every body, whatever the
-  // sphere's radius.
-  gl_Position.z = ${FAR_PLANE_INSIDE} * gl_Position.w;
-}`,
-    // The texel as it is: display-referred sRGB (the texture is read without
-    // decoding), which sceneReferred turns into what the tone map gives back.
-    fragmentShader: `uniform sampler2D map;
-uniform float uOpacity;
-varying vec2 vUv;
-void main() {
-  gl_FragColor = vec4(texture2D(map, vUv).rgb, uOpacity);
-}`,
-    transparent: true,
-    depthWrite: false,
-    depthTest: true,
-    side: DoubleSide,
-    toneMapped: false,
-  })
-  return sceneReferred ? sceneReferred(material) : material
-}
-
-
 /** */
 export default class RubinImage extends Group {
   /**
@@ -319,17 +277,13 @@ export default class RubinImage extends Group {
         texture.dispose?.()
         return
       }
-      texture.flipY = false
-      texture.colorSpace = NoColorSpace
-      texture.generateMipmaps = true
-      texture.needsUpdate = true
       const l = this.manifest.tiles.levels.find((e) => e.level === t.level)
-      const material = newMaterial(this.sceneReferred)
-      material.uniforms.map.value = texture
+      const material = newTileMaterial(this.sceneReferred)
+      material.uniforms.map.value = prepareTileTexture(texture)
       const mesh = new Mesh(tileGeometry(this.manifest, l, t.x, t.y), material)
       mesh.name = `rubin image ${key}`
       mesh.frustumCulled = false
-      mesh.renderOrder = RENDER_ORDER + t.level
+      mesh.renderOrder = TILE_RENDER_ORDER + t.level
       tile.mesh = mesh
       tile.state = 'ready'
       this.add(mesh)
@@ -364,12 +318,7 @@ export default class RubinImage extends Group {
    */
   dropTile(key, tile) {
     this.tiles.delete(key)
-    if (tile.mesh) {
-      tile.mesh.removeFromParent()
-      tile.mesh.geometry.dispose()
-      tile.mesh.material.uniforms.map.value?.dispose?.()
-      tile.mesh.material.dispose()
-    }
+    disposeTileMesh(tile.mesh)
   }
 
 

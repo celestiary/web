@@ -103,6 +103,8 @@ export default function RubinApp({celestiary}) {
   const [cadence, setCadence] = useState(saved.cadence === true)
   const [visit, setVisit] = useState(null)
   const [image, setImage] = useState(saved.image === true)
+  const [fields, setFields] = useState([])
+  const [fieldNote, setFieldNote] = useState('')
   const [field, setField] = useState(null)
   const [ready, setReady] = useState(false)
   const [readout, setReadout] = useState(null)
@@ -205,6 +207,9 @@ export default function RubinApp({celestiary}) {
       setVisit(rubinRef.current?.cadence.readout(time.simTime) ?? null)
       const heightPx = ui.renderer?.domElement?.height || ui.height
       setField(fieldReadout(ui.camera.fov, ui.fieldRange?.() ?? null, heightPx, RUBIN))
+      // The imaged fields that can be shown now (the lazy code's list).
+      const now = rubinRef.current?.image?.fields() ?? []
+      setFields((was) => (was.map((f) => f.key).join() === now.map((f) => f.key).join() ? was : now))
     }, READOUT_MS)
     return () => clearInterval(timer)
   }, [time, ui])
@@ -262,6 +267,25 @@ export default function RubinApp({celestiary}) {
     } else {
       Shared.targets.tweenNextFn = track
     }
+  }
+
+  // Turn the view to one of Rubin's imaged fields, at the field of view
+  // that frames it; out of the cadence's ride and off tracking, which would
+  // both turn it back.  Landed, a field under the horizon is behind the
+  // ground: say so.
+  const goToField = (f) => {
+    if (scene.seatAim) {
+      scene.leaveSeat()
+    }
+    scene.setTracking(false)
+    const camera = ui.camera
+    const dir = f.direction()
+    const at = camera.getWorldPosition(new Vector3)
+    const body = Shared.targets.landed && Shared.targets.cur
+    const up = body && at.clone().sub(body.getWorldPosition(new Vector3))
+    setFieldNote(up && dir.dot(up) < 0 ? `${f.label} is below the horizon here now.` : '')
+    Shared.targets.tween = newCameraLookTween(camera, at.add(dir.multiplyScalar(SEAT_LOOK_M)))
+    ui.setFov(f.fovDeg)
   }
 
   const goToBody = () => {
@@ -408,8 +432,21 @@ export default function RubinApp({celestiary}) {
       />
       <Typography variant='caption' color='text.secondary' display='block' sx={{mb: 1}}>
         The discovery image over the field it was taken of: NOIRLab&apos;s composite of the 30 visits, March
-        to July, placed on the sky by its stars.
+        to July, placed on the sky by its stars; and Rubin&apos;s First Look of June 2025. With it on, a
+        button turns the view to each field.
       </Typography>
+      {image &&
+        <Stack direction='row' spacing={1} useFlexGap flexWrap='wrap' sx={{mb: 1}}>
+          {fields.map((f) =>
+            <Button key={f.key} variant='outlined' size='small' onClick={() => goToField(f)}
+              data-testid={`rubin-field-${f.key}`}>
+              {f.label}
+            </Button>)}
+        </Stack>}
+      {image && fieldNote &&
+        <Typography variant='caption' color='text.secondary' display='block' sx={{mb: 1}} data-testid='rubin-field-note'>
+          {fieldNote}
+        </Typography>}
       <FormControlLabel
         control={<Switch checked={shell} onChange={(e) => setShell(e.target.checked)} size='small' data-testid='rubin-shell-switch'/>}
         label='The dome and the building'
