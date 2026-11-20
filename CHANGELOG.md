@@ -44,7 +44,8 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 The Rubin Observatory app's new *Survey cadence* switch has the telescope work as a survey night
 does, rather than staring at 2026 ED138: 30-second visits to 3.5° fields, a few seconds' slew
 between neighbours, each field visited again about 33 minutes later, and the object's field among
-them. The night's fields are drawn on the sky as circles, the current one bright, and the panel
+them. With it on, *Watch the night* rides the telescope from field to field, about a visit a
+second. The night's fields are drawn on the sky as circles, the current one bright, and the panel
 counts the visits and the time to the object's next. The schedule is a model from Rubin's
 published survey rules, not its log, whose visit lists aren't public yet.
 

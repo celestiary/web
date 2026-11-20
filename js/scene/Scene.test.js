@@ -474,6 +474,32 @@ describe('Scene.rideSeat', () => {
     expect(camera.position.z).toBeCloseTo(-5, 6)
   })
 
+  it('rides the seat\'s orientation too when given an aim, as the seat turns', () => {
+    const {scene, earth, camera} = makeSceneWithEarth()
+    const {mount, seat} = seatOn(earth)
+    // The camera looks along the seat's +Y, its up the seat's +Z (the Rubin app's aim).
+    const aim = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
+    scene.rideSeat(seat, {instant: true, aim})
+    const facing = () => {
+      scene.syncFollow()
+      camera.updateWorldMatrix(true, false)
+      return camera.getWorldDirection(new Vector3)
+    }
+    const seatAxis = (x, y, z) => new Vector3(x, y, z).applyQuaternion(seat.getWorldQuaternion(new Quaternion))
+    expect(facing().distanceTo(seatAxis(0, 1, 0))).toBeLessThan(1e-9)
+    expect(new Vector3(0, 1, 0).applyQuaternion(camera.getWorldQuaternion(new Quaternion)).distanceTo(seatAxis(0, 0, 1)))
+        .toBeLessThan(1e-9)
+    // The mount tips and turns: the view goes with it, over a look the user set.
+    mount.rotation.set(-0.6, 1.1, 0)
+    camera.quaternion.set(0, 0, 0, 1)
+    expect(facing().distanceTo(seatAxis(0, 1, 0))).toBeLessThan(1e-9)
+    // Without an aim the orientation is the user's.
+    scene.rideSeat(seat, {instant: true})
+    camera.quaternion.set(0, 0, 0, 1)
+    scene.syncFollow()
+    expect(camera.quaternion.w).toBe(1)
+  })
+
   it('goes there over a tween, looking where asked, and leaves the seat on a landing or a go, or when the seat is gone', () => {
     const {scene, earth, camera} = makeSceneWithEarth()
     const {seat} = seatOn(earth)

@@ -29,6 +29,12 @@ const NIGHT_START_HOURS_UTC = 3
 // The clock's rate while the night plays: 256× is four and a quarter
 // minutes a second, a night in about 2 minutes.
 const RUN_RATE = 256
+// The survey's cadence from the seat: a 34 s visit takes a second, a night
+// about 18 minutes.
+const CADENCE_RATE = 32
+// The seat's view along the tube (the seat's +Y), its up towards a higher
+// elevation (its +Z): Scene.rideSeat's aim.
+const SEAT_AIM = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
 // Where the visitor stands outside: 170 m from the dome (the near plane's
 // floor is 100 m on Earth, zoom.js), 2 m up, on the Sun's side by day
 // (nothing lights the shaded side: it's black) and to the south-east by
@@ -162,10 +168,20 @@ export default function RubinApp({celestiary}) {
     }
   }, [pixel, ready])
 
-  // The survey's cadence or the stare (Rubin.md, "Cadence").
+  // The survey's cadence or the stare (Rubin.md, "Cadence").  In the seat
+  // the view changes with it: along the telescope from field to field, or
+  // on the object as the telescope holds it; and the watch's rate.
   useEffect(() => {
-    if (rubinRef.current) {
-      rubinRef.current.cadence.enabled = cadence
+    const rubin = rubinRef.current
+    if (!rubin) {
+      return
+    }
+    rubin.cadence.enabled = cadence
+    if (scene.seat === rubin.observatory.seat) {
+      if (Math.abs(time.timeScale) === (cadence ? RUN_RATE : CADENCE_RATE)) {
+        time.setRate(cadence ? CADENCE_RATE : RUN_RATE)
+      }
+      goToSeat({instant: true})
     }
   }, [cadence, ready])
 
@@ -208,7 +224,9 @@ export default function RubinApp({celestiary}) {
   // The astronomer's seat: on the telescope's elevation structure, looking
   // along the tube, with 2026 ED138 targeted; tracking it once there, when
   // the telescope does, so the view holds it as the telescope holds it.
-  const goToSeat = () => {
+  // On the survey's cadence the view rides the telescope's pointing
+  // instead, field after field, and nothing is tracked.
+  const goToSeat = ({instant = false} = {}) => {
     const rubin = rubinRef.current
     if (!rubin) {
       return
@@ -220,13 +238,22 @@ export default function RubinApp({celestiary}) {
     const seatQuat = seat.getWorldQuaternion(new Quaternion)
     const lookAt = new Vector3(0, SEAT_LOOK_M, 0).applyQuaternion(seatQuat).add(seatPos)
     const up = new Vector3(0, 1, 0).applyQuaternion(observatory.getWorldQuaternion(new Quaternion))
-    scene.rideSeat(seat, {lookAt, up})
+    scene.rideSeat(seat, {lookAt, up, instant, aim: cadence ? SEAT_AIM : null})
     scene.setTarget(TARGET, {look: false})
-    Shared.targets.tweenNextFn = () => {
+    if (cadence) {
+      scene.setTracking(false)
+      return
+    }
+    const track = () => {
       if (observatory.state?.tracking) {
         scene.setTracking(true)
       }
       return null
+    }
+    if (instant) {
+      track()
+    } else {
+      Shared.targets.tweenNextFn = track
     }
   }
 
@@ -242,8 +269,10 @@ export default function RubinApp({celestiary}) {
   }
 
   const watchNight = () => {
-    time.setTime(nightMs + (NIGHT_START_HOURS_UTC * 3600e3))
-    time.setRate(RUN_RATE)
+    const stareMs = nightMs + (NIGHT_START_HOURS_UTC * 3600e3)
+    // The survey's night from its first visit; the stare from when the object is up.
+    time.setTime(cadence ? (rubinRef.current?.cadence.nightFor(stareMs).startMs ?? stareMs) : stareMs)
+    time.setRate(cadence ? CADENCE_RATE : RUN_RATE)
     time.setPaused(false)
     goToSeat()
   }
@@ -280,7 +309,7 @@ export default function RubinApp({celestiary}) {
         <Button variant='outlined' size='small' onClick={goToObservatory} disabled={!ready} data-testid='rubin-go-observatory'>
           Observatory
         </Button>
-        <Button variant='outlined' size='small' onClick={goToSeat} disabled={!ready} data-testid='rubin-go-seat'>
+        <Button variant='outlined' size='small' onClick={() => goToSeat()} disabled={!ready} data-testid='rubin-go-seat'>
           Astronomer&apos;s seat
         </Button>
         <Button variant='outlined' size='small' onClick={goToBody} data-testid='rubin-go-body'>
@@ -337,7 +366,8 @@ export default function RubinApp({celestiary}) {
       />
       <Typography variant='caption' color='text.secondary' display='block' sx={{mb: 1}}>
         A survey night instead of the stare: 30 s visits to 3.5° fields, each again 33 min later, drawn on the
-        sky. A model of Rubin&apos;s published rules, not its log, which isn&apos;t public yet.
+        sky. Watch the night then rides the telescope from field to field, at {CADENCE_RATE}× time. A model of
+        Rubin&apos;s published rules, not its log, which isn&apos;t public yet.
       </Typography>
       <Divider sx={{my: 1.5}}/>
       <FormControlLabel

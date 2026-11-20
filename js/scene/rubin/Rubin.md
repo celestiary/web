@@ -185,7 +185,9 @@ there over the go tween looking along the tube with the site's zenith
 up, and from then on puts the camera at the seat's world position each
 frame (`Scene._syncSeat`, from `syncFollow`, before tracking faces the
 target), so the view rides the mount as the telescope turns, with the
-orientation the user's or tracking's.  In the seat ThreeUI sets the near
+orientation the user's or tracking's; given an `aim` (a quaternion from
+the seat's frame to the camera's) the orientation is the seat's too, each
+frame, which is how the survey's cadence is watched (below).  In the seat ThreeUI sets the near
 plane to 0.3 m (`SEAT_NEAR_M`; the floor of 100 m on Earth would clip
 the parts a metre off) and leaves the ground floor alone (the seat
 stands on the observatory's own ground); a wheel zoom leaves the seat
@@ -468,6 +470,20 @@ night instead, **a model of one, not Rubin's log**.
   enters it (`nightOf`: the day turns at 16h UTC, about noon at the site),
   not per frame.
 
+**From the seat** the cadence is ridden, not tracked.  The stare's watch
+tracks 2026 ED138 at 256×, which on the cadence showed nothing: the view
+held the object while the telescope went from field to field 90° away,
+eight visits a second (the maintainer's report on the PR's preview).  So
+with the switch on, *Watch the night* and *Astronomer's seat* ride the
+telescope's pointing (`rideSeat`'s `aim`: the view along the tube, its up
+towards a higher elevation), with tracking off, from the night's first
+visit, at 32× (`CADENCE_RATE`: a 34 s visit takes a second, a night about
+18 minutes).  At Rubin's 3.5° field the current field's circle fills the
+frame's height and the sky steps a field at a time.  The switch flipped
+while in the seat changes the view and the rate at once, both ways; a
+drag doesn't turn the view while it rides the pointing, and a wheel zoom
+leaves the seat as ever.
+
 **In the scene** (`SurveyCadence.js`, made by install.js beside the path,
 on Earth's orbitPosition, in the ecliptic of J2000 precessed to the date
 as the path is):
@@ -508,6 +524,13 @@ switch clicked on sets `cadence: true` in the app's state and the link's
 "Visit 557 of 1012, filter i (modelled)", mid-slew "Slewing to visit 558
 of 1012" with the mount's "Slewing" line; and the rewritten link, with its
 `cq=`, opened in a fresh page, restores the switch on and the same readout.
+The watch, as a visitor uses it (the panel's buttons clicked, the clock
+running): before the seat's aim the view sat 0° from 2026 ED138 and 70° to
+100° from the telescope's pointing, at 256×; with it the view is 0° from
+the pointing and the readout steps a visit about each second at 32×, from
+visit 4 of 1,012 two seconds after *Watch the night*; the switch flipped
+during the stare's watch goes to the pointing and 32×, and flipped back to
+the object, tracked, at 256×.
 
 ## Checked
 
