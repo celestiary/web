@@ -55,6 +55,18 @@ answers again.
 - Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
 - Permalink: [Open this view](https://celestiary.org/#sun/ed138@-30.2446,-70.7494,2.684km;from=sun/earth;t=9630.583333jd;cq=0.1938,0.97,-0.093,-0.1132;fov=3.5deg;s=LF;time:pause;apps:open,view=rubin;apps.rubin:optics=0,image=1)
 
+### The camera says how it's moving, and you can change it
+
+A label by the time controls says how the camera moves: riding a planet's orbit, turning with it so the ground stays
+put, standing on it, or fixed in space. It notes when the height chose for you, and lights up when that changes.
+Tap it to choose another way, with each one's key; *y* turns with the planet at any height.
+
+- Date: 2026-11-20
+- PR: [#368](https://github.com/celestiary/web/pull/368)
+- Issue: [#361](https://github.com/celestiary/web/issues/361)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@7.0316,-7.5554,624m;t=9819.841738jd;cq=-0.3849,0.6474,-0.3869,-0.5319;fov=45deg;s=alpoGF;time:pause)
+
 ### Zooming out after leaving a planet's orbit stays near the planet
 
 After *f* turned following off, one scroll of the wheel threw the camera millions of kilometres out, and dragging

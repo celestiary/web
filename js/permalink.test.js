@@ -689,6 +689,10 @@ describe('the F setting (following)', () => {
     expect(encodeSettings(SETTINGS_DEFAULTS)).toBe('')
     expect(encodeSettings({...SETTINGS_DEFAULTS, F: true})).toBe('F')
     expect(decodeSettings('F').F).toBe(true)
+    // Turning with the body held by hand ('y', #361).
+    expect(encodeSettings({...SETTINGS_DEFAULTS, F: true, Y: true})).toBe('FY')
+    expect(decodeSettings('FY')).toMatchObject({F: true, Y: true})
+    expect(decodeSettings('F').Y).toBe(false)
     expect(decodeSettings('oL').F).toBe(false)
     expect(decodeSettings(undefined).F).toBe(false)
   })

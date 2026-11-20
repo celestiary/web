@@ -267,8 +267,10 @@ ground, quiet, and the place you go when the view is confusing.
    `Scene.pivotBody`, `ThreeUi._updatePivot`, the orbit drag's
    `getPivot`; one zoom step out after `f` off near Earth goes from 64,000
    to 69,000 km, where it went to 14.6 million.  No UI change.
-2. **The label and its menu**, the automatic state announced, `y`, the
-   `Y` link letter.
+2. **The label and its menu** (done, #361's second PR):
+   `ui/CameraModeControl.jsx` over `Scene.cameraMode` and
+   `setCameraMode`, in the controls and the dock's More panel; `y`; `Y`.
+   Left: the readout still says "Following on/off" for `f`.
 3. **The compass**: north-up, level, the ring.
 
 ### Open questions
