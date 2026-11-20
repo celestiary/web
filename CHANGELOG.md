@@ -39,6 +39,20 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### The Sun as SOHO and SDO show it: flares, eruptions and the corona
+
+Add `?sun=euv` to the address and the Sun is drawn as a space observatory's instruments show it, not
+as the eye does: its disc in extreme ultraviolet, with bright active regions, dark filaments, flares
+that saturate, and prominences round the limb; and round it a coronagraph's field, with the corona's
+streamers and the fronts of coronal mass ejections. Under most ejections a prominence now erupts, a
+twisted arch that rises off the limb. It is the same Sun the app already simulated by date; ordinary
+light hides all of this. There is no button for it yet.
+
+- Date: 2026-11-20
+- PR: [#358](https://github.com/celestiary/web/pull/358)
+- Epic: [#164](https://github.com/celestiary/web/issues/164) Stars up close: a dynamic Sun, and every star from its physical parameters
+- Permalink: none
+
 ### A link to a body by its name alone opens it
 
 A link such as celestiary.org/#earth or #moon stayed on the loading screen. It now opens on that body

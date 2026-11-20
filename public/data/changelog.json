@@ -1,6 +1,26 @@
 {
   "entries": [
     {
+      "id": "2026-11-20-the-sun-as-soho-and-sdo-show-it-flares",
+      "date": "2026-11-20",
+      "headline": "The Sun as SOHO and SDO show it: flares, eruptions and the corona",
+      "text": "Add ?sun=euv to the address and the Sun is drawn as a space observatory's instruments show it, not as the eye does: its disc in extreme ultraviolet, with bright active regions, dark filaments, flares that saturate, and prominences round the limb; and round it a coronagraph's field, with the corona's streamers and the fronts of coronal mass ejections. Under most ejections a prominence now erupts, a twisted arch that rises off the limb. It is the same Sun the app already simulated by date; ordinary light hides all of this. There is no button for it yet.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 358,
+          "url": "https://github.com/celestiary/web/pull/358"
+        }
+      ],
+      "epic": {
+        "number": 164,
+        "title": "Stars up close: a dynamic Sun, and every star from its physical parameters",
+        "url": "https://github.com/celestiary/web/issues/164"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
       "id": "2026-11-20-a-link-to-a-body-by-its-name-alone-opens-it",
       "date": "2026-11-20",
       "headline": "A link to a body by its name alone opens it",
