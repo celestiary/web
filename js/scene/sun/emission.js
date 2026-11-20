@@ -90,11 +90,19 @@ export const WHITE_LIGHT_SHARE = Object.freeze({c: 0.1, mx: 0.5})
  * 10,000 K continuum to the visual band, and with the class as
  * (F/F_M5)^0.3 (a model of the larger flares' brighter kernels).
  *
+ * Against another star's photosphere the same kernel stands out by the
+ * ratio of the two photospheres' luminance: 1 for the Sun, 60 for an M
+ * dwarf at 3,000 K (0.016 of the Sun's surface brightness), which is why
+ * red dwarfs' flares are seen in white light from parsecs away and the
+ * Sun's hardly from 1 AU.
+ *
  * @param {number} flux GOES 1-8 Å peak flux, W m⁻²
+ * @param {number} [teff] The photosphere's effective temperature, K
  * @returns {number}
  */
-export function flareContrast(flux) {
+export function flareContrast(flux, teff = SUN_TEFF) {
   const fill = FLARE_CONTRAST_360 * planck(360, SUN_TEFF) / planck(360, FLARE_TEMPERATURE)
   const visual = fill * blackbodyLuminance(FLARE_TEMPERATURE)
-  return visual * ((flux / FLARE_REFERENCE_FLUX) ** FLARE_CONTRAST_EXPONENT)
+  const photosphere = blackbodyLuminance(teff ?? SUN_TEFF) / blackbodyLuminance(SUN_TEFF)
+  return visual * ((flux / FLARE_REFERENCE_FLUX) ** FLARE_CONTRAST_EXPONENT) / photosphere
 }

@@ -30,6 +30,7 @@ tried and dropped.
 | Moving Cesium into a page of its own, on the fork's Pages, as a cross-origin NetGL guest (proposed): what crosses, lag, hosting | [design/CesiumGuest.md](design/CesiumGuest.md) |
 | Slop New York at Manhattan in Earth's Cesium layer (the layers control's *New York (3D city)*, `layers:nyc`, `?nyc=1`): the nested NetGL chain, Cesium's external renderers, the city's colour contract | [CESIUM.md, New York](CESIUM.md#new-york) |
 | The Sun's activity by date, spots, flares, prominences, corona, CMEs, eclipses, glare, solar wind | [js/scene/Sun.md](js/scene/Sun.md); the photosphere and every star: [js/scene/Stars.md](js/scene/Stars.md) |
+| The activity view (`?sun=euv`: an EUV imager's disc in a coronagraph's field, where flares, erupting prominences, streamers and CMEs show), and a star's activity against the Sun's by class, rotation and age | [js/scene/Sun.md](js/scene/Sun.md): [the activity view](js/scene/Sun.md#the-activity-view), [erupting prominences](js/scene/Sun.md#erupting-prominences), [other stars](js/scene/Sun.md#other-stars) |
 | Planet materials, lighting and exposure, texture sources and their recipes | [js/scene/Planet.md](js/scene/Planet.md): [lighting and exposure](js/scene/Planet.md#lighting-and-exposure), [surface texture sources](js/scene/Planet.md#surface-texture-sources) |
 | The HDR pipeline: the scene buffer, units, the one tone map, display-referred materials | [js/scene/HDR.md](js/scene/HDR.md); DESIGN.md [HDR pipeline](DESIGN.md#hdr-pipeline) |
 | The atmosphere pass | [js/scene/atmos/composition.md](js/scene/atmos/composition.md) (what it does and its knobs); [BRUNETON.md](js/scene/atmos/BRUNETON.md) (the LUT design) |
@@ -282,6 +283,31 @@ tried and dropped.
   `window.celestiarySky` (`c`, `metering`), find its frame by the start of
   its URL: the host's own URL carries the guest's, so `url().includes(...)`
   finds the host and `frame.evaluate` runs in the wrong page.
+- **The Sun's activity view headless** (Sun.md, [the activity
+  view](js/scene/Sun.md#the-activity-view)): open `?sun=euv#sun`, or call
+  `c.ui.sceneManager.objects.sun.sunLayers.setView('euv')`.  What it shows
+  is the model's at the date, so find a moment first, in bun, with
+  `flaresAt` and `cmesAt` (`sun/solarEvents.js`): at 2024-04-17 22:15 UTC
+  an X6.6 flare is at 0.8 of its peak and a CME with an erupting
+  prominence in its core is 3.6 radii out.  The view's exposure is the
+  bare disc's (the meter's luminous disc), so it needs no settling.
+- **The CMEs headless** (Sun.md, [CMEs](js/scene/Sun.md#cmes)): they are
+  a chunk of their own, fetched once a CME has been in view for 1.5 s:
+  `await sunLayers.loadCmeCloud()` fetches it at once, then render a
+  frame.  Their pass runs only where one can show (`cmesInView`): the
+  activity view round a resolved disc, or white light with the disc
+  hidden.  `sunLayers.cmeDrawn` holds each CME drawn with its directions
+  in view space (`d` outward, `east`, `north`; `cmeItems` is every CME in
+  flight) and `sunLayers.cmeCloud.shapes` its shape: the rope's
+  axis is cos(tilt) east + sin(tilt) north, and the camera along the axis
+  crossed with `d` sees it face on, along the axis edge on.  The default
+  35 radii is inside any CME over 32 radii out in the camera's direction,
+  which isn't drawn.  `cmeCloud.debug = true` makes each particle write its
+  share of the CME's electrons instead of its light: the sum of the red
+  channel over a target (read as half floats, a `Uint16Array`) is the
+  share that reached the frame, 0.5 each for one CME wholly in view.  A
+  white-light check is `sunLayers.setView('eye')` with
+  `setOcculter(1.5)`, which the meter then exposes for.
 - **Earth's clouds load from NASA GIBS** a second after the date settles
   (js/scene/Planet.md#clouds). Wait on
   `c.ui.sceneManager.objects.earth.clouds.userData.map.status`
@@ -570,7 +596,15 @@ tried and dropped.
   `setEphemeris(fn)` its arrival; read VSOP87C from
   `vsop87/dist/vsop87c-wasm`, since `Celestiary.test.js` mocks `./vsop`.
   A PR that lowers a number lowers its limit too, in the same PR
-  (DESIGN.md [load budgets](DESIGN.md#load-budgets)).
+  (DESIGN.md [load budgets](DESIGN.md#load-budgets)).  Main sits on the
+  limit, so any first-load code trips it: measure with `yarn bundle-check`
+  before the commit, not in its hook.  Comments inside a shader's template
+  string ship (the minifier strips only JavaScript's): keep them to a line
+  and put the explanation in the JS comment or the doc.  A lazy chunk
+  that imports a module the first load also has splits that module into a
+  file of its own, which the first load then fetches (two more scripts and
+  no fewer bytes, when the CMEs' chunk did): hand the chunk what it shares
+  instead (`SunLayers` `CME_DEPS`, `CreditsFooter` `CREDITS_DIALOG_DEPS`).
 - **Some data is built from other data and committed, with a test that
   fails when it drifts**: after editing a body's descriptor
   (`public/data/<dir>/index.json`: `public/data/earth/`,
@@ -720,6 +754,13 @@ tried and dropped.
     the PR is ready and waits.
 - **Keep the PR description current:** when later pushes change what the
   PR does or fixes, update the description to match.
+- **A permalink can't be a link in PR text written through the GitHub
+  tools:** they wrap any word with an at sign in it in backticks, against
+  stray mentions, which breaks a Markdown link round `#sun@...` and puts
+  the backticks inside a code block.  Put each permalink bare on a line of
+  its own: it comes out as a clean code span to copy.  A path alone
+  (`...?sun=euv#sun`) links as usual.  Read the description back after
+  writing it.
 
 ## Recording what you learn
 

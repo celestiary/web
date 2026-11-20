@@ -1,19 +1,20 @@
-import {EMITTED_GLSL, HDR_MAX_VALUE, LUMINOUS_GLOW_MAX} from '../hdr.js'
-import {CME_SHELL_SIGMA, CORONA_GLSL, CORONA_SAMPLES} from './corona.js'
+import {EMITTED_GLSL, HDR_MAX_VALUE, LUMINOUS_GLOW_MAX, LUMINOUS_SHOULDER_GLSL} from '../hdr.js'
+import {EUV_VIEW, RADIAL_FIRST, RADIAL_SAMPLES, VIEW_GLSL} from './activityView.js'
+import {CORONA_GLSL, CORONA_SAMPLES} from './corona.js'
 import {NAKED_EYE} from '../observer/instrument.js'
 
 
 /**
- * The Sun's light off its disc (js/scene/Sun.md): the K-corona and the
- * CMEs (Thomson scattering, corona.js), the chromosphere and prominences
- * (Balmer emission, emission.js), and the eye's glare (glare.js).  All in
- * exposure units: uDiscValue is the disc's mean radiance at this frame's
- * exposure, and every layer is a ratio to it.
+ * The Sun's light off its disc (js/scene/Sun.md): the K-corona (Thomson
+ * scattering, corona.js) with the CMEs' strands, which come in a target
+ * of their own (cme/CmeCloud.js), the chromosphere and prominences (Balmer
+ * emission, emission.js), and the eye's glare (glare.js).  All in exposure
+ * units: uDiscValue is the disc's mean radiance at this frame's exposure,
+ * and every layer is a ratio to it.
  */
 
 
 export const MAX_PROMINENCES = 16
-export const MAX_CMES = 6
 // The corona's shell, solar radii: past LASCO C3's 30.
 export const CORONA_RADII = 40
 
@@ -37,6 +38,8 @@ void main() {
 
 export const CORONA_FRAGMENT = `
 ${EMITTED_GLSL}
+${LUMINOUS_SHOULDER_GLSL}
+${VIEW_GLSL}
 ${CORONA_GLSL}
 // Each pixel's ray from its window position: the shell's vertices are
 // ~2e11 m away, and their view positions, interpolated, put whole
@@ -72,11 +75,19 @@ uniform float uPromCount;
 uniform vec4 uPromCentre[${MAX_PROMINENCES}];
 uniform vec4 uPromTangent[${MAX_PROMINENCES}];
 uniform vec4 uPromShape[${MAX_PROMINENCES}];
-uniform float uCmeCount;
-uniform vec4 uCmeDir[${MAX_CMES}];
-uniform vec4 uCmeShape[${MAX_CMES}];
+// The CMEs (cme/CmeCloud.js): their K-corona over the mean corona's (r),
+// their cool plasma's depth (b), and that times its Hα (g) and its He II
+// (a); the threads' and the puffs'; 0 for none.
+uniform sampler2D uCmeColumn;
+uniform sampler2D uCmeFog;
+uniform float uCmeOn;
 // Days, for the prominences' slow motion.
 uniform float uDays;
+// The activity view (activityView.js): on (x), the corona's level (y), the
+// cool plasma's per nm of Hα (z), the table's white (w); the radial
+// filter's table, log10 of the mean corona by log radius.
+uniform vec4 uView;
+uniform float uRadialRef[${RADIAL_SAMPLES}];
 
 const int SAMPLES = ${CORONA_SAMPLES};
 const float CORONA_RADII = ${CORONA_RADII.toFixed(1)};
@@ -119,28 +130,15 @@ float rays(vec3 u) {
 float coronaDensity(vec3 x, float r) {
   vec3 u = uViewToBody * (x / r);
   float s = sheetSin(u);
-  float n = saitoDensity(r, s) * streamerFactor(r, s) * rays(u);
-  for (int i = 0; i < ${MAX_CMES}; i++) {
-    if (float(i) >= uCmeCount) {
-      break;
-    }
-    vec4 dir = uCmeDir[i];
-    vec4 shape = uCmeShape[i];
-    float cosA = dot(x / r, dir.xyz);
-    float cosW = cos(shape.x);
-    if (cosA < cosW) {
-      continue;
-    }
-    // Across the cone, soft at its edge; along it, a shell at the front
-    // and a fainter core (the erupted filament) at half the radius.
-    float edge = smoothstep(cosW, mix(cosW, 1.0, 0.3), cosA);
-    float front = dir.w;
-    float zf = (r - front) / (${CME_SHELL_SIGMA.toFixed(3)} * front);
-    float zc = (r - 0.55 * front) / (0.06 * front);
-    float lumpy = 0.6 + 0.8 * vnoise(x * (6.0 / front) + shape.z * 17.0);
-    n += shape.y * edge * lumpy * (exp(-0.5 * zf * zf) + 0.35 * exp(-0.5 * zc * zc));
-  }
-  return n;
+  return saitoDensity(r, s) * streamerFactor(r, s) * rays(u);
+}
+
+// The mean corona's brightness at an impact radius.
+float radialRef(float rho) {
+  float x = clamp(log(max(rho, ${RADIAL_FIRST.toFixed(2)}) / ${RADIAL_FIRST.toFixed(2)}) /
+      log(CORONA_RADII / ${RADIAL_FIRST.toFixed(2)}), 0.0, 1.0) * ${(RADIAL_SAMPLES - 1).toFixed(1)};
+  int i = int(min(floor(x), ${(RADIAL_SAMPLES - 2).toFixed(1)}));
+  return pow(10.0, mix(uRadialRef[i], uRadialRef[i + 1], x - float(i)));
 }
 
 // Hα along a ray through one prominence: a sheet of thickness w over the
@@ -175,6 +173,17 @@ float prominence(vec3 cam, vec3 d, float tStar, float rho, float pix, int i) {
   } else if (abs(p0) > 0.5 * w) {
     return 0.0;
   }
+  // And within its length along the filament.
+  float dl = dot(d, T);
+  float l0 = dot(cam - C, T);
+  if (abs(dl) > 1.0e-5) {
+    float t1 = (-L - l0) / dl;
+    float t2 = (L - l0) / dl;
+    ta = max(ta, min(t1, t2));
+    tb = min(tb, max(t1, t2));
+  } else if (abs(l0) > L) {
+    return 0.0;
+  }
   if (tb <= ta) {
     return 0.0;
   }
@@ -185,7 +194,8 @@ float prominence(vec3 cam, vec3 d, float tStar, float rho, float pix, int i) {
     vec3 p = cam + d * (ta + (float(k) + 0.5) * dt);
     float s = dot(p - C, T) / L;
     float z = (length(p) - 1.0) / h;
-    if (abs(s) >= 1.0 || z <= 0.0) {
+    // On its own side of the star (the sheet's plane runs through the centre).
+    if (abs(s) >= 1.0 || z <= 0.0 || dot(p, C) <= 0.0) {
       continue;
     }
     float top = sqrt(1.0 - s * s) * (0.6 + 0.4 * vnoise(vec3(s * 5.0, sh.z * 31.0, uDays * 0.2)));
@@ -197,6 +207,10 @@ float prominence(vec3 cam, vec3 d, float tStar, float rho, float pix, int i) {
     float threads = mix(0.35 + 0.65 * vnoise(vec3(s * L * 900.0, z * 3.0 - uDays * 2.0, sh.z * 13.0)), 0.675,
         smoothstep(0.3, 1.0, pix * 900.0 / 3.0));
     path += dt * threads * smoothstep(top, top * 0.8, z);
+  }
+  // He II 304 Å is far thicker than Hα: a few megametres saturate it.
+  if (uView.x > 0.5) {
+    return sh.y * (1.0 - exp(-path / 0.006));
   }
   return sh.y * (1.0 - exp(-path / 0.043)) / (1.0 - exp(-1.0));
 }
@@ -225,38 +239,66 @@ void main() {
   float rho = length(q);
   // The pixel's footprint in impact radius, taken before any branch.
   float pix = max(fwidth(rho), 1.0e-6);
-  if (rho < uOcculter || rho > uMaxRho) {
+  // Out of a coronagraph's field, or of the view's while the disc is small.
+  if (rho < uOcculter || rho > uMaxRho || (uView.x > 0.5 && uView.y + uView.z <= 0.0)) {
     discard;
   }
   float thetaEnd = atan(sqrt(max(CORONA_RADII * CORONA_RADII - rho * rho, 0.0)), rho);
   float thetaCam = atan(-tStar, rho);
   float th0 = max(thetaCam, -thetaEnd);
   vec3 color = vec3(0.0);
+  float viewLevel = 0.0;
+  // The CMEs' particles: their column with the corona's own.
+  vec2 uv = (gl_FragCoord.xy - uViewport.xy) / uViewport.zw;
+  vec4 cme = uCmeOn > 0.5 ? texture2D(uCmeColumn, uv) : vec4(0.0);
+  // In the view at the gain a coronagraph's difference gives them.
+  float k = (cme.r + (uCmeOn > 0.5 ? texture2D(uCmeFog, uv).r : 0.0)) * radialRef(rho) *
+      (uView.x > 0.5 ? ${EUV_VIEW.cme.toFixed(1)} : 1.0);
   if (th0 < thetaEnd) {
     float dth = (thetaEnd - th0) / float(SAMPLES);
     float sum = 0.0;
-    for (int k = 0; k < SAMPLES; k++) {
-      float th = th0 + (float(k) + 0.5) * dth;
+    for (int i = 0; i < SAMPLES; i++) {
+      float th = th0 + (float(i) + 0.5) * dth;
       float c = cos(th);
       float r = rho / c;
       vec3 x = q + d * (rho * tan(th));
       float st = sin(th);
       sum += coronaDensity(x, r) * dilution(r) * (1.0 + st * st);
     }
-    color += uSunColor * (THOMSON_FACTOR * sum * dth / rho);
+    k += THOMSON_FACTOR * sum * dth / rho;
   }
-  // Balmer emission near the limb, where the camera isn't past it.
+  if (uView.x > 0.5) {
+    // The coronagraph's radial filter, its contrast raised; a little of
+    // the corona's fall left in.
+    float x = k / radialRef(rho) * inversesqrt(rho);
+    viewLevel += uView.y * x * x / (x + 0.35);
+  } else {
+    color += uSunColor * k;
+  }
+  // Balmer emission: an erupting prominence's threads, saturating where
+  // they pile up; and near the limb, where the camera isn't past it, the
+  // chromosphere and the prominences.
+  float e = cme.b > 1.0e-4 ? (uView.x > 0.5 ? cme.a : cme.g) / cme.b * (1.0 - exp(-cme.b)) : 0.0;
   if (rho < 1.2 && tStar > 0.0) {
-    float e = chromosphere(rho, pix);
+    e += chromosphere(rho, pix);
     for (int i = 0; i < ${MAX_PROMINENCES}; i++) {
       if (float(i) >= uPromCount) {
         break;
       }
       e += prominence(cam, d, tStar, rho, pix, i);
     }
+  }
+  if (uView.x > 0.5) {
+    viewLevel += uView.z * e;
+  } else {
     color += uBalmer * e;
   }
-  vec3 value = min(color * uDiscValue, vec3(HDR_MAX_VALUE));
+  // In the view, the levels' sum through the colour table.
+  if (uView.x > 0.5) {
+    color = viewColor(viewLevel);
+  }
+  float scale = uView.x > 0.5 ? uView.w * luminousShoulder(uDiscValue) : uDiscValue;
+  vec3 value = min(color * scale, vec3(HDR_MAX_VALUE));
   gl_FragColor = vec4(emitted(value), 1.0);
 }
 `

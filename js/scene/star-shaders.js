@@ -1,6 +1,7 @@
 import {EMITTED_GLSL, LUMINOUS_CEILING, LUMINOUS_SHOULDER_GLSL} from './hdr.js'
 import {BLACKBODY_GLSL} from './stellar.js'
-import {MAX_FLARES, MAX_REGIONS} from './sun/limits.js'
+import {VIEW_GLSL} from './sun/activityView.js'
+import {MAX_FILAMENTS, MAX_FLARES, MAX_REGIONS} from './sun/limits.js'
 
 
 /**
@@ -32,6 +33,7 @@ export const FRAGMENT_SHADER = `
 ${LUMINOUS_SHOULDER_GLSL}
 ${EMITTED_GLSL}
 ${BLACKBODY_GLSL}
+${VIEW_GLSL}
 varying vec3 vUnit;
 varying vec3 vViewPos;
 varying vec3 vViewNormal;
@@ -91,6 +93,16 @@ uniform vec4 uSpotF[MAX_REGIONS];
 uniform float uFlareCount;
 uniform vec4 uFlareKernel[MAX_FLARE_KERNELS];
 uniform vec4 uFlareContrast[MAX_FLARE_KERNELS];
+// The activity view (sun/activityView.js): 1 for the EUV imager's; its
+// levels of plage (x), the limb (z) and the table's white (w).
+uniform float uEuv;
+uniform vec4 uEuvLevels;
+// Filaments, dark on the disc there: centre and half-length, tangent and
+// half-width (body frame, radians); uEuvLevels.y is their depth.
+const int MAX_FILAMENTS = ${MAX_FILAMENTS};
+uniform float uFilamentCount;
+uniform vec4 uFilamentCentre[MAX_FILAMENTS];
+uniform vec4 uFilamentTangent[MAX_FILAMENTS];
 
 const float LUMINOUS_CEILING = ${LUMINOUS_CEILING.toExponential()};
 const float TAU = 6.28318531;
@@ -288,6 +300,7 @@ void main(void) {
   float activity = smoothstep(0.0, 0.6, snoise(unit * 2.5 + uSeedOffset * 0.01) * 2.7 - uSpotBias + 1.2) * belt;
   float teffHere = uTeff * gravityDarkening(unit);
   float temp = teffHere * (1.0 + dT);
+  float plageHere = 0.0;
   if (uRegionMode > 0.5) {
     // The regions' spots: the nearest spot's distance over its radius, and
     // the plage round each region, out past its spots.
@@ -319,6 +332,7 @@ void main(void) {
       }
       plage = max(plage, 1.0 - smoothstep(0.3 * ext, ext, dm));
     }
+    plageHere = plage;
     if (s < 8.0 || plage > 0.0) {
       float fpu = footprintOf(unit);
       float edge = clamp(fpu / max(spotR, 1.0e-5), 0.05, 0.5);
@@ -349,6 +363,7 @@ void main(void) {
     temp -= mix(uPenumbraDT * fil, uUmbraDT, umbra) * spot * seen;
     float plage = activity * (1.0 - smoothstep(1.0, 2.5, s)) * (1.0 - spot);
     temp += teffHere * uFaculaDT * (0.4 * activity + plage * seen) * limb;
+    plageHere = activity * (1.0 - smoothstep(1.0, 5.0, s));
   }
 
   // The colour and luminance at this temperature, the luminance relative to
@@ -359,13 +374,25 @@ void main(void) {
   vec3 surface = bb.rgb * exp2(bb.a - bb0.a);
   // White-light flare kernels: a 10,000 K continuum over the photosphere,
   // at their contrast now (sun/emission.js flareContrast).
+  // In the activity view: the ribbons and the arcade between them.
+  float flareLevel = 0.0;
   for (int i = 0; i < MAX_FLARE_KERNELS; i++) {
     if (float(i) >= uFlareCount) {
       break;
     }
     vec4 k = uFlareKernel[i];
     float r = length(unit - k.xyz) / max(k.w, 1.0e-6);
-    if (r < 3.0) {
+    if (uEuv > 0.5) {
+      // Ragged: the ribbons and loops, not a disc.
+      r *= 1.0 + 0.35 * snoise(unit * (0.7 / max(k.w, 1.0e-4)) + 3.0);
+      flareLevel += uFlareContrast[i].x * exp(-r * r);
+      if (i - (i / 2) * 2 == 0 && float(i + 1) < uFlareCount) {
+        vec3 ab = uFlareKernel[i + 1].xyz - k.xyz;
+        float along = clamp(dot(unit - k.xyz, ab) / max(dot(ab, ab), 1.0e-12), 0.0, 1.0);
+        float across = length(unit - k.xyz - along * ab) / max(k.w, 1.0e-6);
+        flareLevel += 0.4 * uFlareContrast[i].x * exp(-across * across) * (0.65 + 0.35 * cos(along * 31.0));
+      }
+    } else if (r < 3.0) {
       vec4 bbF = blackbody(10000.0);
       surface += bbF.rgb * (uFlareContrast[i].x * exp(-r * r));
     }
@@ -378,6 +405,38 @@ void main(void) {
   // ceiling (a hot star's blue is twice its luminance).
   float base = luminousShoulder(uRadiance * uExposureRelative);
   vec3 disc = surface * limbDark * base;
+  if (uEuv > 0.5) {
+    // The EUV imager's picture (Sun.md): the network round the warped
+    // supergranules, plage, the limb, the flares: levels through the table.
+    vec3 pw = ps + 0.35 * vec3(snoise(ps * 1.7), snoise(ps * 1.7 + 9.0), snoise(ps * 1.7 + 21.0));
+    vec2 net = cells(pw, 0.05 * iTime);
+    float lanes = 1.0 - smoothstep(0.0, 0.45, net.y - net.x);
+    float knots = 0.5 + 0.5 * snoise(ps * 3.0 + 11.0);
+    float fine = snoise(ps * 6.0 + 3.0) * resolved(6.0, fps);
+    float quiet = mix(1.5, 1.0 + 1.9 * lanes * lanes * (0.25 + 0.75 * knots) + 0.3 * fine + 0.3 * meso,
+        resolved(1.0, fps));
+    vec3 pp = unit * 70.0 + uSeedOffset.yzx;
+    float patchy = 0.6 + 0.4 * snoise(pp) * resolved(1.0, footprintOf(pp));
+    // The filaments' absorption: ragged ribbons along their spines.
+    float dark = 0.0;
+    for (int i = 0; i < MAX_FILAMENTS; i++) {
+      if (float(i) >= uFilamentCount) {
+        break;
+      }
+      vec4 fc = uFilamentCentre[i];
+      vec4 ft = uFilamentTangent[i];
+      vec3 off = unit - fc.xyz;
+      float along = dot(off, ft.xyz) / fc.w;
+      if (abs(along) < 1.0 && dot(unit, fc.xyz) > 0.0) {
+        float across = length(off - dot(off, ft.xyz) * ft.xyz) / ft.w;
+        across *= 1.0 + 0.4 * snoise(unit * 60.0 + fc.xyz * 7.0);
+        dark = max(dark, (1.0 - along * along) * exp(-across * across));
+      }
+    }
+    float level = (quiet + uEuvLevels.x * plageHere * patchy) * (1.0 + uEuvLevels.z * limb) *
+        (1.0 - uEuvLevels.y * dark) + flareLevel;
+    disc = viewColor(level) * (uEuvLevels.w * base);
+  }
   float peak = max(disc.r, max(disc.g, disc.b));
   disc *= min(1.0, LUMINOUS_CEILING / max(peak, 1.0e-30));
   gl_FragColor = vec4(emitted(max(disc, vec3(0.0))), 1.0);
