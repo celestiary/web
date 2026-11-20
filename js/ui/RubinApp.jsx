@@ -94,6 +94,7 @@ export default function RubinApp({celestiary}) {
   const [shell, setShell] = useState(saved.shell)
   const [optics, setOptics] = useState(saved.optics !== false)
   const [pixel, setPixel] = useState(saved.pixel === true)
+  const [image, setImage] = useState(saved.image === true)
   const [field, setField] = useState(null)
   const [ready, setReady] = useState(false)
   const [readout, setReadout] = useState(null)
@@ -160,10 +161,16 @@ export default function RubinApp({celestiary}) {
     }
   }, [pixel, ready])
 
+  useEffect(() => {
+    if (rubinRef.current?.image) {
+      rubinRef.current.image.enabled = image
+    }
+  }, [image, ready])
+
   // Report the state, for the permalink.
   useEffect(() => {
-    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell, optics, pixel}})
-  }, [dispatchWidgets, path, nightMs, shell, optics, pixel])
+    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell, optics, pixel, image}})
+  }, [dispatchWidgets, path, nightMs, shell, optics, pixel, image])
 
   // The telescope's pointing and the field, a few times a second.
   useEffect(() => {
@@ -252,7 +259,7 @@ export default function RubinApp({celestiary}) {
     }
     watchRef.current = false
     watchNight()
-    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell, optics, pixel}})
+    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell, optics, pixel, image}})
   })
 
   const nightDay = Math.round((nightMs - RUN_START_MS) / MS_PER_DAY)
@@ -342,6 +349,15 @@ export default function RubinApp({celestiary}) {
       <Typography variant='caption' color='text.secondary' display='block' sx={{mb: 1}}>
         A square at 2026 ED138 the camera&apos;s {RUBIN.pixelScaleArcsec}″ pixel across, and a fainter outline at
         the {RUBIN.resolutionArcsec}″ it resolves, to scale on your screen.
+      </Typography>
+      <FormControlLabel
+        control={<Switch checked={image} onChange={(e) => setImage(e.target.checked)} size='small'
+          data-testid='rubin-image-switch'/>}
+        label={'Rubin\'s image'}
+      />
+      <Typography variant='caption' color='text.secondary' display='block' sx={{mb: 1}}>
+        The discovery image over the field it was taken of: NOIRLab&apos;s composite of the 30 visits, March
+        to July, placed on the sky by its stars.
       </Typography>
       <FormControlLabel
         control={<Switch checked={shell} onChange={(e) => setShell(e.target.checked)} size='small' data-testid='rubin-shell-switch'/>}

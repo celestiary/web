@@ -1,6 +1,32 @@
 {
   "entries": [
     {
+      "id": "2026-11-20-rubin-s-discovery-image-on-the-sky-where-it-was",
+      "date": "2026-11-20",
+      "headline": "Rubin's discovery image, on the sky where it was taken",
+      "text": "Turn on \"Rubin's image\" in the Rubin app and NOIRLab's picture of the field where Rubin found 2026 ED138 lies over the stars it shows, placed by those stars to under an arcsecond. Zoom in from the telescope's 3.5° field and it sharpens to Rubin's own resolution; the object's path crosses it.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 357,
+          "url": "https://github.com/celestiary/web/pull/357"
+        },
+        {
+          "kind": "issue",
+          "number": 333,
+          "url": "https://github.com/celestiary/web/issues/333"
+        }
+      ],
+      "epic": {
+        "number": 321,
+        "title": "The Rubin Observatory and 2026 ED138",
+        "url": "https://github.com/celestiary/web/issues/321"
+      },
+      "permalink": "#sun/ed138@-30.2445,-70.7494,1.689km;from=sun/earth;t=9630.807563jd;cq=0.7319,0.5529,0.1076,-0.3834;fov=2deg;s=LTF;time:pause;apps:open,view=rubin;apps.rubin:image=1",
+      "image": null,
+      "featured": true
+    },
+    {
       "id": "2026-11-20-2026-ed138-s-path-stays-on-it-in-rubin-s",
       "date": "2026-11-20",
       "headline": "2026 ED138's path stays on it in Rubin's narrowest views",

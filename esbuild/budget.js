@@ -46,6 +46,9 @@ export const STATIC_BUDGET = {
   // path, under a KB), at the limit, so a KB of room; with a late Cesium guest
   // frame's distance scale (#344: GuestPages _sent, CesiumLayers
   // _frameDistanceScale) 2,368 and a fraction, so a KB of room again.
+  // Still within 2,369 with Rubin's image (#333: its switch and token field in the
+  // panel; the layer, its WCS and its manifest are in the Rubin chunk
+  // and the data).
   totalMinifiedKB: 2369,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
