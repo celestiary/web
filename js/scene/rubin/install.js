@@ -40,6 +40,9 @@ export function installRubin(scene, deps) {
     deps,
     // VSOP87C's Earth (or its stand-in), AU in the ecliptic of date, to
     // scene axes and metres.
+    // Sampled again when VSOP87C arrives (the stand-in's Earth is up to
+    // 20,000 km off: the ring was 0.33″ from the body, #340).
+    approximate: () => scene.vsopReady ? !scene.vsopReady() : false,
     earthAt: (jd) => {
       const e = scene.vsopAt(jd).earth
       return new Vector3(e.x, e.z, -e.y).multiplyScalar(deps.ASTRO_UNIT_METER)
