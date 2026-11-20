@@ -27,6 +27,46 @@
       "featured": true
     },
     {
+      "id": "2026-11-20-the-sun-as-soho-and-sdo-show-it-flares",
+      "date": "2026-11-20",
+      "headline": "The Sun as SOHO and SDO show it: flares, eruptions and the corona",
+      "text": "Add ?sun=euv to the address and the Sun is drawn as a space observatory's instruments show it, not as the eye does: its disc in extreme ultraviolet, with bright active regions, dark filaments, flares that saturate, and prominences round the limb; and round it a coronagraph's field, with the corona's streamers and coronal mass ejections. An ejection is a cloud in three dimensions, made of thousands of threads and puffs: a billowing front, a dark cavity, and in most of them a bright twisted core, the prominence that erupted, which you can fly round and watch rise. It is the same Sun the app already simulated by date; ordinary light hides all of this. There is no button for it yet.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 358,
+          "url": "https://github.com/celestiary/web/pull/358"
+        }
+      ],
+      "epic": {
+        "number": 164,
+        "title": "Stars up close: a dynamic Sun, and every star from its physical parameters",
+        "url": "https://github.com/celestiary/web/issues/164"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
+      "id": "2026-11-20-the-suntan-craft-modelled",
+      "date": "2026-11-20",
+      "headline": "The Suntan craft, modelled",
+      "text": "Find the relay or the lander in the Suntan app and zoom in: the flight system's 3D model rides each craft, its heat shield turned to the Sun and its sling wheel rolling along the orbit, and at release one lander leaves the wheel and flies on alone. Up close the view adapts to the craft's glare, its orbit line runs through it, and a link to the view brings you back to it.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 367,
+          "url": "https://github.com/celestiary/web/pull/367"
+        }
+      ],
+      "epic": {
+        "number": 120,
+        "title": "Missions and models",
+        "url": "https://github.com/celestiary/web/issues/120"
+      },
+      "permalink": "#suntan:relay@26.8162,-51.8428,34m;t=9979.535268jd;cq=-0.2435,0.3056,0.0812,0.9169;fov=45deg;s=F;time:pause;apps:open,view=suntan",
+      "image": null
+    },
+    {
       "id": "2026-11-20-new-york-s-city-rebuilt-from-every-surveyed",
       "date": "2026-11-20",
       "headline": "New York's city, rebuilt from every surveyed building",

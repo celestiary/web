@@ -76,13 +76,29 @@ export const STATIC_BUDGET = {
   // The HiPS sky layer (#360) is lazy but for the `?sky=` parameter in
   // Scene (showSky) and the Rubin panel's buttons to its imaged fields
   // (their list and directions are in the lazy code), half a KB: 2,462.
+  // The Suntan craft's exposure (Scene.targetCraftNode and sunlitCraft,
+  // asked by ThreeUI each frame) and a link that names a craft and keeps the
+  // view on it (the `suntan:` path, the craft's frame and its restore in
+  // Celestiary, which reads a link before anything else loads), 2 KB: 2,464,
+  // so 2,465.
+  // 2,476, so 2,477 (11 KB more), with the Sun's activity view (#358;
+  // js/scene/Sun.md, "The activity view"): the EUV imager's and the
+  // coronagraph's branches of the photosphere's and the corona's shaders,
+  // which are one program each with the white-light picture, so not a chunk
+  // of their own; the flares' light curves in the event model the first
+  // frame already runs; and a star's activity against the Sun's
+  // (sun/stellarActivity.js, 2 KB), which Star.js reads as it builds the
+  // Sun.  The CMEs' particles (sun/cme/, 16 KB) are a chunk of their own,
+  // loaded when a CME is first in view, with what they share with the first
+  // load handed to them (SunLayers CME_DEPS): importing it had split two
+  // more files out of the first load for the same bytes.
   // 2,461.3 to 2,462.96 with the layers control's sky imagery (#360): the
   // Layers button everywhere, the loader of its sky section (SkyImagery.jsx;
   // the section, the surveys and the turn to a field are lazy, handed the
   // first load's MUI and React so the split leaves MUI's chunks alone),
   // LayerSwitch shared with the New York toggle, the `sky:` token and the
-  // store's list: 2,463.
-  totalMinifiedKB: 2463,
+  // store's list: 1.7 KB, so 2,478 on main's 2,477.
+  totalMinifiedKB: 2478,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -103,9 +119,12 @@ export const STATIC_BUDGET = {
   // token, as the Rubin panel; loaded lazily it would split shared chunks as
   // that one's did).  760, so 761, with three.js 0.187 (from 0.171: about
   // 16 KB, three's own growth, as above).  763, so 764, with the camera
-  // control (#361 step 2, as above).  763.7 to 764.4 with the layers
-  // control's sky imagery (#360, as above), so 765.
-  totalGzipKB: 765,
+  // control (#361 step 2, as above).  764, so 765, with the Suntan craft's
+  // exposure and link (as above).
+  // 769, so 770 (5 KB more), with the Sun's activity view (#358, above).
+  // 0.7 KB more with the layers control's sky imagery (#360, as above),
+  // so 771.
+  totalGzipKB: 771,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,
@@ -146,8 +165,12 @@ export const RUNTIME_BUDGET = {
   // With three.js 0.187 (#366) main measured 1,015 to 1,019 KB from run to
   // run here, and #364's pivot took a CI run to 1,021.8: 1,024 KB, for the
   // runs' spread.  The camera control (#361 step 2) adds about 2.5 KB
-  // (1,021.5 here): 1,028.
-  ready: {requests: 28, kb: 1028},
+  // (1,021.5 here): 1,028.  The Sun's activity view (#358) adds the 5 KB
+  // its first load does gzipped (above: its branches of two shaders and
+  // of the event model; a CI run took 1,029.6): 1,033.  Its CMEs' chunk
+  // isn't in this: it is fetched only where a CME can show, which the
+  // homepage isn't (when it was, at first, it was the 29th request here).
+  ready: {requests: 28, kb: 1033},
   // After #259: 39 requests, 3,918 KB.  Raised from #258's 29 requests:
   // the catalogue's faint tiers are 12 packs where stars.dat was one file,
   // by design (a deep link needs only its field's; DESIGN.md "The star

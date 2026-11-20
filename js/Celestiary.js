@@ -43,7 +43,7 @@ import {setCreditsChrome} from './credits.js'
 import {clampEv, stepEv} from './scene/evCompensation'
 import {clampStarMag, stepStarMag} from './scene/starMagnitude'
 import {fetchPlaces} from './scene/Places'
-import {parseTargetPath, resolvePlace, slug, targetFramePath, targetPath} from './targetPath'
+import {SUNTAN_PREFIX, parseTargetPath, resolvePlace, slug, targetFramePath, targetPath} from './targetPath'
 import {utcToTtJulianDay} from './scene/celestialFrame'
 import {elt} from './utils'
 
@@ -888,8 +888,10 @@ export default class Celestiary {
         // Turning with the body held by hand (`y`).
         this.scene.restoreTurning?.(Boolean(pl.settings.Y))
         // A satellite is ridden from its node, which the link's frame (Earth)
-        // isn't: ride it again, from where the camera is.
-        if (resolved.kind === 'satellite' && pl.settings.F) {
+        // isn't: ride it again, from where the camera is.  A Suntan craft
+        // too: its frame is its own, but restoreFollowing follows the body
+        // the camera is at, the Sun.
+        if ((resolved.kind === 'satellite' || resolved.kind === 'craft') && pl.settings.F) {
           this.scene.setFollowing(true)
         }
       }))
@@ -941,6 +943,8 @@ export default class Celestiary {
           pl.lat, pl.lng, pl.alt, point.radius, new THREE.Quaternion(), platformWorldQuat))
           .add(camera.platform.worldToLocal(starWorldPos))
       camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w).normalize()
+    } else if (frame.kind === 'craft') {
+      this._restoreCraftView(pl, frame)
     } else if (pl.settings?.L) {
       // Landed restore: reparent to the rotating body, snap to the
       // saved lat/lng/alt, then overwrite quaternion to recover the
@@ -969,6 +973,37 @@ export default class Celestiary {
     this.ui.setFov(pl.fov)
     this.setExposureCompensation(pl.ev)
     this.setStarMagnitude(pl.sm)
+  }
+
+
+  /**
+   * Put the camera back on a Suntan craft, where a link had it in the
+   * craft's frame (_cameraFrame): hung from its node, as going to it does,
+   * then placed and turned relative to the node, whatever the platform's
+   * turn (Scene.linkCameraQuaternion).  With the craft not in flight at the
+   * link's time, the Sun.
+   *
+   * @param {object} pl The decoded link
+   * @param {{kind: 'craft', id: string}} frame
+   */
+  _restoreCraftView(pl, frame) {
+    const camera = this.ui.camera
+    const suntan = this.scene.suntan
+    const node = suntan?.nodeOf(frame.id)
+    if (!node) {
+      console.warn(`Permalink: the Suntan ${frame.id} isn't in flight at this date; going to the Sun`)
+      this.scene.setTarget('sun', {look: false})
+      this.scene.goTo()
+      return
+    }
+    this.scene.setTarget(suntan.craft[frame.id], {look: false})
+    this.scene.goTo()
+    this.ui.scene.updateMatrixWorld()
+    const nodeWorldQuat = node.getWorldQuaternion(new THREE.Quaternion())
+    const platformWorldQuat = camera.platform.getWorldQuaternion(new THREE.Quaternion())
+    camera.position.copy(latLngAltToLocal(pl.lat, pl.lng, pl.alt, node.linkRadius, nodeWorldQuat, platformWorldQuat))
+    const q = new THREE.Quaternion(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w).normalize()
+    camera.quaternion.copy(platformWorldQuat.invert().multiply(nodeWorldQuat).multiply(q))
   }
 
 
@@ -1048,6 +1083,17 @@ export default class Celestiary {
       }))
       return
     }
+    if (resolved.kind === 'craft') {
+      // Ridden, as from 'g'; before launch or after the mission, the Sun.
+      this._resolveTarget(resolved, (craft) => quiet(() => {
+        this.scene.setTarget(craft, {look: false})
+        this.scene.goTo()
+      }), () => quiet(() => {
+        this.scene.setTarget('sun')
+        this.scene.goTo()
+      }))
+      return
+    }
     if (resolved.kind === 'place') {
       this._resolveTarget(resolved, (place) => quiet(() => {
         this.scene.land(place.body, place.lat, place.lng, place.alt, {target: place})
@@ -1117,6 +1163,18 @@ export default class Celestiary {
     }
     if (ref?.kind === 'galaxy') {
       this._whenGalaxy(ref.id, (galaxy) => cb({kind: 'galaxy', galaxy}), onErr)
+      return
+    }
+    if (ref?.kind === 'craft') {
+      // The Sun, then the Suntan mission round it, which the app's panel
+      // builds too (the link's `apps:` token); getSuntan builds it once.
+      this._loadBody('sun', () => this.scene.getSuntan().then((suntan) => {
+        if (suntan) {
+          cb({kind: 'craft', id: ref.id})
+        } else {
+          onErr?.()
+        }
+      }), onErr)
       return
     }
     if (ref?.kind !== 'bodies') {
@@ -1239,6 +1297,16 @@ export default class Celestiary {
             cb(pop.targetOf(rec))
           } else {
             console.warn(`No satellite ${resolved.id}`)
+            onMissing?.()
+          }
+        })
+        return
+      case 'craft':
+        this.scene.getSuntan().then((suntan) => {
+          const craft = suntan?.craft[resolved.id]
+          if (craft) {
+            cb(craft)
+          } else {
             onMissing?.()
           }
         })
@@ -3515,6 +3583,19 @@ export default class Celestiary {
         radius: star.radius,
       }
     }
+    // Riding a Suntan craft: its own frame, where the camera is metres off
+    // it, not the Sun's, 2.5e10 m away, which four decimals of a degree put
+    // 190 km out at that distance.
+    const craft = this.ui.camera.platform.parent
+    if (craft?.isCraftNode && craft.craftId) {
+      this.ui.scene.updateMatrixWorld()
+      return {
+        path: `${SUNTAN_PREFIX}${craft.craftId}`,
+        pos: craft.getWorldPosition(new THREE.Vector3()),
+        quat: craft.getWorldQuaternion(new THREE.Quaternion()),
+        radius: craft.linkRadius,
+      }
+    }
     const tObj = Shared.targets.cur
     if (!tObj?.props?.name || !tObj.props.radius?.scalar) {
       return null
@@ -3731,6 +3812,8 @@ const REF_FRAME = {
   // In its body's frame (Satellites.md): the path parseTargetPath's caller
   // gave it, else a planet's.
   satellite: (r) => r.path ?? `sun/${r.body ?? 'earth'}`,
+  // Its own (_cameraFrame): the camera rides it.
+  craft: (r) => `${SUNTAN_PREFIX}${r.id}`,
 }
 
 

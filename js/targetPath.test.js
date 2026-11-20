@@ -53,6 +53,19 @@ describe('targetPath', () => {
     expect(parseTargetPath('sat:iss')).toBeNull()
   })
 
+  it('names a Suntan craft, in its own frame', () => {
+    // The camera near it rides it: its body's frame, the Sun's, is 2.5e10 m
+    // away, where the link's four decimals of a degree are 190 km.
+    const relay = {kind: 'craft', id: 'relay', name: 'Suntan relay', body: 'sun'}
+    expect(targetPath(relay, bodyPath)).toBe('suntan:relay')
+    expect(targetFramePath(relay, bodyPath)).toBe('suntan:relay')
+    expect(parseTargetPath('suntan:relay')).toEqual({kind: 'craft', id: 'relay'})
+    expect(parseTargetPath('suntan:lander')).toEqual({kind: 'craft', id: 'lander'})
+    expect(parseTargetPath('suntan:probe')).toBeNull()
+    expect(parseTargetPath('suntan:')).toBeNull()
+    expect(targetPath({kind: 'craft', id: 'probe'}, bodyPath)).toBeNull()
+  })
+
   it('names each kind of target', () => {
     expect(targetPath(TARGETS.body, bodyPath)).toBe('sun/earth/moon')
     expect(targetPath(TARGETS.place, bodyPath)).toBe('sun/earth/austin')

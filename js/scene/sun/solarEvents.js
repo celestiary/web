@@ -1,3 +1,4 @@
+import {euvFlareLevel, euvFlareRadiusMm} from './activityView.js'
 import {WHITE_LIGHT_SHARE, flareContrast} from './emission.js'
 import {
   CARRINGTON_DEG_PER_DAY,
@@ -112,11 +113,17 @@ const FLARE_WINDOW_HOURS = 4
  * @param {number} ms UTC
  * @param {Array<object>} regions activeRegionsAt's, at the same time
  * @param {number} [seed]
+ * @param {object} [star] stellarActivity's scales: the flares' rate over
+ *     the Sun's (flareScale), and the photosphere's temperature the white
+ *     light is seen against (teff)
  * @returns {Array<object>} {start, flux, class, rise, decay (ms), whiteLight,
  *     contrast (its kernels' peak), kernels: [unit, unit], radius (rad),
- *     region, phase: the white light's share of its peak now}
+ *     region, phase: the white light's share of its peak now; sxr: the soft
+ *     X-ray and EUV light curve's share of its peak now; euv, euvRadius:
+ *     its level and size (rad) in the activity view (activityView.js)}
  */
-export function flaresAt(ms, regions, seed = 0) {
+export function flaresAt(ms, regions, seed = 0, star = null) {
+  const rateScale = star?.flareScale ?? 1
   const out = []
   const totalArea = regions.reduce((s, r) => s + r.area, 0)
   if (!(totalArea > 0)) {
@@ -126,7 +133,7 @@ export function flaresAt(ms, regions, seed = 0) {
   for (let h = hour - FLARE_WINDOW_HOURS; h <= hour; h++) {
     const rng = binGenerator(h, seed, STREAM_FLARES)
     const sn = sunspotNumber((h + 0.5) * MS_PER_HOUR)
-    const n = poisson(flareRate(sn) / 24, rng)
+    const n = poisson(rateScale * flareRate(sn) / 24, rng)
     for (let k = 0; k < n; k++) {
       const start = (h + rng()) * MS_PER_HOUR
       // N(>F) ∝ F^−(α−1): F = F_min u^(−1/(α−1)).
@@ -156,8 +163,11 @@ export function flaresAt(ms, regions, seed = 0) {
       const phase = whiteLight ? Math.exp(-(((t - 0.7) / 0.35) ** 2)) : 0
       out.push({
         start, flux, class: goesClass(flux), rise, decay, whiteLight,
-        contrast: whiteLight ? flareContrast(flux) : 0,
+        contrast: whiteLight ? flareContrast(flux, star?.teff) : 0,
         phase,
+        sxr: softXrayPhase(ms - start, rise, decay),
+        euv: euvFlareLevel(flux),
+        euvRadius: euvFlareRadiusMm(flux) / SUN_RADIUS_MM,
         kernels: ribbonKernels(region.centre, sep, angle),
         radius: KERNEL_RADIUS_MM / SUN_RADIUS_MM,
         region: region.id,
@@ -165,6 +175,28 @@ export function flaresAt(ms, regions, seed = 0) {
     }
   }
   return out
+}
+
+
+/**
+ * A flare's soft X-ray light curve (GOES's, which the EUV lines follow),
+ * as a share of its peak: up over the rise, then an exponential decay
+ * that has fallen to 5% by the decay's end.
+ *
+ * @param {number} t ms since its start
+ * @param {number} rise ms
+ * @param {number} decay ms
+ * @returns {number} 0 to 1
+ */
+export function softXrayPhase(t, rise, decay) {
+  if (!(t >= 0) || t > rise + decay) {
+    return 0
+  }
+  if (t < rise) {
+    const x = t / rise
+    return x * x * (3 - (2 * x))
+  }
+  return Math.exp(-3 * (t - rise) / decay)
 }
 
 
@@ -255,14 +287,15 @@ export function cmeRate(ms) {
  *     rad), mass (g), source: {lat, lon} in the Carrington frame at
  *     launch, front (solar radii from the centre now)}
  */
-export function cmesAt(ms, seed = 0) {
+export function cmesAt(ms, seed = 0, star = null) {
+  const rateScale = star?.cmeScale ?? 1
   const out = []
   const bin = Math.floor(ms / (CME_BIN_HOURS * MS_PER_HOUR))
   for (let b = bin - (CME_WINDOW_HOURS / CME_BIN_HOURS); b <= bin; b++) {
     const rng = binGenerator(b, seed, STREAM_CMES)
     const mid = (b + 0.5) * CME_BIN_HOURS * MS_PER_HOUR
     const level = activityLevel(mid)
-    const n = poisson(cmeRate(mid) * CME_BIN_HOURS / 24, rng)
+    const n = poisson(rateScale * cmeRate(mid) * CME_BIN_HOURS / 24, rng)
     if (n === 0) {
       continue
     }

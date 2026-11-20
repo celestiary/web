@@ -9,6 +9,7 @@ planes through the lander's nested shells — not an engineering design.
 | File | What it is |
 |---|---|
 | `suntan.step` | The model. Generated; do not edit by hand. |
+| `suntan.glb` | The STEP as Bldrs Share exports it to GLB (Draco). The app draws it, re-encoded with meshopt, from `public/large/models/suntan/suntan.glb` (js/scene/models.md). |
 | `make_suntan.py` | The generator (CadQuery / OpenCascade). All dimensions are constants at the top. |
 | `suntan.parts.json`, `suntan.parts.md` | Generated with the model: per-part volume, area, density and mass from the kernel. |
 | `validate_conway.mjs` | Loads the STEP in Conway (Share's engine) and checks every part's tessellated area and volume against the kernel's. |

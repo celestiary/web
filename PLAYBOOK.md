@@ -216,6 +216,31 @@ celestiary's side) rather than a change of units.
 buffer the value passes through, including a library's internal ones, and
 check each one's format.
 
+### A mark you ride must be placed by its object, not its vertex
+
+The Suntan relay jumped about as the camera closed in on it, which looked like
+a precision problem, and was: its ring and its name were one vertex each,
+written in a float32 attribute at the relay's place, 2.5e10 m from the Sun,
+where a float32 is good to 2 km.  The model on the craft's node was still,
+because an object's position stays a double until three subtracts the
+camera's (`modelViewMatrix`).  On the CPU the model sat in the view's centre
+to microns, so the jump only showed in frames: the ring's pixels moved up to
+200 px between frames at 3 km.
+
+**Rule:** anything the camera can come within a few km of, far from its
+parent's origin, gets its place in `object.position` and its vertices about
+the origin (or the sheet's RTE mode, `SpriteSheet.useRTE`).  A vertex buffer
+of heliocentric places is fine only for things seen from far away (orbit
+lines).  Check it by rendering frames with the clock running, not by reading
+world positions, which are doubles.
+
+The craft's orbit lines had the same fault, and chord sag besides (235 km
+for 720 chords round the relay's orbit).  The planets already had the fix,
+`bodyLine.js`, written relative to the body with a fine arc round it; its
+tolerance is a fraction of the body's radius, which a 7.7 m craft can't
+meet, so the craft is also a vertex (`knot`).  Look for the planets' or
+the satellites' answer to a precision problem before writing another.
+
 ### A distance read from depth near the far plane is noise: decide by its error
 
 Jupiter at a telescope FOV from Earth's surface showed white dashes in

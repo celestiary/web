@@ -892,6 +892,12 @@ export default class ThreeUi {
       if (home?.props?.radius) {
         target = home
       }
+    } else {
+      // A Suntan craft targeted keys it at its own distance from the Sun,
+      // as a planet does, where its target object is the Sun, a star, which
+      // keys nothing: at the relay's 35.5 solar radii 37 times Earth's
+      // sunlight burned its model white (suntan/Suntan.md).
+      target = this.sceneManager?.targetCraftNode?.() ?? target
     }
     if (target?.props?.radius && target.props.type !== 'star') {
       this._worldGroup ??= this.scene.getObjectByName('WorldGroup') ?? null
@@ -1599,11 +1605,15 @@ export default class ThreeUi {
     }
     camera.getWorldPosition(cam)
     const bodies = []
-    for (const name of Object.keys(objects)) {
+    const candidates = Object.keys(objects).filter((name) => {
       const o = objects[name]
-      const type = o?.props?.type
-      if (!SUNLIT_TYPES.has(type) || !o.props.radius || !o.visible || name.endsWith('.orbitPosition') ||
-          o === except) {
+      return SUNLIT_TYPES.has(o?.props?.type) && o.props.radius && o.visible && !name.endsWith('.orbitPosition')
+    }).map((name) => objects[name])
+    // The Suntan craft whose models show, which aren't in the scene's
+    // objects: sunlit spacecraft as Webb is.
+    candidates.push(...(this.sceneManager.sunlitCraft?.() ?? []))
+    for (const o of candidates) {
+      if (o === except) {
         continue
       }
       o.getWorldPosition(body)

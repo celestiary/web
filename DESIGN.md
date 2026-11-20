@@ -526,6 +526,14 @@ were visibly off their lines (Mercury by ~10 px in an inner-system view).
     per point.
   - A new build is spliced around the body at once. Off its window (a
     stale line after a jump), a line is drawn plain until rebuilt.
+  - **A knot, for a body far smaller than its orbit** (`knot: true`). A
+    Suntan craft is 7.7 m on an orbit 2.5e10 m out: 2.5e-4 of its radius
+    would take tens of thousands of fine steps, and the 256-step cap
+    leaves metres of sag.  With the option the body's place is a vertex of
+    the arc, so the line goes through it exactly, re-spliced once the body
+    has moved 5e-4 radii from it, which for a moving craft is every frame
+    (about 1,500 vertices written and uploaded; js/scene/suntan/Suntan.md,
+    "Drawn").  The planets' lines don't use it.
   - The mean-element ellipses are redrawn when e has drifted enough to
     move them 1e-4 of the body's radius (Pluto's, by Standish's rates).
 - **Non-finite input is refused:** `OrbitPaths.request` ignores a
@@ -1561,6 +1569,7 @@ The `` ` `` (backtick) key toggles three's own `Stats` panel (FPS, MS, MB; click
   | `update` | The animation callback, camera and navigation, before any rendering. |
   | `scene` | `renderer.render(scene)` into the scene buffer: bodies, stars, the Sun, the galaxy's composite. |
   | `galaxy` | The Milky Way's march into its cached target (`MilkyWay.js`), only on a frame where the view changed. |
+  | `cme` | The Sun's CMEs: their particles into targets of their own (`sun/cme/CmeCloud.js`), which the corona's shader reads; from the corona's `onBeforeRender`, inside `scene`. |
   | `cesium` | The composite's own work: clears, the fading celestiary surface, the JS between steps. |
   | `cesium.blit` | Copying the scene's depth into Cesium's target, per body. |
   | `cesium.shell` | The stencil shell: where the body shows. |
