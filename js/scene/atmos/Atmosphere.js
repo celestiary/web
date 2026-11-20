@@ -448,6 +448,11 @@ export function newAtmospherePass() {
       // write the pass's intermediates as raw floats, for a float target;
       // 7 the meter's linear composite, 8 the night sky's light alone.
       uDebug: {value: 0.0},
+      // 1: write the screen's display values decoded from sRGB, for a host
+      // that composites this pass into a linear buffer of its own and
+      // encodes it at its end (the sky guest, design/SkyGuest.md, "Drawn in
+      // place").  0, the app's own: display values, as the canvas shows them.
+      uLinearOut: {value: 0.0},
       // The night sky's own light (HDR.md, "The night sky's own light";
       // nightSky.js, eye.js), drawn here so it can be tone-mapped by the
       // eye's response to extended light and added over the scene's display,
@@ -546,6 +551,7 @@ uniform float     uAtmStrength;
 uniform float     uHdr;
 uniform float     uSkyExposure;
 uniform float     uDebug;
+uniform float     uLinearOut;
 #if CLOUDS
 uniform sampler2D tClouds;
 uniform sampler2D tCloudData;
@@ -690,6 +696,15 @@ vec3 overNight(vec3 display, vec3 night) {
 // (HDR), or as it is (the LDR fallback's scene is display values already).
 // The night sky's light is added over it in display values, through the
 // eye's extended response (eye.js).
+// The screen's display values, as written: as they are, or decoded from
+// sRGB for a host's linear buffer (uLinearOut).
+vec4 screenOut(vec3 display) {
+  if (uLinearOut < 0.5) {
+    return vec4(display, 1.0);
+  }
+  vec3 c = max(display, vec3(0.0));
+  return vec4(mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)), 1.0);
+}
 vec4 sceneToScreen(vec3 scene, vec3 night) {
   // The metering's view (uDebug 7, ThreeUi._meter) wants the linear scene
   // on every path: tone-mapped, a body rendered 1e5 over white would read
@@ -699,9 +714,9 @@ vec4 sceneToScreen(vec3 scene, vec3 night) {
     return vec4(uDebug < 7.5 ? scene + night : night, 1.0);
   }
   if (uHdr > 0.5) {
-    return vec4(overNight(neutralToneMap(scene), night), 1.0);
+    return screenOut(overNight(neutralToneMap(scene), night));
   }
-  return vec4(scene, 1.0);
+  return screenOut(scene);
 }
 
 // The sky over the scene: in-scatter plus the scene through the
@@ -712,9 +727,9 @@ vec4 sceneToScreen(vec3 scene, vec3 night) {
 // added to it.
 vec4 atmToScreen(vec3 scene, vec3 sky, vec3 transmittance, vec3 night) {
   if (uHdr > 0.5) {
-    return vec4(overNight(neutralToneMap(mix(scene, sky + scene * transmittance, uAtmStrength)), night), 1.0);
+    return screenOut(overNight(neutralToneMap(mix(scene, sky + scene * transmittance, uAtmStrength)), night));
   }
-  return vec4(mix(scene, neutralToneMap(sky) + scene * transmittance, uAtmStrength), 1.0);
+  return screenOut(mix(scene, neutralToneMap(sky) + scene * transmittance, uAtmStrength));
 }
 
 // Map (r, mu_sun) → UV for the precomputed transmittance LUT.

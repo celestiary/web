@@ -5,6 +5,7 @@ const indexFile = './js/index.jsx'
 // share into chunks of their own, and the app's first load would fetch
 // them as more requests (it did: two more, over the load budget).
 const layerFile = './js/layer/layer.js'
+const skyFile = './js/sky/sky.js'
 // The Cesium guest page (design/CesiumGuest.md): one Cesium body as a NetGL
 // guest that celestiary embeds from another origin.  Its own build too.
 const cesiumGuestFile = './js/cesium-guest/guest.js'
@@ -75,6 +76,19 @@ export const layerConfig = {
   ...config,
   entryPoints: [layerFile],
   outdir: `${buildDir}/layer`,
+  define: {...config.define},
+}
+
+
+/**
+ * The sky guest's own build, into docs/sky/ (public/sky.html loads
+ * sky/sky.js; design/SkyGuest.md): the whole app less its chrome, so it
+ * shares no chunk with the app's build either.
+ */
+export const skyConfig = {
+  ...config,
+  entryPoints: [skyFile],
+  outdir: `${buildDir}/sky`,
   define: {...config.define},
 }
 

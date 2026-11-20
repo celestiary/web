@@ -35,6 +35,21 @@ export const STATS_INTERVAL_MS = 1000
 export const STATS_MIN_INTERVAL_MS = 250
 
 
+/** The orbits' `layer:hello` (design/LayerMode.md, "The contract"). */
+export const ORBITS_HELLO = Object.freeze({
+  adapter: 'celestiary-orbits',
+  capabilities: {kinds: ['overlay'], depth: ['shared'], projections: ['matrix'], frames: ['ecef'],
+    warp: false, anchors: true, time: true, labels: false},
+  contracts: {alpha: 'coverage', color: 'display'},
+  extent: {frame: 'ecef', sphere: {center: [0, 0, 0], radius: EXTENT_M.orbits}, beyond: 'clamp-to-far',
+    farthest: EXTENT_M.beams},
+  // `near`: the subscription takes `{near: {p, n}, pattern}`, the n
+  // anchors nearest p (anchors.js compileSubscription); a host asks for
+  // it only when this says so.
+  ext: {'portal.anchors/1': {publish: ['norad', 'dsn', 'dsn-sc', 'naif'], near: true}},
+})
+
+
 /**
  * @param {object} opts
  * @param {object} opts.transport `post(msg)` and `onMessage(fn)`
@@ -49,26 +64,17 @@ export const STATS_MIN_INTERVAL_MS = 250
  * @param {?object} [opts.meter] the transport's meter (wire.js
  *   meteredTransport): `take()`, what was posted since it was last asked
  * @param {Function} [opts.clock] ms, for the frame's timings
+ * @param {object} [opts.hello] the `layer:hello` to say, but its type and
+ *   version: the orbits' (ORBITS_HELLO), or the sky guest's (js/sky/)
  * @returns {{stop: Function, state: object}}
  */
 export function serveLayer({transport, layer, render, endFrame, announce = null, resize = null, loaded,
   nowMs = () => Date.now(), timers = globalThis, meter = null,
-  clock = () => globalThis.performance?.now() ?? Date.now()}) {
+  clock = () => globalThis.performance?.now() ?? Date.now(), hello: helloBody = ORBITS_HELLO}) {
   const state = {heard: false, ready: false, hidden: false, clock: null, pending: null, frames: 0, stopped: false,
     invalidations: 0, last: null, stats: null}
   const post = (msg) => transport.post(msg)
-  const hello = () => post({
-    type: 'layer:hello', version: LAYER_PROTOCOL_VERSION, adapter: 'celestiary-orbits',
-    capabilities: {kinds: ['overlay'], depth: ['shared'], projections: ['matrix'], frames: ['ecef'],
-      warp: false, anchors: true, time: true, labels: false},
-    contracts: {alpha: 'coverage', color: 'display'},
-    extent: {frame: 'ecef', sphere: {center: [0, 0, 0], radius: EXTENT_M.orbits}, beyond: 'clamp-to-far',
-      farthest: EXTENT_M.beams},
-    // `near`: the subscription takes `{near: {p, n}, pattern}`, the n
-    // anchors nearest p (anchors.js compileSubscription); a host asks for
-    // it only when this says so.
-    ext: {'portal.anchors/1': {publish: ['norad', 'dsn', 'dsn-sc', 'naif'], near: true}},
-  })
+  const hello = () => post({type: 'layer:hello', version: LAYER_PROTOCOL_VERSION, ...helloBody})
   announce?.()
   hello()
   const resend = timers.setInterval(() => {

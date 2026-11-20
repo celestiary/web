@@ -44,12 +44,16 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 A link such as celestiary.org/#earth or #moon stayed on the loading screen. It now opens on that body
 like #sun/earth does, as do #earth/moon, #mars and the rest.
 
-- Date: 2026-11-01
+- Date: 2026-11-20
 - PR: [#348](https://github.com/celestiary/web/pull/348)
 - Issue: [#336](https://github.com/celestiary/web/issues/336)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
 - Permalink: none
 - Kind: fix
+
+Behind the scenes: celestiary's own sky inside another app's world, the sky guest
+([#350](https://github.com/celestiary/web/pull/350)), first for exo.cafe's abode, and with its shadow drawing
+only the metered frames on portal-netgl 0.6.11 ([#351](https://github.com/celestiary/web/pull/351)).
 
 ## October 2026
 

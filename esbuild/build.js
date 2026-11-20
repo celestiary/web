@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import esbuild from 'esbuild'
 import {normalizeBasePath} from './basePath.js'
 import {copyCesiumAssets} from './cesiumAssets.js'
-import config, {cesiumGuestConfig, layerConfig} from './common.js'
+import config, {cesiumGuestConfig, layerConfig, skyConfig} from './common.js'
 import {SITE_URL, fillPlaceholders, rootFiles, siteHead} from './site.js'
 
 
@@ -15,7 +15,8 @@ const NOINDEX = process.env.NOINDEX === 'true'
 const SITE_HEAD = siteHead({siteUrl: SITE_URL, noindex: NOINDEX})
 
 
-Promise.all([esbuild.build(config), esbuild.build(layerConfig), esbuild.build(cesiumGuestConfig)])
+Promise.all([esbuild.build(config), esbuild.build(layerConfig), esbuild.build(cesiumGuestConfig),
+  esbuild.build(skyConfig)])
     .then(() => {
       substitutePlaceholders(`${config.outdir}/index.html`)
       substitutePlaceholders(`${config.outdir}/404.html`)

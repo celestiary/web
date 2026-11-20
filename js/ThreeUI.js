@@ -118,7 +118,10 @@ export default class ThreeUi {
     this.camera.platform = named(new Object3D, 'CameraPlatform')
     this.camera.platform.add(this.camera)
 
-    this.renderer = renderer ||
+    // A renderer handed in (a guest page's, on a recording context: js/sky/)
+    // is set up as our own would be.
+    this.renderer = renderer ?
+      this.configureRenderer(renderer, backgroundColor || 0x000000) :
       this.initRenderer(this.threeContainer, backgroundColor || 0x000000)
     // One HDR pipeline (js/scene/HDR.md): the scene renders into a linear,
     // half-float _sceneRT in exposure units (tone-mapped by exposure only),
@@ -388,6 +391,19 @@ export default class ThreeUi {
     const ctx = canvas.getContext('webgl2')
     container.appendChild(canvas)
     const renderer = new WebGLRenderer({canvas: canvas, context: ctx, antialias: true})
+    return this.configureRenderer(renderer, backgroundColor)
+  }
+
+
+  /**
+   * Tone mapping, exposure, colour space, clear colour and size: our
+   * renderer's settings, on ours or one handed in.
+   *
+   * @param {WebGLRenderer} renderer
+   * @param {number} backgroundColor
+   * @returns {WebGLRenderer}
+   */
+  configureRenderer(renderer, backgroundColor) {
     // No idea about this.. just like the way it looks.
     // renderer.toneMapping = AgXToneMapping
     // renderer.toneMapping = ACESFilmicToneMapping
