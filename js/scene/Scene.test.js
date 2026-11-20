@@ -405,7 +405,7 @@ describe('Scene.applySettings', () => {
     // level snapshot — the live AR state is folded in at the permalink
     // writer in Celestiary, not here).
     Shared.targets.follow = null // going (a test elsewhere) turns it on
-    expect(s.getSettings()).toEqual({...target, L: false, A: false, T: false, F: false})
+    expect(s.getSettings()).toEqual({...target, L: false, A: false, T: false, F: false, Y: false})
     expect(milkyWay.visible).toBe(false)
   })
 })
@@ -1599,6 +1599,97 @@ describe('Scene following', () => {
       Shared.targets.tween = null
       s.syncFollow()
       expect(camera.platform.parent).toBe(jupiter)
+    })
+  })
+
+  describe('the camera mode (#361, step 2)', () => {
+    /**
+     * @param {number} h The camera's height over Jupiter (radius 1e6 m)
+     * @returns {object} Arrived at Jupiter, the camera h over it
+     */
+    function at(h) {
+      const sys = arrivedAtJupiter()
+      sys.camera.position.set(0, 1e6 + h, 0)
+      sys.scene.updateMatrixWorld()
+      sys.s.syncFollow()
+      return sys
+    }
+
+    it('says how the camera moves: riding the orbit high up, turning low down, both automatic', () => {
+      expect(at(SPIN_OUT_M * 2).s.cameraMode()).toEqual({mode: 'orbit', auto: true, body: 'jupiter'})
+      expect(at(SPIN_IN_M / 2).s.cameraMode()).toEqual({mode: 'turning', auto: true, body: 'jupiter'})
+    })
+
+    it('says fixed once left behind, and standing landed', () => {
+      const {s} = at(SPIN_OUT_M * 2)
+      s.setFollowing(false)
+      expect(s.cameraMode().mode).toBe('fixed')
+      Shared.targets.landed = true
+      expect(s.cameraMode().mode).toBe('standing')
+      Shared.targets.landed = false
+    })
+
+    it('holds turning with the body high up, and riding the orbit low down, until set back to auto', () => {
+      const high = at(SPIN_OUT_M * 2)
+      high.s.setCameraMode('turning')
+      expect(high.camera.platform.parent).toBe(high.jupiter)
+      expect(high.s.cameraMode()).toEqual({mode: 'turning', auto: false, body: 'jupiter'})
+      high.s.setCameraMode('auto')
+      expect(high.camera.platform.parent).toBe(high.jupiter.orbitPosition)
+      const low = at(SPIN_IN_M / 2)
+      low.s.setCameraMode('orbit')
+      expect(low.camera.platform.parent).toBe(low.jupiter.orbitPosition)
+      expect(low.s.cameraMode()).toEqual({mode: 'orbit', auto: false, body: 'jupiter'})
+    })
+
+    it('rides again from fixed, and leaves from riding', () => {
+      const {s, sun} = at(SPIN_OUT_M * 2)
+      s.setCameraMode('fixed')
+      expect(Shared.targets.follow).toBe(null)
+      expect(Shared.targets.cur).toBe(sun)
+      s.setCameraMode('turning')
+      expect(s.cameraMode().mode).toBe('turning')
+    })
+
+    it('`y` turns with the body, and again rides its orbit', () => {
+      const {s} = at(SPIN_OUT_M * 2)
+      s.toggleTurning()
+      expect(s.cameraMode().mode).toBe('turning')
+      s.toggleTurning()
+      expect(s.cameraMode()).toEqual({mode: 'orbit', auto: false, body: 'jupiter'})
+    })
+
+    it('writes Y in the link while turning is held, and a link\'s Y holds it again', () => {
+      const {s, camera, jupiter} = at(SPIN_OUT_M * 2)
+      expect(s.getSettings().Y).toBe(false)
+      s.setCameraMode('turning')
+      expect(s.getSettings().Y).toBe(true)
+      s.setCameraMode('auto')
+      expect(s.getSettings().Y).toBe(false)
+      s.restoreTurning(true)
+      s.syncFollow()
+      expect(camera.platform.parent).toBe(jupiter)
+    })
+
+    it('clears what was held on going somewhere', () => {
+      const {s} = at(SPIN_OUT_M * 2)
+      s.setCameraMode('turning')
+      s.goTo()
+      Shared.targets.tween = null
+      expect(s.cameraMode().auto).toBe(true)
+    })
+
+    it('tells the control when the state changes, once each time', () => {
+      const {s, camera, scene} = at(SPIN_OUT_M * 2)
+      const heard = []
+      s.onCameraMode = (state) => heard.push(`${state.mode}:${state.auto}`)
+      s.syncFollow()
+      s.syncFollow()
+      camera.position.setLength(1e6 + (SPIN_IN_M / 2))
+      scene.updateMatrixWorld()
+      s.syncFollow()
+      s.syncFollow()
+      expect(heard).toEqual(['orbit:true', 'turning:true'])
     })
   })
 

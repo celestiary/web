@@ -191,7 +191,12 @@ its view (DESIGN.md [follow](../DESIGN.md#follow)).  Going to a body and
 landing turn it on, so a link made after `g` carries `F` (`#sun/earth@…;s=F`);
 `f` then leaves the body for its frame, and a link made after that is in the
 Sun's frame (`from=sun`) without `F`.  It is independent of `T` (`s=TF` is
-both: riding along while facing it).
+both: riding along while facing it).  `Y` is turning with the body held by
+hand (the `y` key, or the camera control's *Turning with Earth*; #361):
+the camera turns with the body at any height rather than below 30 km
+(`Scene.setCameraMode`), with `F` (`s=FY`).  Without it the height chooses
+(DESIGN.md [follow](../DESIGN.md#follow)); riding the orbit held by hand
+isn't written.
 - **Reading it** (a link with a view): the camera is put in its frame, then
   following is on if the link has `F`, **or if the frame is the target's own
   body** (no `from=`, or the same body).  The second is how every link made

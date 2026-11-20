@@ -175,6 +175,9 @@ export default class Celestiary {
     }
     // 't' and 'f' say what they switched, on the readout (onNavMode).
     this.scene.onModeChange = (mode, on, note) => this._announce(this._navModeListeners, mode, on, note)
+    // How the camera moves, for the camera control (onCameraMode).  Not
+    // held while a link is restored: the control shows the state it ends in.
+    this.scene.onCameraMode = (state) => this._cameraModeListeners.forEach((fn) => fn(state))
     // 'v' (nav panels) is a Celestiary-level toggle — register the applier
     // so Scene.applySettings can drive it on permalink restore.
     this.scene.registerSettingApplier('v', () => this._toggleNav())
@@ -243,6 +246,8 @@ export default class Celestiary {
     this._starMagListeners = new Set
     // And of tracking and following being switched (onNavMode).
     this._navModeListeners = new Set
+    // And of how the camera moves (onCameraMode).
+    this._cameraModeListeners = new Set
     // And of what tonight's sky used (onNotice).
     this._noticeListeners = new Set
     // While a link is put back: what it restores (tracking, following, the
@@ -445,6 +450,17 @@ export default class Celestiary {
   onNavMode(fn) {
     this._navModeListeners.add(fn)
     return () => this._navModeListeners.delete(fn)
+  }
+
+
+  /**
+   * @param {Function} fn Called with how the camera moves (Scene.cameraMode:
+   *   {mode, auto, body}) when that changes, for the camera control
+   * @returns {Function} Stops listening
+   */
+  onCameraMode(fn) {
+    this._cameraModeListeners.add(fn)
+    return () => this._cameraModeListeners.delete(fn)
   }
 
 
@@ -858,6 +874,8 @@ export default class Celestiary {
         const ownFrame = frame.kind !== 'star' && frame.kind !== 'galaxy' && resolved.kind !== 'satellite' &&
           (!pl.from || pl.from === REF_FRAME[resolved.kind](resolved))
         this.scene.restoreFollowing(pl.settings.F || ownFrame)
+        // Turning with the body held by hand (`y`).
+        this.scene.restoreTurning?.(Boolean(pl.settings.Y))
         // A satellite is ridden from its node, which the link's frame (Earth)
         // isn't: ride it again, from where the camera is.
         if (resolved.kind === 'satellite' && pl.settings.F) {
@@ -3172,6 +3190,12 @@ export default class Celestiary {
     },
     'Follow: ride the target\'s orbit (on after going there; off leaves it)',
     () => Boolean(Shared.targets.follow),
+    'Targeting')
+    k.map('y', () => {
+      this.scene.toggleTurning()
+    },
+    'Turn with the body (the ground stays put under you), or ride its orbit (the body turns under you)',
+    () => this.scene.cameraMode?.().mode === 'turning',
     'Targeting')
     k.map('g', () => {
       this.goTo()
