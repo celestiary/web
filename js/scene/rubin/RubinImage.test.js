@@ -176,6 +176,56 @@ describe('the image\'s switch', () => {
     expect(credits.size).toBe(0)
   })
 
+  it('lists the imaged fields that can be shown, each with its direction and field of view', async () => {
+    const stellarFrame = new Group()
+    let cds = null
+    const sw = newImageSwitch({stellarFrame, ui: {camera: new PerspectiveCamera(), height: 500}}, {
+      fetchJson: () => Promise.resolve(manifest),
+      fetchOk: (url) => new Promise((resolve) => {
+        cds = {url, resolve}
+      }),
+    })
+    // Before the switch: the Virgo field, which needs nothing fetched.
+    expect(sw.fields().map((f) => f.key)).toEqual(['virgo'])
+    sw.enabled = true
+    await sw.ready
+    // The discovery image's once its manifest is in; CDS's field not while CDS hasn't answered.
+    expect(sw.fields().map((f) => f.key)).toEqual(['discovery', 'virgo'])
+    expect(cds.url).toBe('https://alasky.cds.unistra.fr/Rubin/CDS_P_Rubin_FirstLook/properties')
+    cds.resolve(false)
+    await Promise.resolve()
+    expect(sw.fields().map((f) => f.key)).toEqual(['discovery', 'virgo'])
+    const [discovery, virgo] = sw.fields()
+    expect(discovery.label).toBe('Discovery field')
+    expect(discovery.fovDeg).toBe(2)
+    expect(virgo.fovDeg).toBe(3.5)
+    // In the stars' frame, here unturned: where wcs.js puts the same place.
+    const near = (f, raDeg, decDeg) => f.direction().distanceTo(new Vector3(...equatorialToScene(raDeg, decDeg)))
+    expect(near(discovery, ...manifest.wcs.crval)).toBeLessThan(1e-12)
+    expect(near(virgo, 188.173828125, 7.086773397021115)).toBeLessThan(1e-12)
+    // And turned with the frame, as the stars are.
+    stellarFrame.rotation.y = 0.3
+    stellarFrame.updateMatrixWorld()
+    expect(near(virgo, 188.173828125, 7.086773397021115)).toBeGreaterThan(0.1)
+    sw.dispose()
+  })
+
+  it('offers the Trifid and Lagoon while CDS serves its First Look', async () => {
+    const sw = newImageSwitch({stellarFrame: new Group(), ui: {camera: new PerspectiveCamera(), height: 500}}, {
+      fetchJson: () => Promise.resolve(manifest),
+      fetchOk: () => Promise.resolve(true),
+    })
+    sw.enabled = true
+    await sw.ready
+    await Promise.resolve()
+    const fields = sw.fields()
+    expect(fields.map((f) => f.key)).toEqual(['discovery', 'virgo', 'trifid'])
+    expect(fields[2].label).toBe('Trifid and Lagoon')
+    expect(fields[2].direction().distanceTo(new Vector3(...equatorialToScene(271.6317360235022, -23.762469026534358))))
+        .toBeLessThan(1e-12)
+    sw.dispose()
+  })
+
   it('credits Rubin\'s First Look while its tiles are drawn', async () => {
     const credits = new Map()
     const stellarFrame = new Group()

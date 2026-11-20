@@ -18,6 +18,8 @@
   "source": "https://skyviewer.app/",
   "record": "https://images.rubinobservatory.org/hips/SVImages_v2/color_ugri/properties",
   "name": "the Virgo Cluster",
+  "raDeg": 188.173828125,
+  "decDeg": 7.086773397021115,
   "coverage": {
     "5": [6928, 6929],
     "6": [26346, 26347, 27669, 27671, 27720, 27721, 27724, 27725, 27728, 27730, 27731, 27736],

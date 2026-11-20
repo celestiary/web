@@ -2845,6 +2845,7 @@ export default class Scene {
   /** Out of the seat (rideSeat), the camera staying where it is. */
   leaveSeat() {
     this.seat = null
+    this.seatAim = null
   }
 
 

@@ -1,7 +1,7 @@
-import {Vector3} from 'three'
+import {Quaternion, Vector3} from 'three'
 import HipsLayer from '../sky/HipsLayer.js'
 import {footprintCells} from '../sky/footprint.js'
-import {angle, lonLatToVec, mocFromCells} from '../sky/hips.js'
+import {angle, apply, frameMatrix, lonLatToVec, mocFromCells} from '../sky/hips.js'
 import {RUBIN_FIRST_LOOK, RUBIN_VIRGO, surveyCovers} from '../sky/surveys.js'
 import ApparentPath from './ApparentPath.js'
 import PixelMarker from './PixelMarker.js'
@@ -114,6 +114,8 @@ export const IMAGE_CREDIT_ID = 'rubin-image'
 /** Rubin's First Look on the sky (js/scene/sky/Sky.md), with the image. */
 export const FIRST_LOOK_CREDIT_ID = 'rubin-first-look'
 export const VIRGO_CREDIT_ID = 'rubin-virgo'
+/** The field of view that frames one of Rubin's fields: its camera's, degrees. */
+const RUBIN_FIELD_DEG = 3.5
 /** The First Look's images that aren't the Virgo field, which Rubin's own tiles draw. */
 const REST = RUBIN_FIRST_LOOK.footprints.filter((f) => f.image !== 'noirlab2521a')
 /**
@@ -174,8 +176,9 @@ export function imageryLine(raDeg, decDeg, radiusDeg, composite) {
  * @param {object} deps
  * @param {object} [opts]
  * @param {Function} [opts.onManifest] When the discovery image's manifest is in
+ * @param {Function} [deps.fetchOk] Whether a URL answers (CDS's `properties`); the global fetch otherwise
  * @returns {{enabled: boolean, layer: ?RubinImage, firstLook: ?HipsLayer, virgo: ?HipsLayer, ready: ?Promise,
- *   dispose: Function}}
+ *   fields: Function, dispose: Function}}
  */
 export function newImageSwitch(scene, deps, {onManifest = null} = {}) {
   const fetchJson = deps.fetchJson ?? ((url) => fetch(url).then((r) => {
@@ -214,11 +217,45 @@ export function newImageSwitch(scene, deps, {onManifest = null} = {}) {
       heightPx: ui.renderer?.domElement?.height || ui.height,
     }
   }
+  // Whether CDS serves its First Look now (its `properties` asked once,
+  // when the switch first goes on): null until known.  Its tiles answered
+  // 404 for weeks when this went in, and a field with nothing to show
+  // isn't offered.
+  let cdsUp = null
+  // Asked of the network only where the manifest is: a caller that hands in
+  // its own fetchJson (the tests) hands in fetchOk too, or isn't asked.
+  const fetchOk = deps.fetchOk ?? (deps.fetchJson ? () => Promise.resolve(false) :
+    (url) => fetch(url).then((r) => r.ok, () => false))
+  // A J2000 place's direction in the world now: through the stars' frame.
+  const direction = (raDeg, decDeg) => new Vector3(...apply(frameMatrix('equatorial'), lonLatToVec(raDeg, decDeg)))
+      .applyQuaternion(scene.stellarFrame.getWorldQuaternion(new Quaternion))
   const sw = {
     layer: null,
     firstLook: null,
     virgo: null,
     ready: null,
+    /**
+     * The fields Rubin's public imagery holds that can be shown now, for the
+     * panel's buttons: the discovery image's once its manifest is in, the
+     * First Look's Virgo field, and its Trifid and Lagoon while CDS serves.
+     *
+     * @returns {Array<{key: string, label: string, fovDeg: number, direction: () => Vector3}>}
+     *   Each with the field of view that frames it and its direction in the world now
+     */
+    fields() {
+      const out = []
+      const add = (key, label, raDeg, decDeg, fovDeg) =>
+        out.push({key, label, fovDeg, direction: () => direction(raDeg, decDeg)})
+      if (sw.layer) {
+        add('discovery', 'Discovery field', ...sw.layer.manifest.wcs.crval, 2)
+      }
+      add('virgo', 'Virgo Cluster', RUBIN_VIRGO.raDeg, RUBIN_VIRGO.decDeg, RUBIN_FIELD_DEG)
+      if (cdsUp) {
+        const [f] = FIRST_LOOK_REST.footprints
+        add('trifid', 'Trifid and Lagoon', f.raDeg, f.decDeg, RUBIN_FIELD_DEG)
+      }
+      return out
+    },
     get enabled() {
       return on
     },
@@ -228,6 +265,9 @@ export function newImageSwitch(scene, deps, {onManifest = null} = {}) {
         sw.firstLook = hips(FIRST_LOOK_REST, FIRST_LOOK_CREDIT_ID, firstLookCredit)
         sw.virgo = hips(RUBIN_VIRGO, VIRGO_CREDIT_ID, virgoCredit)
         scene.stellarFrame.add(sw.firstLook, sw.virgo)
+        fetchOk(`${RUBIN_FIRST_LOOK.serviceUrls[0]}/properties`).then((ok) => {
+          cdsUp = ok
+        })
         sw.ready = fetchJson(IMAGE_MANIFEST_PATH).then((manifest) => {
           if (disposed) {
             return

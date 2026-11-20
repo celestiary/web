@@ -128,7 +128,9 @@ Virgo", built by `lsst.pipe.tasks.hips.GenerateHipsTask`, 8 June 2025),
 to 11, webp only, served with `access-control-allow-origin: *`.  Its
 coverage is its own `Moc.fits` (455 cells at order 8, its
 `moc_sky_fraction` to four figures).  Its `properties` call it
-`hips_status = private`: served openly, not listed in the registries.  It
+`hips_status = private`: served openly, not listed in the registries
+(**drawing it straight from Rubin's server is the maintainer's decision**,
+2026-11-20, over a pyramid of our own from the press image).  It
 is the survey that draws in the Rubin app today.  The same host has two
 more of the viewer's, not used: `hips/asteroids/color_ugri` (the same
 field) and `hips/oceancosmosm18/color_gri` (35 deg² about RA 221.7°, Dec
@@ -260,6 +262,13 @@ field in April and May.
   without it, 800 × 500: without the key 896 pixels are darker than with
   no layer (stars hidden), with it 22 (the scene's stars under the image
   itself); the image's own pixels are the same either way.
+- **The field buttons** (Rubin.md, "The app"), headless at 900 × 900,
+  landed at the site on 15 May 2026 02:00 UTC with the app open: no
+  buttons with "Rubin's image" off; on, *Discovery field* and *Virgo
+  Cluster* (CDS's `properties` a 404, so no Trifid and Lagoon); *Virgo
+  Cluster* leaves the view 0.000° from the field at 3.5°, tracking off,
+  its tiles ready; *Discovery field* 0.000° at 2°; and at 10:00 UTC, with
+  Virgo set, the note "Virgo Cluster is below the horizon here now."
 - **Rubin's own Virgo tiles in the Rubin app**, headless as above
   (800 × 500, the tile host through the proxy), "Rubin's image" on, the
   clock paused on 15 May 2026 02:00 UTC with Virgo near the meridian: at a

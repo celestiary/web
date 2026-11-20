@@ -43,8 +43,8 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 In the Rubin Observatory app, "Rubin's image" now also lays Rubin's First Look of June 2025 on the
 sky where it was taken: the Virgo Cluster, 24 square degrees of galaxies from Rubin's own image
-tiles, sharper as you zoom in. On the survey cadence, the panel says when the telescope's field
-holds Rubin's images. A new layer draws them, one that can show other sky surveys the same way: a
+tiles, sharper as you zoom in. Buttons under the switch turn the view to each imaged field. On the
+survey cadence, the panel says when the telescope's field holds Rubin's images. A new layer draws them, one that can show other sky surveys the same way: a
 link with `?sky=jwst-nircam` lays JWST's NIRCam images on the sky, the Pillars of Creation among
 them. The Trifid and Lagoon nebulae, the First Look's other field, will show when CDS's tile service
 answers again.

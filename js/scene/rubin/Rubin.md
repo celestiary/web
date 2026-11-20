@@ -279,6 +279,19 @@ unpinned, removes them (`Scene.removeRubin`).
   place of the stare ([below](#cadence)), and two lines more in the
   readout: the visit (n of N, its filter, or slewing to it) and the time
   to the next visit of 2026 ED138's field, each marked "(modelled)".
+- **Rubin's image**: the switch for Rubin's public imagery on the sky
+  ([below](#the-imagery)), and with it on a button for each field that can
+  be shown: the discovery field, the Virgo Cluster, and the Trifid and
+  Lagoon while CDS serves them (`install.js` `newImageSwitch` `fields()`,
+  in the lazy code: each field's direction through the stars' frame and
+  the field of view that frames it, 2° and the camera's 3.5°; CDS's
+  `properties` asked once says whether its field is offered).  A button
+  turns the view there over the look tween (`goToField`), out of the
+  cadence's ride and off tracking, which would both turn it back, and
+  where the camera is landed and the field is under the horizon it says
+  so under the buttons, since the ground is then in the way.  The buttons
+  are the way to the fields: the image is on the sky wherever the camera
+  is, whatever is targeted.
 - **The dome and the building**: the shell switch (`setShell`).
 - **Its path on the sky**: the switch for the arc.
 

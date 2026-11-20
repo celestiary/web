@@ -73,9 +73,10 @@ export const STATIC_BUDGET = {
   // CameraModeMenu.jsx 2.4 KB, plain buttons: MUI's Menu, though already in
   // the first load, cost more, and loading the menu lazily split the first
   // load from 11 scripts to 14), so 2,461.
-  // The HiPS sky layer (#360) fits within it: all of it lazy but the
-  // `?sky=` parameter in Scene (showSky).
-  totalMinifiedKB: 2461,
+  // The HiPS sky layer (#360) is lazy but for the `?sky=` parameter in
+  // Scene (showSky) and the Rubin panel's buttons to its imaged fields
+  // (their list and directions are in the lazy code), half a KB: 2,462.
+  totalMinifiedKB: 2462,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
