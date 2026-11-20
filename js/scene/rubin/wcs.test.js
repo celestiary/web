@@ -48,6 +48,22 @@ describe('the image\'s WCS', () => {
     expect(wcs.fit.rmsArcsec).toBeLessThan(1)
   })
 
+  it('has 2026 ED138 inside the image through the run, across it', () => {
+    const horizons = JSON.parse(readFileSync(new URL('../ed138.horizons.json', import.meta.url)))
+    // The visits ran 4 March to 11 July 2026 (JD 2461103.5 to 2461232.5).
+    const xs = []
+    for (const o of horizons.observer.filter((e) => e.jd >= 2461103.5 && e.jd <= 2461232.5)) {
+      const p = worldToPix(wcs, o.raDeg, o.decDeg)
+      expect(p.x).toBeGreaterThan(0)
+      expect(p.x).toBeLessThan(wcs.width)
+      expect(p.y).toBeGreaterThan(0)
+      expect(p.y).toBeLessThan(wcs.height)
+      xs.push(p.x)
+    }
+    // The composite is framed on the track: it crosses most of the width.
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(wcs.width * 0.6)
+  })
+
   it('places RA and Dec in the scene as the star catalogue does', () => {
     for (const [ra, dec] of [[274.264, -42.777], [0, 0], [101.287, -16.716], [300, 60]]) {
       const v = equatorialToScene(ra, dec)

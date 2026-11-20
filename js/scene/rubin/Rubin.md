@@ -14,7 +14,10 @@ and a body in the Sun's system.
 | `rubinModel.js` | The dome, enclosure and telescope from primitives, in metres |
 | `RubinObservatory.js` | The model on Earth's ground, turned each frame to follow the body |
 | `ApparentPath.js` | The body's apparent path on Earth's sky over the run, the months named, a ring at the clock's time |
-| `install.js` | Builds both in the scene (`Scene.getRubin`), a dynamic import |
+| `install.js` | Builds both in the scene (`Scene.getRubin`), a dynamic import, and the image's switch |
+| `RubinImage.js`, `wcs.js` | Rubin's image on the sky: the tile layer, and the TAN WCS it's placed by ("The imagery") |
+| `public/data/rubin/noirlab2626d.json` | The image's manifest: tiles, levels, credit, licence, WCS |
+| `../../../tools/rubin/` | `solveWcs.py` (the WCS fitted to Gaia) and `pyramid.py` (the tiles) |
 | `../../ui/RubinApp.jsx` | The app's panel: the views, a night's observing, the readout, the optics, the shell's and the path's switches |
 | `../../store/rubinApp.js` | The app's ID, the `apps.rubin` token and the field's readout |
 | `../observer/instrument.js` | `RUBIN`, the instrument the app makes the observer, and the field range (`instrumentFieldRange`, `clampField`) |
@@ -385,6 +388,99 @@ camera's tweens, the store) was split out the same way.  The panel
 repeats the few numbers it needs of `rubin.js` (`store/rubinApp.js`)
 rather than import it; `rubin.test.js` holds them equal.
 
+## The imagery
+
+"Rubin's image", a switch in the app (off by default, `apps.rubin:image=1`;
+[#333](https://github.com/celestiary/web/issues/333)), lays the discovery
+image over the field it was taken of, on the sky where its stars are.
+
+**Source and licence.**  NOIRLab's composite
+[noirlab2626d](https://noirlab.edu/public/images/noirlab2626d/): the 30
+visits over 20 nights, 4 March to 11 July 2026, stacked, so it shows the
+field, not one night's frame.  33,075 × 22,050 px at 0.2″, 110′ × 73′,
+centred at RA 18h17m03.45s, Dec −42°46′36″.  CC BY 4.0, credit
+"NSF–DOE Vera C. Rubin Observatory/NOIRLab/SLAC/AURA; image processing
+M. Jurić (UW), D. de Martin & M. Zamani (NSF NOIRLab)", with the note
+that celestiary tiled and reprojected it; the credits footer
+(`credits.js`) carries it, timed, while the image is on.  Rubin's own
+survey imagery isn't public until its proprietary period ends (about
+2028), and its tiles may not be redistributed: the press composite is what
+can be shown.  NOIRLab's own Zoomify pyramid of it sends no
+`access-control-allow-origin`, so a page can't use its tiles as textures;
+hence a pyramid of our own.
+
+**The placement (WCS).**  The image has no FITS header, so one was fitted:
+`tools/rubin/solveWcs.py` finds the brightest star centroids in a copy
+reduced 8× (1.6″ a pixel), searches rotation (0.5° steps) and both parities
+from the page's centre and 0.2″ scale for the best match to Gaia DR3
+(G < 12.5 within 1.1°), then fits a TAN projection (CRVAL, CRPIX, CD) by
+least squares, rejecting at 3σ.  **567 stars, 0.60″ rms** (3 full-resolution
+pixels; under half a reduced pixel), scale 0.2000″, north 23.9° left of up
+(the WorldWide Telescope link's 23.87°; NOIRLab's "156.1° left of vertical"
+is the same angle from the vertical's other end), sky parity (not mirrored).
+The WCS is in the manifest; `js/scene/rubin/noirlab2626d.stars.json` holds
+every seventh matched star, and `wcs.test.js` holds the WCS to them (each
+within 2″), to the page's centre and rotation, and puts 2026 ED138 (the
+Horizons fixture) inside the image all through the run: its track crosses
+the frame from left to right, as the composite was framed on it.  The
+Gaia query:
+
+```sql
+SELECT source_id, ra, dec, phot_g_mean_mag FROM gaiadr3.gaia_source
+WHERE 1=CONTAINS(POINT('ICRS',ra,dec),CIRCLE('ICRS',274.264,-42.777,1.1))
+  AND phot_g_mean_mag < 12.5
+```
+
+(sync, CSV, from `https://gea.esac.esa.int/tap-server/tap/sync`).  A TAN
+fit leaves any distortion of NOIRLab's reprojection in the residual; at
+0.6″ there's none worth a polynomial.
+
+**The pyramid.**  `tools/rubin/pyramid.py` (Python with Pillow) cuts the
+large JPEG (`storage.noirlab.edu/media/archives/images/large/noirlab2626d.jpg`,
+303 MB) into 512 px JPEG tiles (quality 82), a quadtree in image space:
+level k is the image reduced by 2^(7−k), `<level>/<x>_<y>.jpg`, x right, y
+down, edge tiles short.  The committed pyramid stops at **level 5, a
+quarter of full resolution (0.8″ a pixel, about Rubin's delivered 0.7″
+seeing)**: 265 tiles, 23 MB in LFS under `public/large/rubin/noirlab2626d/`.
+
+```sh
+curl -O https://storage.noirlab.edu/media/archives/images/large/noirlab2626d.jpg
+python3 -I tools/rubin/pyramid.py noirlab2626d.jpg public/large/rubin/noirlab2626d --max-level 5
+```
+
+Without `--max-level` it goes to level 7, full resolution (0.2″, about 290
+MB of tiles), too much for the repo's LFS: hosting that depth, a static
+site with CORS as the Cesium guest is, is a decision left open.  Full
+resolution only shows under a 0.1° field.  The levels it prints go into the
+manifest's `tiles.levels`.
+
+**The manifest** (`public/data/rubin/noirlab2626d.json`, fetched when the
+switch is first on): id, title, source, credit, licence, frame (ICRS), the
+tiles' URL pattern (resolved with `dataUrl`), tile size, levels, and the
+WCS.  It is the shape an asset service would serve, so it can move to the
+portal when the portal grows assets.
+
+**The layer** (`RubinImage.js`, in the Rubin chunk).  Each tile is an 8 × 8
+grid whose vertices the WCS puts on the celestial sphere in the star
+catalogue's J2000 frame (`wcs.js` `equatorialToScene`, galacticFrame.js's
+turn), so the tangent projection's curvature is in the mesh, not a flat
+quad.  The group hangs from `Scene.stellarFrame`, which precesses it to the
+date with the stars, and each tile is drawn centred on the camera
+(`onBeforeRender` puts its translation at the camera's), so no parallax
+anywhere.  The level is the coarsest whose pixel fits a screen pixel
+(`selectLevel`: level 2 at the camera's 3.5°, 4 at 0.5°, the deepest from
+about 0.25°), only the tiles in the view's circle are fetched, six at a
+time, from `preAnimCb` (no DOM work in a synchronous path), level 2 drawn
+whole under the detail while it loads, 96 tiles kept.  Drawn after the
+opaque bodies, depth-tested without writing depth, **over the star
+points** (the photograph has its own stars) and under the overlays (the
+path, the pixel marker).  **Its brightness is the photograph's**: the
+tiles are display-referred sRGB, read undecoded and written through
+`sceneReferred`, so the tone map gives each texel back as it was, at any
+exposure and any metered gain.  It reads as the press image, not as what
+the eye would see from the seat; a physical rendering would want the
+calibrated data, which isn't public.
+
 ## Checked
 
 - The tests above, and `ed138.test.js`.
@@ -482,6 +578,11 @@ rather than import it; `rubin.test.js` holds them equal.
   - No page errors.
 
 ## Not yet
+
+- **Rubin's image at full resolution** (0.2″, level 7): the pyramid in
+  the repo stops at 0.8″; the deeper levels want hosting outside LFS.  And
+  noirlab2626a's circles at the object's positions, a cross-check of the
+  WCS against the object rather than the stars, not yet done.
 
 - **Rubin's light and PSF.**  The instrument has the eye's collecting
   area and point spread function (#340).  Its pixel and its seeing are
