@@ -8,7 +8,7 @@ Celestiary is a web-based astronomical simulator — an interactive 3D solar sys
 
 | Concern | Library/Tool |
 |---|---|
-| 3D rendering | Three.js 0.171 (WebGL2) |
+| 3D rendering | Three.js 0.187 (WebGL2) |
 | React framework | React 18 + React DOM |
 | UI components | MUI v5 (Material UI) |
 | Routing | Wouter 3 (hash-based for celestial targets, path-based for app sections) |

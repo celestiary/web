@@ -25,7 +25,7 @@ describe('the Moon mesh\'s shader', () => {
     expect(src).not.toContain('#include <lights_physical_pars_fragment>')
     expect(src).not.toContain(LAMBERT_DIRECT_GLSL)
     expect(src).toContain('float lunarReflectance(')
-    expect(src).toContain('directLight.color * BRDF_Lambert( material.diffuseColor ) *')
+    expect(src).toContain('directLight.color * BRDF_Lambert( material.diffuseContribution ) *')
     expect(src).toContain('reflectedLight.directDiffuse += uEarthshine * BRDF_Lambert')
     // After the lights, where geometryNormal and geometryViewDir are in scope.
     expect(src.indexOf('uEarthshine * BRDF_Lambert')).toBeGreaterThan(src.indexOf('#include <lights_fragment_end>'))
