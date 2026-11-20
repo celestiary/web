@@ -56,7 +56,14 @@ export const STATIC_BUDGET = {
   // the panel both first load), 2,371.  With the camera turning with a
   // body low over its ground (#344: Scene _syncSpin, _hungOn,
   // linkCameraQuaternion), 2,372.
-  totalMinifiedKB: 2372,
+  // With the Suntan app's panel (ui/SuntanApp.jsx, its icon and token
+  // codec, store/suntanApp.js; chrome in the drawer, as the Rubin panel is,
+  // with its mission and sensors a chunk of their own: scene/suntan/), 2,382
+  // (8 KB more), so 2,383; MUI's Select for its event list would have been 4
+  // more, so it's a native select.  2,384 with its craft findable (the
+  // `craft` target in Scene and the search, SuntanProvider, the app's search
+  // view and the panel's find buttons, a KB), so 2,385.
+  totalMinifiedKB: 2385,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -73,7 +80,10 @@ export const STATIC_BUDGET = {
   // credits.js, CreditsFooter.jsx, scene/gibs.js; chrome, so in the first
   // load with the footer).  741 with the seat's aim (#332: 740.2, a
   // fifth of a KB over).
-  totalGzipKB: 741,
+  // 744, so 745, with the Suntan app's panel (2 KB: the panel and its
+  // token, as the Rubin panel; loaded lazily it would split shared chunks as
+  // that one's did).
+  totalGzipKB: 745,
   // The largest single first-load file, minified.  Main: 695 KB.
   largestChunkMinifiedKB: 765,
 }

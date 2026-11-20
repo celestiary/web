@@ -39,6 +39,20 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### Fly a concept mission to the Sun's surface, and read its sensors
+
+The new Suntan app in the drawer follows Parker Solar Probe's seven Venus flybys to the Sun,
+settles a relay into an orbit that turns with the Sun's surface and drops a lander to the
+photosphere. Step through the mission's events, find and ride either craft, and read its
+simulated sunlight, temperatures, solar wind and magnetic field as it goes. Search for "Suntan"
+to open it, from the homepage too.
+
+- Date: 2026-11-20
+- PR: [#363](https://github.com/celestiary/web/pull/363)
+- Epic: [#120](https://github.com/celestiary/web/issues/120) Missions and models
+- Permalink: [Open this view](https://celestiary.org/#sun@65,-90,328.421067Gm;t=9979.535155jd;cq=-0.5373,0,0,0.8434;fov=45deg;s=F;time:pause;apps:open,view=suntan)
+- Featured: yes
+
 ### The ground holds still under you low over a planet, and Earth's clouds stop flickering
 
 Below 30 km the camera now turns with the planet, so the ground stays put under you and the sky turns as
