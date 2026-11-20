@@ -1,5 +1,6 @@
 {
   "id": "ESAVO/P/JWST/NIRCam_Imaging",
+  "key": "jwst-nircam",
   "title": "JWST NIRCam imaging",
   "serviceUrls": [
     "https://skies.esac.esa.int/JWST/NIRCam_Imaging"

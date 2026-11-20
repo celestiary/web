@@ -132,15 +132,15 @@ The credits footer carries both, timed, while its tiles are drawn.
 **JWST NIRCam** is ESASky's HiPS of the eJWST archive's NIRCam images,
 single band, transparent where there is no data.  It's in the manifests
 as the proof that the layer is general and as the survey its check runs
-on; nothing in the interface switches it on yet.  From the console:
+on.  No control switches it on yet; a link does: **`?sky=<key>`** in the
+page's query string (`Scene.showSky`, `sky/install.js` `showSurvey`: the
+layer under the stellar frame, loaded lazily, its credit in the footer
+while its tiles are drawn), the key a manifest's `key` (`jwst-nircam`,
+`rubin-first-look`).  The Pillars of Creation in M16, from the Rubin
+site's night sky at a 0.12° field:
 
-```js
-const m = await c.scene.loadRubin()
-const sr = (await c.scene.getRubin()).image  // after "Rubin's image" once: its layers hold sceneReferred
-const layer = new m.HipsLayer({survey: m.SURVEYS[1], sceneReferred: sr.firstLook.sceneReferred,
-  view: () => ({camera: c.ui.camera, fovDeg: c.ui.camera.fov, aspect: c.ui.camera.aspect,
-    heightPx: c.ui.renderer.domElement.height})})
-c.scene.stellarFrame.add(layer)
+```
+https://celestiary.org/?sky=jwst-nircam#sun/ed138@-30.2446,-70.7494,2.684km;from=sun/earth;t=9630.783523jd;cq=0.014,0.9593,0.1209,-0.2547;fov=0.12deg;s=LF;time:pause
 ```
 
 **Next surveys:** Hubble and JWST in colour.  CDS's registry lists 68
@@ -218,6 +218,17 @@ field in April and May.
   catalogue stars in the frame, drawn without the layer, lie 0.8″ from the
   same Gaia places, so the image and the scene's stars agree to about a
   pixel.
+- `?sky=jwst-nircam` with the link above, in a fresh headless page with
+  ESASky reached through the proxy: the layer on from the link, order 9,
+  its tiles ready and drawn, none missing, no console errors, the Pillars
+  in the frame (the maintainer's ask on the preview: how to see them).
+- Rubin's First Look with CDS answered by a test pattern (the tile host
+  refuses the sandbox): from a link aimed at the Trifid and Lagoon (RA
+  271.0°, Dec −23.9°, a 6° field, `apps.rubin:image=1`) the layer asks
+  `Norder0/Dir0/Npix7.webp`, `Norder1/Dir0/Npix28.webp` and five tiles of
+  order 4 (`Npix1804` to `1807`, `1816`), and draws them over the field,
+  with the credit in the footer.  So what a visitor's browser asks CDS for
+  is known; whether CDS has those tiles, in webp, is the preview's to show.
 - The Rubin app on the cadence at the Trifid/Lagoon visit (night 9 April
   2026, `apps.rubin:night=20552,cadence=1,image=1`): the readout's third
   line reads "Rubin's image covers this field: First Look, the Trifid and

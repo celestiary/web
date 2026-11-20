@@ -12,7 +12,7 @@ import {discMeetsCoverage, lonLatToVec, newCoverage} from './hips.js'
 
 /** Rubin's First Look of 23 June 2025 (CDS): the Rubin app's "Rubin's image". */
 export const RUBIN_FIRST_LOOK = rubinFirstLook
-/** ESASky's JWST NIRCam imaging: the check on real tiles; no control yet. */
+/** ESASky's JWST NIRCam imaging: the check on real tiles; `?sky=jwst-nircam` (install.js), no control yet. */
 export const JWST_NIRCAM = jwstNircam
 
 export const SURVEYS = [RUBIN_FIRST_LOOK, JWST_NIRCAM]
