@@ -21,6 +21,157 @@
       "image": null
     },
     {
+      "id": "2026-11-20-zooming-out-after-leaving-a-planet-s-orbit",
+      "date": "2026-11-20",
+      "headline": "Zooming out after leaving a planet's orbit stays near the planet",
+      "text": "After f turned following off, one scroll of the wheel threw the camera millions of kilometres out, and dragging swung it round the Sun. The zoom and the drag now turn about the body you're looking at, so you can fly freely near it.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 364,
+          "url": "https://github.com/celestiary/web/pull/364"
+        },
+        {
+          "kind": "issue",
+          "number": 361,
+          "url": "https://github.com/celestiary/web/issues/361"
+        }
+      ],
+      "epic": {
+        "number": 118,
+        "title": "Navigation, time and sharing",
+        "url": "https://github.com/celestiary/web/issues/118"
+      },
+      "permalink": null,
+      "image": null,
+      "kind": "fix"
+    },
+    {
+      "id": "2026-11-20-fly-a-concept-mission-to-the-sun-s-surface-and",
+      "date": "2026-11-20",
+      "headline": "Fly a concept mission to the Sun's surface, and read its sensors",
+      "text": "The new Suntan app in the drawer follows Parker Solar Probe's seven Venus flybys to the Sun, settles a relay into an orbit that turns with the Sun's surface and drops a lander to the photosphere. Step through the mission's events, find and ride either craft, and read its simulated sunlight, temperatures, solar wind and magnetic field as it goes. Search for \"Suntan\" to open it, from the homepage too.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 363,
+          "url": "https://github.com/celestiary/web/pull/363"
+        }
+      ],
+      "epic": {
+        "number": 120,
+        "title": "Missions and models",
+        "url": "https://github.com/celestiary/web/issues/120"
+      },
+      "permalink": "#sun@65,-90,328.421067Gm;t=9979.535155jd;cq=-0.5373,0,0,0.8434;fov=45deg;s=F;time:pause;apps:open,view=suntan",
+      "image": null,
+      "featured": true
+    },
+    {
+      "id": "2026-11-20-the-ground-holds-still-under-you-low-over-a",
+      "date": "2026-11-20",
+      "headline": "The ground holds still under you low over a planet, and Earth's clouds stop flickering",
+      "text": "Below 30 km the camera now turns with the planet, so the ground stays put under you and the sky turns as time runs, as it would for someone there. Before, the ground slid by at the planet's turning (460 m/s over Earth), and the clouds up close flickered while the clock ran.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 359,
+          "url": "https://github.com/celestiary/web/pull/359"
+        },
+        {
+          "kind": "issue",
+          "number": 344,
+          "url": "https://github.com/celestiary/web/issues/344"
+        }
+      ],
+      "epic": {
+        "number": 118,
+        "title": "Navigation, time and sharing",
+        "url": "https://github.com/celestiary/web/issues/118"
+      },
+      "permalink": "#sun/earth@7.0316,-7.5554,624m;t=9819.841738jd;cq=-0.3849,0.6474,-0.3869,-0.5319;fov=45deg;s=alpoGF",
+      "image": null,
+      "kind": "fix"
+    },
+    {
+      "id": "2026-11-20-rubin-surveys-the-sky-visit-by-visit",
+      "date": "2026-11-20",
+      "headline": "Rubin surveys the sky, visit by visit",
+      "text": "The Rubin Observatory app's new Survey cadence switch has the telescope work as a survey night does, rather than staring at 2026 ED138: 30-second visits to 3.5° fields, a few seconds' slew between neighbours, each field visited again about 33 minutes later, and the object's field among them. With it on, Watch the night rides the telescope from field to field, about a visit a second. The night's fields are drawn on the sky as circles, the current one bright, and the panel counts the visits and the time to the object's next. The schedule is a model from Rubin's published survey rules, not its log, whose visit lists aren't public yet.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 354,
+          "url": "https://github.com/celestiary/web/pull/354"
+        },
+        {
+          "kind": "issue",
+          "number": 332,
+          "url": "https://github.com/celestiary/web/issues/332"
+        }
+      ],
+      "epic": {
+        "number": 321,
+        "title": "The Rubin Observatory and 2026 ED138",
+        "url": "https://github.com/celestiary/web/issues/321"
+      },
+      "permalink": "#sun/ed138@-30.2446,-70.7494,2.684km;from=sun/earth;t=9630.783523jd;cq=-0.1325,0.8944,0.4018,-0.1454;fov=30deg;s=LTF;time:pause;apps:open,view=rubin;apps.rubin:optics=0,cadence=1",
+      "image": null,
+      "featured": true
+    },
+    {
+      "id": "2026-11-20-rubin-s-discovery-image-on-the-sky-where-it-was",
+      "date": "2026-11-20",
+      "headline": "Rubin's discovery image, on the sky where it was taken",
+      "text": "Turn on \"Rubin's image\" in the Rubin app and NOIRLab's picture of the field where Rubin found 2026 ED138 lies over the stars it shows, placed by those stars to under an arcsecond. Zoom in from the telescope's 3.5° field and it sharpens to Rubin's own resolution; the object's path crosses it.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 357,
+          "url": "https://github.com/celestiary/web/pull/357"
+        },
+        {
+          "kind": "issue",
+          "number": 333,
+          "url": "https://github.com/celestiary/web/issues/333"
+        }
+      ],
+      "epic": {
+        "number": 321,
+        "title": "The Rubin Observatory and 2026 ED138",
+        "url": "https://github.com/celestiary/web/issues/321"
+      },
+      "permalink": "#sun/ed138@-30.2445,-70.7494,1.689km;from=sun/earth;t=9630.807563jd;cq=0.7319,0.5529,0.1076,-0.3834;fov=2deg;s=LTF;time:pause;apps:open,view=rubin;apps.rubin:image=1",
+      "image": null,
+      "featured": true
+    },
+    {
+      "id": "2026-11-20-2026-ed138-s-path-stays-on-it-in-rubin-s",
+      "date": "2026-11-20",
+      "headline": "2026 ED138's path stays on it in Rubin's narrowest views",
+      "text": "With Rubin's optics limit off and the field zoomed far past Rubin's pixels, the apparent path's ring now sits on 2026 ED138 and holds still, and the path runs through the body, where the ring jumped between frames and drifted off it.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 355,
+          "url": "https://github.com/celestiary/web/pull/355"
+        },
+        {
+          "kind": "issue",
+          "number": 340,
+          "url": "https://github.com/celestiary/web/issues/340"
+        }
+      ],
+      "epic": {
+        "number": 321,
+        "title": "The Rubin Observatory and 2026 ED138",
+        "url": "https://github.com/celestiary/web/issues/321"
+      },
+      "permalink": null,
+      "image": null,
+      "kind": "fix"
+    },
+    {
       "id": "2026-11-20-a-link-to-a-body-by-its-name-alone-opens-it",
       "date": "2026-11-20",
       "headline": "A link to a body by its name alone opens it",
