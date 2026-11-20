@@ -603,6 +603,8 @@ body's own, where it can show, and is costly enough to be off by default.
 ```
 nyc      Slop New York: Manhattan's 3D city on Earth's Cesium layer
          (CESIUM.md, "New York")
+sun=euv  the Sun's activity view: an EUV imager's disc in a coronagraph's
+         field (js/scene/Sun.md, "The activity view")
 ```
 
 ```
@@ -610,8 +612,22 @@ nyc      Slop New York: Manhattan's 3D city on Earth's Cesium layer
                                     the aerial of Lower Manhattan, the city on
 ```
 
+```
+#sun@-50.7478,-141.4986,23.604464Gm;t=8873.409722jd;cq=0.376,-0.4341,0.206,0.7923;fov=5.5deg;s=alpoGxF;time:rate=64;layers:sun=euv
+                                    the homepage's eruption card: a CME lifting off, the clock at 64 times
+```
+
 Decisions:
 
+- **A body's view is a named value**, `body=view`, the form kept for the
+  renderer chosen per body.  `sun=euv` is the first.  Unlike `nyc` it is
+  restored whole, as the clock is: a link with a view and no `sun=` shows
+  the Sun as the page does (the eye's, or the `?sun=euv` query's), so a
+  card opened after the eruption's isn't left in false colour.  And it is
+  the Sun's close-up: once the camera has been within 150 solar radii and
+  then leaves, the view gives way to the page's (`SunLayers.linkViewAt`),
+  so the Sun in Earth's sky isn't an instrument's.  The app writes it
+  while the view is on.
 - **A token, not an `s=` letter.**  `s=` is the scene's toggles, each of
   them free to flip and drawn at once; this is a layer that loads ~140 MB
   and takes seconds to build, offered only in one place.  It belongs with

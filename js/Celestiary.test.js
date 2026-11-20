@@ -34,6 +34,13 @@ const DATED_EARTH = Object.freeze({
   id: 'earth',
   link: 'sun/earth@-38.1501,-99.3434,12.104919Mm;t=9781.4376jd;cq=0.1302,-0.0725,0.0095,0.9888;fov=45deg;s=alpoF',
 })
+// The Moon hiding Jupiter (#192), a homepage card until the Sun's eruption
+// took its place: a view a long way off in time, landing on Earth, which the
+// flights' plans and the changelog tour are tested on.
+const OCCULTATION = Object.freeze({
+  id: 'occultation',
+  link: 'sun/jupiter@41.2054,-82.3901,169m;from=sun/earth;t=9774.891jd;cq=0.3372,-0.7003,-0.112,0.6191;fov=0.91deg;s=oL',
+})
 
 // Permalink values for the test scenario
 const PL = {
@@ -2503,7 +2510,7 @@ describe('the homepage', () => {
   it('a card a long way off in time, by the Sun: no dark; its date is set mid-flight, unseen, the camera continuous', async () => {
     const app = await openHome()
     let t = run(app, 1000, 500)
-    const card = HOME_CARDS.find((c) => c.id === 'occultation')
+    const card = OCCULTATION
     app.time.setTime(linkMs(card.link) - (30 * 86400000))
     // By the Sun, facing it: a month would turn it under the camera.
     expect(app._nearestShownRadii()).toBeLessThan(NEAR_RADII)
@@ -2550,7 +2557,7 @@ describe('the homepage', () => {
   it('with the near body out of view, a long change of date is set at the start, unseen: no dark at all', async () => {
     const app = await openHome()
     let t = run(app, 1000, 500)
-    const card = HOME_CARDS.find((c) => c.id === 'occultation')
+    const card = OCCULTATION
     app.time.setTime(linkMs(card.link) - (30 * 86400000))
     // Turned away from the Sun, nothing near in the view.
     app.ui.camera.rotateY(Math.PI)
@@ -2818,7 +2825,7 @@ describe('the homepage', () => {
   // ---- The changelog tour (changelog.js, newsTour.js; DESIGN.md "What's new") ----
 
   const EARTH_CARD = DATED_EARTH
-  const OCCULTATION_CARD = HOME_CARDS.find((c) => c.id === 'occultation')
+  const OCCULTATION_CARD = OCCULTATION
   const GAIA_CARD = HOME_CARDS.find((c) => c.id === 'gaia')
   const NEWS = {entries: [
     {id: '2026-10-13-earth-at-dusk', date: '2026-10-13', headline: 'Earth at dusk',

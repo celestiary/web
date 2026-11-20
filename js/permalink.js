@@ -737,32 +737,38 @@ export function decodePopulationToken(value) {
 
 /** The `layers:` token's flags: the optional layers switched on (design/URLs.md). */
 export const LAYER_FLAGS = Object.freeze({newYork: 'nyc'})
+/** Its named values: a body's view where it has more than one (`sun=euv`). */
+export const LAYER_SUN = 'sun'
+export const SUN_VIEWS = Object.freeze(['euv'])
 
 
 /**
- * The `layers:` token (design/URLs.md): the optional layers switched on.
- * `nyc` is Slop New York, Manhattan's 3D city on Earth's Cesium layer
- * (CESIUM.md, "New York").  Left out (null) when none is, its default.
+ * The `layers:` token (design/URLs.md): the optional layers switched on,
+ * and the Sun's view where it isn't the eye's.  `nyc` is Slop New York,
+ * Manhattan's 3D city on Earth's Cesium layer (CESIUM.md, "New York");
+ * `sun=euv` the Sun's activity view (js/scene/Sun.md, "The activity view").
+ * Left out (null) when nothing is on, its default.
  *
- * @param {{newYork?: boolean}} [layers]
+ * @param {{newYork?: boolean, sun?: ?string}} [layers]
  * @returns {?string}
  */
 export function encodeLayersToken(layers) {
   const flags = Object.entries(LAYER_FLAGS).filter(([key]) => layers?.[key] === true).map(([, flag]) => flag)
-  return formatTokenValue(flags) || null
+  const sun = SUN_VIEWS.includes(layers?.sun) ? layers.sun : null
+  return formatTokenValue(flags, {[LAYER_SUN]: sun}) || null
 }
 
 
 /**
- * The inverse of encodeLayersToken.  Unknown flags and named values are
+ * The inverse of encodeLayersToken.  Unknown flags, names and views are
  * ignored, so a link from a newer build still opens.
  *
  * @param {string} [value] The token's value, undefined if the link has none
- * @returns {{newYork: boolean}}
+ * @returns {{newYork: boolean, sun: ?string}} `sun` null for the eye's view
  */
 export function decodeLayersToken(value) {
-  const {flags} = parseTokenValue(value)
-  return {newYork: flags.includes(LAYER_FLAGS.newYork)}
+  const {flags, named} = parseTokenValue(value)
+  return {newYork: flags.includes(LAYER_FLAGS.newYork), sun: SUN_VIEWS.includes(named[LAYER_SUN]) ? named[LAYER_SUN] : null}
 }
 
 

@@ -882,10 +882,17 @@ describe('the layers token', () => {
   })
 
   it('reads them back, ignoring what it doesn\'t know', () => {
-    expect(decodeLayersToken('nyc')).toEqual({newYork: true})
-    expect(decodeLayersToken('nyc,later,earth=default')).toEqual({newYork: true})
-    expect(decodeLayersToken('')).toEqual({newYork: false})
-    expect(decodeLayersToken(undefined)).toEqual({newYork: false})
+    expect(decodeLayersToken('nyc')).toEqual({newYork: true, sun: null})
+    expect(decodeLayersToken('nyc,later,earth=default')).toEqual({newYork: true, sun: null})
+    expect(decodeLayersToken('')).toEqual({newYork: false, sun: null})
+    expect(decodeLayersToken(undefined)).toEqual({newYork: false, sun: null})
+    // The Sun's view, a named value: the activity view; an unknown one is the eye's.
+    expect(encodeLayersToken({sun: 'euv'})).toBe('sun=euv')
+    expect(encodeLayersToken({newYork: true, sun: 'euv'})).toBe('nyc,sun=euv')
+    expect(encodeLayersToken({sun: 'eye'})).toBeNull()
+    expect(decodeLayersToken('sun=euv')).toEqual({newYork: false, sun: 'euv'})
+    expect(decodeLayersToken('nyc,sun=euv')).toEqual({newYork: true, sun: 'euv'})
+    expect(decodeLayersToken('sun=xray')).toEqual({newYork: false, sun: null})
   })
 
   it('round-trips through a link: the aerial of Lower Manhattan, the city on', () => {
@@ -893,7 +900,7 @@ describe('the layers token', () => {
         {x: 0.2348, y: -0.1201, z: -0.2007, w: 0.9435}, 45, null, {layers: encodeLayersToken({newYork: true})})
     expect(link).toBe('sun/earth@40.5025,-74.0298,780m;t=9792.377067jd;cq=0.2348,-0.1201,-0.2007,0.9435;fov=45deg;layers:nyc')
     const back = decodePermalink(link)
-    expect(decodeLayersToken(back.tokens.layers)).toEqual({newYork: true})
+    expect(decodeLayersToken(back.tokens.layers)).toEqual({newYork: true, sun: null})
     expect(encodePermalink(back.path, back.d2000, back.lat, back.lng, back.alt, back.quat, back.fov, null,
         {layers: encodeLayersToken(decodeLayersToken(back.tokens.layers))})).toBe(link)
     // Off, no token: the link is just the view.

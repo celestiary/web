@@ -41,18 +41,20 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ### The Sun as SOHO and SDO show it: flares, eruptions and the corona
 
-Add `?sun=euv` to the address and the Sun is drawn as a space observatory's instruments show it, not
-as the eye does: its disc in extreme ultraviolet, with bright active regions, dark filaments, flares
+Open **The Sun erupts** on the homepage and the Sun is drawn as a space observatory's instruments show
+it, not as the eye does, with a coronal mass ejection lifting off as you arrive: its disc in extreme ultraviolet, with bright active regions, dark filaments, flares
 that saturate, and prominences round the limb; and round it a coronagraph's field, with the corona's
 streamers and coronal mass ejections. An ejection is a cloud in three dimensions, made of thousands of
 threads and puffs: a billowing front, a dark cavity, and in most of them a bright twisted core, the
-prominence that erupted, which you can fly round and watch rise. It is the same Sun the app already
-simulated by date; ordinary light hides all of this. There is no button for it yet.
+prominence that erupted, which you can fly round and watch rise. It is the Sun the app already simulated by date; ordinary light hides all of this. The view gives way to the ordinary Sun once you fly away.
 
 - Date: 2026-11-20
 - PR: [#358](https://github.com/celestiary/web/pull/358)
 - Epic: [#164](https://github.com/celestiary/web/issues/164) Stars up close: a dynamic Sun, and every star from its physical parameters
-- Permalink: none
+- Permalink: [Open this view](https://celestiary.org/#sun@-50.7478,-141.4986,23.604464Gm;t=8873.409722jd;cq=0.376,-0.4341,0.206,0.7923;fov=5.5deg;s=alpoGxF;time:rate=64;layers:sun=euv)
+- Image: ![Four moments of a coronal mass ejection leaving the Sun, in an EUV imager's false colour](public/images/home/eruption.webp)
+- Featured: yes
+
 ### The Suntan craft, modelled
 
 Find the relay or the lander in the Suntan app and zoom in: the flight system's 3D model rides
