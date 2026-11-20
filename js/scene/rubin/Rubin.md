@@ -410,13 +410,23 @@ night instead, **a model of one, not Rubin's log**.
   simulations, [rubin_scheduler](https://github.com/lsst/rubin_scheduler)
   and [rubin_sim](https://github.com/lsst/rubin_sim)); the Wide-Fast-Deep
   footprint's declinations (about −72° to +12° here); a few filter changes
-  a night.  The slew's kinematics are rubin_sim's kinematic model's
-  defaults as I have them (`KinemModel`): telescope azimuth 7°/s and 7°/s²,
-  elevation 3.5°/s and 3.5°/s², dome azimuth 1.5°/s and 0.75°/s², dome
-  elevation 1.75°/s, a 3 s settle; not re-read from the source for this
-  PR, so worth a check against `kinem_model.py`.  The Simonyi mount's
-  design figures are higher (10.5°/s in azimuth, 5.25°/s in elevation);
-  the scheduler's slower dome decides a slew between neighbours either way.
+  a night.  The slew's kinematics are the scheduler's own, read from
+  [`rubin_scheduler/scheduler/model_observatory/kinem_model.py`](https://github.com/lsst/rubin_scheduler/blob/f5a9d641e979163be45022855412b808da6a8af4/rubin_scheduler/scheduler/model_observatory/kinem_model.py)
+  at lsst/rubin_scheduler `f5a9d641` (main on 2026-11-20), `KinemModel`'s
+  defaults: the telescope (TMA, `setup_telescope`) azimuth 7°/s, 7°/s²,
+  28°/s³ of jerk; altitude 3.5°/s, 3.5°/s², 14°/s³; a 3 s settle; the dome
+  (`setup_dome`) azimuth 1.5°/s and 0.75°/s², altitude 1.75°/s and
+  0.875°/s², no jerk limit, and 1 s for the azimuth to settle.  A slew is
+  the longer of the telescope's slower axis plus its settle and the dome's
+  slower axis (its azimuth with its settle), as `slew_times` takes it with
+  `lax_dome` off.  The telescope's jerk-limited time is a constant-jerk
+  S-curve (`axisSlewSeconds`), written here from the standard profile, not
+  ported from the scheduler's `jerk.py`; its cases are tested for
+  continuity, not against the scheduler's numbers.  `tma_movement` in the
+  same file gives the TMA at a percentage of its full performance (100%:
+  10°/s and 10°/s² in azimuth, capped at 7°/s; 5°/s and 5°/s² in altitude),
+  70% the simulations' default; between neighbouring fields the dome
+  decides either way.
 - **Modelled:** every visit's time and field.  Rubin's visit lists for
   2026 are proprietary for two years (the data policy, DPOL-301; issue
   [#333](https://github.com/celestiary/web/issues/333)'s scoping comment),
@@ -443,10 +453,9 @@ night instead, **a model of one, not Rubin's log**.
   minutes; a second block for as long; then both again in the same order,
   so each field's second visit is about 33 minutes after its first (the
   night's last pairs come back sooner, no sooner than 12 minutes).
-- **The slew** before each visit: the slowest axis's trapezoid of speed,
-  telescope or dome, plus the settle, to where the field will be when the
-  slew ends; a median of about 7 s between neighbours, as Rubin's ~5 s
-  plus settle.  A visit is 30 s open and 4 s of readout and shutter.
+- **The slew** before each visit: as above, to where the field will be
+  when the slew ends; a median of about 5 s between neighbours, as Rubin's
+  ~5 s.  A visit is 30 s open and 4 s of readout and shutter.
 - **Filters**: g, r, i, z, y (u is a dark-time filter, left out); a change,
   two minutes, after three cycles or more, at random by the night's seed.
 - **2026 ED138's field**, centred on the object's place that night (from
@@ -465,7 +474,7 @@ as the path is):
 
 - **The mount** (`RubinObservatory`, its `cadence` option): by night on
   the visit's field, tracking it through the visit, then eased (a
-  smoothstep over the slew less the settle) from where the last visit
+  smoothstep over the slew less the dome's 1 s settle) from where the last visit
   ended to where the next begins; between cycles it holds the last field.
   The beam is off while it slews.  By day it parks as before.  The
   pointing is `cadence.js`'s alt-az (mean sidereal time, first-order
@@ -493,6 +502,12 @@ centre, taken back to the site's frame through the scene's Earth, is
 0.002° in elevation and 0.013° in azimuth from it (0.007° on the sky at
 59°); mid-slew the mount is between fields with the beam off; the
 circles' shader compiled, and the object's teal field sits on 2026 ED138.
+The panel, opened through the store (`dispatchWidgets` `openApp`): the
+switch clicked on sets `cadence: true` in the app's state and the link's
+`apps.rubin:cadence=1`; with the clock paused mid-visit the readout reads
+"Visit 557 of 1012, filter i (modelled)", mid-slew "Slewing to visit 558
+of 1012" with the mount's "Slewing" line; and the rewritten link, with its
+`cq=`, opened in a fresh page, restores the switch on and the same readout.
 
 ## Checked
 

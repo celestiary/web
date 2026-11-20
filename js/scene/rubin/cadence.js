@@ -34,16 +34,20 @@ export const FILTER_CHANGE_S = 120
 export const NIGHT_SUN_EL_DEG = -12
 
 /**
- * The slew's kinematics, rubin_sim's KinemModel defaults (Rubin.md cites
- * them): the telescope's and the dome's azimuth and elevation, top speed
- * (°/s) and acceleration (°/s²), and the settle after a slew.
+ * The slew's kinematics: the scheduler's own, rubin_scheduler's
+ * KinemModel defaults (model_observatory/kinem_model.py at
+ * lsst/rubin_scheduler f5a9d641, read 2026-11-20; Rubin.md): the
+ * telescope's (TMA) azimuth and altitude top speed (°/s), acceleration
+ * (°/s²) and jerk (°/s³), and its settle after a slew; the dome's, with no
+ * jerk limit, and its azimuth's settle.
  */
 export const KINEMATICS = Object.freeze({
-  telAz: Object.freeze({speed: 7, accel: 7}),
-  telAlt: Object.freeze({speed: 3.5, accel: 3.5}),
-  domeAz: Object.freeze({speed: 1.5, accel: 0.75}),
-  domeAlt: Object.freeze({speed: 1.75, accel: 0.875}),
+  telAz: Object.freeze({speed: 7, accel: 7, jerk: 28}),
+  telAlt: Object.freeze({speed: 3.5, accel: 3.5, jerk: 14}),
+  domeAz: Object.freeze({speed: 1.5, accel: 0.75, jerk: null}),
+  domeAlt: Object.freeze({speed: 1.75, accel: 0.875, jerk: null}),
   settleS: 3,
+  domeAzSettleS: 1,
 })
 
 const FILTERS = ['g', 'r', 'i', 'z', 'y']
@@ -237,13 +241,38 @@ export function tileSky(spacing = TILE_SPACING_DEG, footprint = FOOTPRINT_DEC_DE
  * @param {{speed: number, accel: number}} axis
  * @returns {number} Seconds
  */
-export function axisSlewSeconds(dist, {speed, accel}) {
+export function axisSlewSeconds(dist, {speed, accel, jerk = null}) {
   const d = Math.abs(dist)
-  const rampDist = (speed * speed) / accel
-  if (d <= rampDist) {
-    return 2 * Math.sqrt(d / accel)
+  if (!(d > 0)) {
+    return 0
   }
-  return (2 * speed / accel) + ((d - rampDist) / speed)
+  if (!jerk) {
+    const rampDist = (speed * speed) / accel
+    if (d <= rampDist) {
+      return 2 * Math.sqrt(d / accel)
+    }
+    return (2 * speed / accel) + ((d - rampDist) / speed)
+  }
+  // Constant jerk, a symmetric S-curve: each ramp to speed is tj of
+  // jerk, ta of constant acceleration and tj of jerk again.
+  let tj = accel / jerk
+  let ta = (speed / accel) - tj
+  if (ta < 0) {
+    // Top speed before full acceleration.
+    tj = Math.sqrt(speed / jerk)
+    ta = 0
+  }
+  const rampToSpeed = speed * ((2 * tj) + ta)
+  if (d >= rampToSpeed) {
+    return (2 * ((2 * tj) + ta)) + ((d - rampToSpeed) / speed)
+  }
+  // Short of top speed: full acceleration reached, or not.
+  const aTj = accel / jerk
+  if (aTj * aTj * jerk <= speed && d >= 2 * accel * aTj * aTj) {
+    const a = (-3 * aTj) + Math.sqrt((aTj * aTj) + (4 * d / accel))
+    return 2 * ((2 * aTj) + (a / 2))
+  }
+  return 4 * Math.cbrt(d / (2 * jerk))
 }
 
 
@@ -259,8 +288,10 @@ export function azDiff(a, b) {
 
 /**
  * The slew between two pointings: the slowest axis, telescope or dome,
- * and the settle (between neighbouring fields the dome's azimuth is the
- * slow one).
+ * as rubin_scheduler's KinemModel has it (lax_dome off): the telescope's
+ * slower axis and its settle, or the dome's slower axis, the azimuth with
+ * its own settle, whichever is longer (between neighbouring fields, the
+ * dome's azimuth).
  *
  * @param {{el: number, az: number}} from
  * @param {{el: number, az: number}} to
@@ -273,8 +304,9 @@ export function slewSeconds(from, to, k = KINEMATICS) {
   if (dAz < 1e-6 && dAlt < 1e-6) {
     return 0
   }
-  return Math.max(axisSlewSeconds(dAz, k.telAz), axisSlewSeconds(dAlt, k.telAlt),
-      axisSlewSeconds(dAz, k.domeAz), axisSlewSeconds(dAlt, k.domeAlt)) + k.settleS
+  const tel = Math.max(axisSlewSeconds(dAz, k.telAz), axisSlewSeconds(dAlt, k.telAlt)) + k.settleS
+  const domeAz = dAz > 0 ? axisSlewSeconds(dAz, k.domeAz) + k.domeAzSettleS : 0
+  return Math.max(tel, domeAz, axisSlewSeconds(dAlt, k.domeAlt))
 }
 
 
@@ -519,7 +551,7 @@ export function pointingAt(visits, ms, site) {
     return {...from, index, slewing: false}
   }
   const to = raDecToAltAz(v.raDeg, v.decDeg, v.tMs, site)
-  const moveS = Math.max(1e-3, v.slewS - KINEMATICS.settleS)
+  const moveS = Math.max(1e-3, v.slewS - KINEMATICS.domeAzSettleS)
   const s = Math.min(1, (ms - (v.tMs - (v.slewS * 1e3))) / (moveS * 1e3))
   const e = s * s * (3 - (2 * s))
   const dAz = ((((to.az - from.az) % 360) + 540) % 360) - 180

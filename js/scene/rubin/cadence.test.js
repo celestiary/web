@@ -70,7 +70,24 @@ describe('cadence: the sky and the clock', () => {
     // 1.5°/s at 0.75°/s²: 2 s up to speed over 1.5°, and as long down.
     expect(axisSlewSeconds(3, KINEMATICS.domeAz)).toBeCloseTo(4, 6)
     expect(axisSlewSeconds(6, KINEMATICS.domeAz)).toBeCloseTo(6, 6)
-    expect(slewSeconds({el: 60, az: 10}, {el: 60, az: 13.5})).toBeCloseTo(axisSlewSeconds(3.5, KINEMATICS.domeAz) + 3, 6)
+    // The telescope's altitude, 3.5°/s, 3.5°/s², 14°/s³: ramps of
+    // 0.25 + 0.75 + 0.25 s reach speed over 4.375°; a long slew cruises.
+    expect(axisSlewSeconds(20, KINEMATICS.telAlt)).toBeCloseTo(2.5 + ((20 - 4.375) / 3.5), 6)
+    // Short of speed with full acceleration (0.25 s jerk, ta solved).
+    const t = axisSlewSeconds(2, KINEMATICS.telAlt)
+    expect(t).toBeGreaterThan(2 * Math.sqrt(2 / 3.5))
+    expect(t).toBeLessThan(2.5)
+    // Tiny: pure jerk, 4 (d / 2j)^(1/3).
+    expect(axisSlewSeconds(0.01, KINEMATICS.telAlt)).toBeCloseTo(4 * Math.cbrt(0.01 / 28), 9)
+    // Continuous across the cases.
+    for (const d of [4.375, 2 * 3.5 * 0.25 * 0.25]) {
+      expect(axisSlewSeconds(d * 0.999999, KINEMATICS.telAlt)).toBeCloseTo(axisSlewSeconds(d * 1.000001, KINEMATICS.telAlt), 4)
+    }
+    // The dome's azimuth and its 1 s settle decide a neighbour's slew.
+    expect(slewSeconds({el: 60, az: 10}, {el: 60, az: 13.5})).toBeCloseTo(axisSlewSeconds(3.5, KINEMATICS.domeAz) + 1, 6)
+    // A small elevation step: the telescope's S-curve and its 3 s settle.
+    const tel = axisSlewSeconds(0.5, KINEMATICS.telAlt) + 3
+    expect(slewSeconds({el: 60, az: 10}, {el: 60.5, az: 10})).toBeCloseTo(Math.max(tel, axisSlewSeconds(0.5, KINEMATICS.domeAlt)), 6)
     expect(slewSeconds({el: 60, az: 359}, {el: 60, az: 2})).toBeCloseTo(slewSeconds({el: 60, az: 0}, {el: 60, az: 3}), 6)
   })
 })
