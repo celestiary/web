@@ -697,6 +697,28 @@ image=1            Rubin's image, NOIRLab's discovery composite, drawn over
   `optics=0` as written.
 - **A bad value is its default.**
 
+#### `apps.suntan`
+
+The Suntan app ([js/scene/suntan/Suntan.md](../js/scene/suntan/Suntan.md)): a
+concept mission to the Sun's surface on Parker Solar Probe's path, and its
+sensors.
+
+```
+vehicle=lander     the lander's sensors in the panel (the relay's by default)
+paths=0            the trajectory hidden, the craft's marks kept (drawn by
+                   default)
+```
+
+```
+#…;apps:open,view=suntan                              open on the app, the defaults
+#…;apps:open,view=suntan;apps.suntan:vehicle=lander   reading the lander
+#…;apps:view=suntan,pin=suntan;apps.suntan:paths=0    pinned, the marks alone
+```
+
+- **The clock is the `t=` and `time:` tokens'.**  The panel's events, speeds
+  and timeline set the app's clock, which the link carries as ever.
+- **A bad value is its default.**
+
 ### News Token
 
 The changelog tour (DESIGN.md

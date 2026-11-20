@@ -38,10 +38,18 @@ export function newLunarSurfaceUniforms() {
 }
 
 
-/** The line of three's RE_Direct_Physical that lights a surface by Lambert's law. */
-export const LAMBERT_DIRECT_GLSL = 'reflectedLight.directDiffuse += irradiance * BRDF_Lambert( material.diffuseColor );'
+/**
+ * The line of three's RE_Direct_Physical that adds the direct diffuse: by
+ * Lambert's law (`diffuseBRDF`, without USE_DIFFUSE_ROUGHNESS), less what the
+ * specular interface reflected (`1 - F`, three r186's energy conservation,
+ * mrdoob/three.js#33985; F is 0 here, the specular being off).
+ * `material.diffuseContribution` is the diffuse colour less the metal (r182,
+ * #32190; before, `material.diffuseColor` was that, and is the base colour
+ * now).
+ */
+export const LAMBERT_DIRECT_GLSL = 'reflectedLight.directDiffuse += irradiance * diffuseBRDF * ( 1.0 - F );'
 
-const LUNAR_DIRECT_GLSL = `reflectedLight.directDiffuse += directLight.color * BRDF_Lambert( material.diffuseColor ) *
+const LUNAR_DIRECT_GLSL = `reflectedLight.directDiffuse += directLight.color * BRDF_Lambert( material.diffuseContribution ) *
     lunarReflectance( dot( geometryNormal, directLight.direction ), dot( geometryNormal, geometryViewDir ),
         dot( directLight.direction, geometryViewDir ) );`
 
@@ -64,7 +72,7 @@ uniform float uEarthshine;
 ${LUNAR_PHOTOMETRY_GLSL}`)
         .replace('#include <lights_physical_pars_fragment>', pars.replace(LAMBERT_DIRECT_GLSL, LUNAR_DIRECT_GLSL))
         .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
-reflectedLight.directDiffuse += uEarthshine * BRDF_Lambert( material.diffuseColor ) *
+reflectedLight.directDiffuse += uEarthshine * BRDF_Lambert( material.diffuseContribution ) *
     lunarReflectance( dot( geometryNormal, uEarthDir ), dot( geometryNormal, geometryViewDir ),
         dot( uEarthDir, geometryViewDir ) );`)
   }

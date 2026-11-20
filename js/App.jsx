@@ -59,7 +59,7 @@ export default function App() {
       leaf = null
     } else if (location === '/guide') {
       leaf = 'Guide'
-    } else if (['place', 'asterism', 'satellite'].includes(committedTarget?.kind)) {
+    } else if (['place', 'asterism', 'satellite', 'craft'].includes(committedTarget?.kind)) {
       leaf = committedTarget.name
     } else if (committedStar && committedStar.displayName) {
       leaf = committedStar.displayName

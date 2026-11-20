@@ -41,6 +41,10 @@ import {Quaternion, Vector3} from 'three'
  *   similar part of the screen at every zoom.  Composes with getOrbitScale
  *   (an orbit drag takes both).  Read on every move.  Treated as 1 when
  *   omitted.
+ * @param {Function} [options.getPivot] Returns the point an orbit drag
+ *   turns the camera about, in the camera's parent's frame (ThreeUi's
+ *   `controls.target`: the platform's origin, or the target when the
+ *   camera has been left behind, #361).  The origin when omitted.
  * @param {Function} [options.onClick] Called with the pointerup event when
  *   the gesture moved less than CLICK_PX_THRESHOLD — distinguishes a true
  *   click (e.g., to pick a label) from a drag-rotate.
@@ -51,7 +55,7 @@ import {Quaternion, Vector3} from 'three'
  *   dblclick as an override (latest action wins).
  */
 export function attachPointerDrag(el, camera, options = {}) {
-  const {onChange, getDragMode, getOrbitScale, getTurnScale, onClick, onDblClick} = options
+  const {onChange, getDragMode, getOrbitScale, getTurnScale, getPivot, onClick, onDblClick} = options
   let lastX = 0
   let lastY = 0
   let downX = 0
@@ -142,6 +146,10 @@ export function attachPointerDrag(el, camera, options = {}) {
 
     if (activeMode === 'orbit') {
       const orbitSpeed = speed * (getOrbitScale?.() ?? 1)
+      const pivot = getPivot?.()
+      if (pivot) {
+        camera.position.sub(pivot)
+      }
       // Horizontal → around platform-local Y
       orbitAxis.set(0, 1, 0)
       orbitRot.setFromAxisAngle(orbitAxis, -dx * orbitSpeed)
@@ -152,6 +160,9 @@ export function attachPointerDrag(el, camera, options = {}) {
       orbitRot.setFromAxisAngle(orbitAxis, -dy * orbitSpeed)
       camera.position.applyQuaternion(orbitRot)
       camera.quaternion.premultiply(orbitRot)
+      if (pivot) {
+        camera.position.add(pivot)
+      }
     } else {
       // Pan / free look: pitch/yaw camera around its own local axes.
       camera.rotateY(-dx * speed)
