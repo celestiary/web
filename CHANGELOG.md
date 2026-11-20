@@ -53,6 +53,17 @@ simulated by date; ordinary light hides all of this. There is no button for it y
 - PR: [#358](https://github.com/celestiary/web/pull/358)
 - Epic: [#164](https://github.com/celestiary/web/issues/164) Stars up close: a dynamic Sun, and every star from its physical parameters
 - Permalink: none
+### New York's city, rebuilt from every surveyed building
+
+*New York (3D city)* in the layers control now draws the latest Slop New York: every Manhattan building
+from the city's survey, with its own footprint and height, street trees where the NYC tree inventory
+puts them, subway entrances where the MTA's are, and fire escapes, storefronts and entrances up close.
+
+- Date: 2026-11-20
+- PR: [#353](https://github.com/celestiary/web/pull/353)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@40.5025,-74.0298,780m;t=9792.377067jd;cq=0.2348,-0.1201,-0.2007,0.9435;fov=45deg;s=alpoU;time:pause;layers:nyc)
+
 ### Rubin's First Look on the sky, and the survey ride says when it's there
 
 In the Rubin Observatory app, "Rubin's image" now also lays Rubin's First Look of June 2025 on the
