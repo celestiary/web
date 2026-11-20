@@ -1,10 +1,19 @@
 import {Vector3} from 'three'
+import HipsLayer from '../sky/HipsLayer.js'
+import {angle, lonLatToVec} from '../sky/hips.js'
+import {RUBIN_FIRST_LOOK, surveyCovers} from '../sky/surveys.js'
 import ApparentPath from './ApparentPath.js'
 import PixelMarker from './PixelMarker.js'
 import RubinImage from './RubinImage.js'
 import RubinObservatory from './RubinObservatory.js'
 import SurveyCadence, {sceneToRaDec} from './SurveyCadence.js'
 import {TARGET} from './rubin.js'
+
+
+// The sky layer and its surveys, for checks from the console and a later
+// control (Sky.md): `(await c.scene.loadRubin()).HipsLayer`.
+export {HipsLayer}
+export {SURVEYS} from '../sky/surveys.js'
 
 
 // The Rubin feature in the scene (Rubin.md): the observatory on Earth and
@@ -56,9 +65,15 @@ export function installRubin(scene, deps) {
     },
   })
   orbitPosition.add(path)
+  let image = null
   // The survey's cadence (Rubin.md, "Cadence"): off until the panel's
-  // switch; the object's place from the path's own ephemeris.
-  cadence = new SurveyCadence({deps, targetAt: (jd) => sceneToRaDec(path.positionJ2000(jd))})
+  // switch; the object's place from the path's own ephemeris, and whether a
+  // field holds Rubin's public imagery.
+  cadence = new SurveyCadence({
+    deps,
+    targetAt: (jd) => sceneToRaDec(path.positionJ2000(jd)),
+    imagery: (raDeg, decDeg, radiusDeg) => imageryLine(raDeg, decDeg, radiusDeg, image?.layer?.manifest ?? null),
+  })
   orbitPosition.add(cadence)
   // Rubin's pixel at the body's place: a child of its orbitPosition, which
   // Animation moves, so it follows the body; off until the panel's switch.
@@ -74,7 +89,7 @@ export function installRubin(scene, deps) {
     },
   })
   body.add(pixel)
-  const image = newImageSwitch(scene, deps)
+  image = newImageSwitch(scene, deps, {onManifest: () => cadence.resetImagery()})
   return {
     observatory,
     path,
@@ -95,18 +110,55 @@ export function installRubin(scene, deps) {
 /** The imagery's manifest (Rubin.md, "The imagery"), fetched when the image is first wanted. */
 export const IMAGE_MANIFEST_PATH = 'data/rubin/noirlab2626d.json'
 export const IMAGE_CREDIT_ID = 'rubin-image'
+/** Rubin's First Look on the sky (js/scene/sky/Sky.md), with the image. */
+export const FIRST_LOOK_CREDIT_ID = 'rubin-first-look'
 
 
 /**
- * The image's switch (RubinApp's "Rubin's image"): its manifest fetched and
- * its layer built the first time it's on, hung from the stellar frame, and
- * its credit in the footer while it's drawn.
+ * The cadence readout's line for a field that holds Rubin's public imagery:
+ * the First Look's coverage (its MOC), or the discovery image's footprint
+ * once its manifest is in.
+ *
+ * @param {number} raDeg The field's centre
+ * @param {number} decDeg
+ * @param {number} radiusDeg The field's radius
+ * @param {?object} composite The discovery image's manifest, if fetched
+ * @returns {?string}
+ */
+export function imageryLine(raDeg, decDeg, radiusDeg, composite) {
+  if (surveyCovers(RUBIN_FIRST_LOOK, raDeg, decDeg, radiusDeg)) {
+    // Which of its two images: the nearer centre.
+    const v = lonLatToVec(raDeg, decDeg)
+    const near = RUBIN_FIRST_LOOK.footprints.reduce((a, b) =>
+      (angle(lonLatToVec(a.raDeg, a.decDeg), v) <= angle(lonLatToVec(b.raDeg, b.decDeg), v) ? a : b))
+    return `Rubin's image covers this field: First Look, ${near.name}`
+  }
+  if (composite?.wcs) {
+    const {crval, width, height, scaleArcsec} = composite.wcs
+    const halfDiagonalDeg = Math.hypot(width, height) / 2 * scaleArcsec / 3600
+    if (angle(lonLatToVec(crval[0], crval[1]), lonLatToVec(raDeg, decDeg)) * 180 / Math.PI <=
+        radiusDeg + halfDiagonalDeg) {
+      return 'Rubin\'s image covers this field: the discovery image'
+    }
+  }
+  return null
+}
+
+
+/**
+ * The image's switch (RubinApp's "Rubin's image"): the discovery image's
+ * manifest fetched and its layer built the first time it's on, and Rubin's
+ * First Look as a HiPS layer (js/scene/sky/), both hung from the stellar
+ * frame; the discovery image's credit in the footer while it's on, the
+ * First Look's while its tiles are drawn.
  *
  * @param {object} scene
  * @param {object} deps
- * @returns {{enabled: boolean, layer: ?RubinImage, ready: ?Promise, dispose: Function}}
+ * @param {object} [opts]
+ * @param {Function} [opts.onManifest] When the discovery image's manifest is in
+ * @returns {{enabled: boolean, layer: ?RubinImage, firstLook: ?HipsLayer, ready: ?Promise, dispose: Function}}
  */
-export function newImageSwitch(scene, deps) {
+export function newImageSwitch(scene, deps, {onManifest = null} = {}) {
   const fetchJson = deps.fetchJson ?? ((url) => fetch(url).then((r) => {
     if (!r.ok) {
       throw new Error(`${url}: ${r.status}`)
@@ -116,8 +168,22 @@ export function newImageSwitch(scene, deps) {
   let on = false
   let disposed = false
   const credit = (m) => ({text: `Rubin's image: ${m.credit} (${m.licence}); ${m.creditNote}`, href: m.source})
+  const firstLookCredit = {
+    text: `Rubin's First Look: ${RUBIN_FIRST_LOOK.credit} (HiPS ${RUBIN_FIRST_LOOK.licence})`,
+    href: RUBIN_FIRST_LOOK.source,
+  }
+  const view = () => {
+    const ui = scene.ui
+    return {
+      camera: ui.camera,
+      fovDeg: ui.camera?.fov,
+      aspect: ui.camera?.aspect,
+      heightPx: ui.renderer?.domElement?.height || ui.height,
+    }
+  }
   const sw = {
     layer: null,
+    firstLook: null,
     ready: null,
     get enabled() {
       return on
@@ -125,6 +191,20 @@ export function newImageSwitch(scene, deps) {
     set enabled(value) {
       on = value === true
       if (on && !sw.ready) {
+        sw.firstLook = new HipsLayer({
+          survey: RUBIN_FIRST_LOOK,
+          view,
+          sceneReferred: deps.sceneReferred,
+          loadTexture: deps.loadTexture,
+          onDrawn: (drawn) => {
+            if (drawn && on) {
+              deps.addCredit?.(FIRST_LOOK_CREDIT_ID, firstLookCredit, {persistence: 'timed'})
+            } else {
+              deps.removeCredit?.(FIRST_LOOK_CREDIT_ID)
+            }
+          },
+        })
+        scene.stellarFrame.add(sw.firstLook)
         sw.ready = fetchJson(IMAGE_MANIFEST_PATH).then((manifest) => {
           if (disposed) {
             return
@@ -133,17 +213,10 @@ export function newImageSwitch(scene, deps) {
             manifest,
             resolve: deps.dataUrl ?? ((p) => p),
             sceneReferred: deps.sceneReferred,
-            view: () => {
-              const ui = scene.ui
-              return {
-                camera: ui.camera,
-                fovDeg: ui.camera?.fov,
-                aspect: ui.camera?.aspect,
-                heightPx: ui.renderer?.domElement?.height || ui.height,
-              }
-            },
+            view,
           })
           scene.stellarFrame.add(sw.layer)
+          onManifest?.()
           sw.apply()
         }).catch((err) => {
           console.warn('Rubin image:', err.message)
@@ -152,6 +225,12 @@ export function newImageSwitch(scene, deps) {
       sw.apply()
     },
     apply() {
+      if (sw.firstLook) {
+        sw.firstLook.visible = on
+        if (!on) {
+          sw.firstLook.setDrawn(false)
+        }
+      }
       if (!sw.layer) {
         return
       }
@@ -165,8 +244,11 @@ export function newImageSwitch(scene, deps) {
     dispose() {
       disposed = true
       deps.removeCredit?.(IMAGE_CREDIT_ID)
+      deps.removeCredit?.(FIRST_LOOK_CREDIT_ID)
       sw.layer?.dispose()
       sw.layer = null
+      sw.firstLook?.dispose()
+      sw.firstLook = null
     },
   }
   return sw

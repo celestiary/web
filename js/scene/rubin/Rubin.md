@@ -421,7 +421,11 @@ Rubin doesn't stare at one object: it surveys the sky in visits, and the
 pipeline finds a moving object by linking its detections across them.
 The *Survey cadence* switch (`cadence=1` in `apps.rubin`, off by default:
 the stare stays the app's first look) has the telescope keep a survey
-night instead, **a model of one, not Rubin's log**.
+night instead, **a model of one, not Rubin's log**.  When the visit's
+field holds Rubin's public imagery (the First Look's coverage, or the
+discovery image's footprint), the readout says so: "Rubin's image covers
+this field: First Look, the Trifid and Lagoon nebulae"
+([js/scene/sky/Sky.md, in the Rubin app](../sky/Sky.md#in-the-rubin-app)).
 
 **What is real, and what is modelled.**
 
@@ -560,6 +564,13 @@ the object, tracked, at 256×.
 "Rubin's image", a switch in the app (off by default, `apps.rubin:image=1`;
 [#333](https://github.com/celestiary/web/issues/333)), lays the discovery
 image over the field it was taken of, on the sky where its stars are.
+
+With it, the switch turns on **Rubin's First Look** (23 June 2025: the
+southern Virgo Cluster and the Trifid and Lagoon nebulae, 29 deg²), CDS's
+HiPS of it drawn by the general sky-imagery layer
+([js/scene/sky/Sky.md](../sky/Sky.md); [#360](https://github.com/celestiary/web/issues/360)),
+its credit in the footer while its tiles are drawn.  The two layers share
+the tile material (`sky/tileMaterial.js`).
 
 **Source and licence.**  NOIRLab's composite
 [noirlab2626d](https://noirlab.edu/public/images/noirlab2626d/): the 30

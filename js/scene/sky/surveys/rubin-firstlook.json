@@ -1,0 +1,47 @@
+{
+  "id": "CDS/P/Rubin/FirstLook",
+  "title": "Rubin's First Look",
+  "serviceUrls": [
+    "https://alasky.cds.unistra.fr/Rubin/CDS_P_Rubin_FirstLook",
+    "https://alaskybis.cds.unistra.fr/Rubin/CDS_P_Rubin_FirstLook"
+  ],
+  "minOrder": 0,
+  "maxOrder": 12,
+  "tileWidth": 512,
+  "formats": [
+    "png",
+    "webp"
+  ],
+  "frame": "equatorial",
+  "skyFraction": 0.0007068,
+  "credit": "NSF–DOE Vera C. Rubin Observatory (RubinObs/NOIRLab/SLAC/NSF/DOE/AURA), under Rubin's use policy; HiPS by CDS (CNRS/Unistra)",
+  "licence": "ODbL-1.0",
+  "source": "https://rubinobservatory.org/media/design-resources/use-policy",
+  "record": "https://alasky.cds.unistra.fr/MocServer/query?ID=CDS/P/Rubin/FirstLook&get=record&fmt=ascii",
+  "footprints": [
+    {
+      "image": "noirlab2521a",
+      "name": "the southern Virgo Cluster",
+      "raDeg": 186.368524202294,
+      "decDeg": 6.930215747979968,
+      "widthDeg": 5.43967,
+      "heightDeg": 2.86233,
+      "upPaDeg": -48.96
+    },
+    {
+      "image": "noirlab2521b",
+      "name": "the Trifid and Lagoon nebulae",
+      "raDeg": 271.6317360235022,
+      "decDeg": -23.762469026534358,
+      "widthDeg": 4.66533,
+      "heightDeg": 2.86033,
+      "upPaDeg": 12
+    }
+  ],
+  "coverage": {
+    "5": [6928, 6929],
+    "6": [26303, 27669, 27671, 27721, 27724, 27725, 27728, 27730, 27736, 28886, 28889, 28890, 28891, 28892, 28893, 28894, 28912, 28913, 28915, 28916],
+    "7": [105386, 105387, 105390, 105391, 105402, 105403, 105406, 110708, 110709, 110880, 110881, 110916, 110918, 110924, 110926, 110948, 110950, 110953, 110956, 115519, 115527, 115533, 115534, 115535, 115538, 115550, 115551, 115553, 115555, 115580, 115581, 115582, 115605, 115606, 115607, 115613, 115656, 115657, 115659, 115668, 115672, 115674, 115685, 116256, 116258],
+    "8": [421538, 421539, 421542, 421543, 421554, 421555, 421558, 421630, 421631, 421802, 421803, 421806, 421807, 421818, 442841, 442844, 442845, 443528, 443529, 443532, 443533, 443621, 443632, 443633, 443636, 443637, 443808, 443809, 462071, 462103, 462127, 462129, 462130, 462131, 462146, 462158, 462159, 462192, 462194, 462195, 462198, 462217, 462218, 462219, 462332, 462333, 462334, 462417, 462419, 462449, 462632, 462633, 462635, 462680, 462692, 462693, 462694, 462725, 462736, 462737, 462739, 462748, 462749, 462784, 464938, 464939, 465028, 465030, 465056]
+  }
+}

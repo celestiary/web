@@ -119,14 +119,20 @@ export default class SurveyCadence extends Group {
    *   `sceneReferred`, `OVERLAY_LAYER`
    * @param {object} [opts.site]
    * @param {?number} [opts.layer]
+   * @param {(raDeg: number, decDeg: number, radiusDeg: number) => ?string} [opts.imagery] The
+   *   readout's line for a field that holds Rubin imagery, or null (install.js: the First Look's
+   *   coverage and the discovery image's footprint)
    */
-  constructor({targetAt, deps, site = SITE, layer = deps.OVERLAY_LAYER}) {
+  constructor({targetAt, deps, site = SITE, layer = deps.OVERLAY_LAYER, imagery = null}) {
     super()
     this.name = 'rubin cadence'
     this.deps = deps
     this.targetAt = targetAt
     this.site = site
     this.layer = layer
+    this.imagery = imagery
+    /** field → imagery's line, for the night built (resetImagery clears it). */
+    this._imagery = new Map
     /** Whether the telescope follows the schedule (the app's switch). */
     this.enabled = false
     /** The night built (buildNight's, with `nightMs`), or null. */
@@ -151,6 +157,7 @@ export default class SurveyCadence extends Group {
       const mid = nightMs + (4.7 * 3600e3)
       const target = this.targetAt((mid / 86400e3) + UNIX_EPOCH_JD)
       this.night = {...buildNight({nightMs, site: this.site, target}), nightMs}
+      this._imagery.clear()
       this._build()
     }
     return this.night
@@ -179,7 +186,7 @@ export default class SurveyCadence extends Group {
    *
    * @param {number} ms
    * @returns {?{index: number, count: number, filter: ?string, slewing: boolean, isTarget: boolean,
-   *   nextTargetMs: ?number, lines: string[]}} null when off
+   *   nextTargetMs: ?number, imagery: ?string, lines: string[]}} null when off
    */
   readout(ms) {
     if (!this.enabled) {
@@ -198,6 +205,12 @@ export default class SurveyCadence extends Group {
     } else {
       where = `${p.slewing ? 'Slewing to visit' : 'Visit'} ${p.index + 1} of ${visits.length}, filter ${v.filter}`
     }
+    const imagery = v && !p.slewing ? this.imageryOf(v) : null
+    const lines = [`${where} (modelled)`, isTarget ? '2026 ED138 is in this field' :
+      next ? `2026 ED138's field next in ${duration(next.tMs - ms)}` : 'No more visits to 2026 ED138\'s field tonight']
+    if (imagery) {
+      lines.push(imagery)
+    }
     return {
       index: p ? p.index : -1,
       count: visits.length,
@@ -205,9 +218,32 @@ export default class SurveyCadence extends Group {
       slewing: p ? p.slewing : false,
       isTarget,
       nextTargetMs: next ? next.tMs : null,
-      lines: [`${where} (modelled)`, isTarget ? '2026 ED138 is in this field' :
-        next ? `2026 ED138's field next in ${duration(next.tMs - ms)}` : 'No more visits to 2026 ED138\'s field tonight'],
+      imagery,
+      lines,
     }
+  }
+
+
+  /**
+   * The imagery's line for a visit's field, asked once a field a night.
+   *
+   * @param {object} v A visit
+   * @returns {?string}
+   */
+  imageryOf(v) {
+    if (!this.imagery) {
+      return null
+    }
+    if (!this._imagery.has(v.field)) {
+      this._imagery.set(v.field, this.imagery(v.raDeg, v.decDeg, FIELD_DIAMETER_DEG / 2))
+    }
+    return this._imagery.get(v.field)
+  }
+
+
+  /** Ask the imagery again (its data arrived). */
+  resetImagery() {
+    this._imagery.clear()
   }
 
 
