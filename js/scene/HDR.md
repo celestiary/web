@@ -766,8 +766,9 @@ place of the eye's calibration (#208).
 
 ### The view as the instrument sees it
 
-A proposal, not built ([#340](https://github.com/celestiary/web/issues/340),
-the maintainer's ask on [#334](https://github.com/celestiary/web/issues/334)):
+A proposal, not built ([#356](https://github.com/celestiary/web/issues/356),
+split from [#340](https://github.com/celestiary/web/issues/340); the
+maintainer's ask on [#334](https://github.com/celestiary/web/issues/334)):
 the frame carried to the eye as an instrument would record it, and a
 switch between that and the scene as drawn, so that a telescope pointed at
 a body we have spacecraft photographs of (Rubin on Saturn, against

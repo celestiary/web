@@ -527,8 +527,9 @@ rather than import it; `rubin.test.js` holds them equal.
 ## Not yet
 
 - **Rubin's light and PSF.**  The instrument has the eye's collecting
-  area and point spread function (#340; the pass that would apply its PSF
-  and pixel grid is proposed in [HDR.md](../HDR.md#the-view-as-the-instrument-sees-it)).  Its pixel and its seeing are
+  area and point spread function (the pass that would apply its PSF and
+  pixel grid is proposed in [HDR.md](../HDR.md#the-view-as-the-instrument-sees-it),
+  [#356](https://github.com/celestiary/web/issues/356)).  Its pixel and its seeing are
   drawn on the sky (#339, above), but only as a marker: the star field and
   the body aren't blurred to them.
 
@@ -571,4 +572,4 @@ rather than import it; `rubin.test.js` holds them equal.
   (the far point stands in for it past 2^22 radii, so nothing needs it
   now); and the view as the instrument sees it ([HDR.md, the view as the
   instrument sees it](../HDR.md#the-view-as-the-instrument-sees-it), a
-  proposal).
+  proposal, [#356](https://github.com/celestiary/web/issues/356)).
