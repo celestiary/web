@@ -39,6 +39,19 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### Zooming out after leaving a planet's orbit stays near the planet
+
+After *f* turned following off, one scroll of the wheel threw the camera millions of kilometres out, and dragging
+swung it round the Sun. The zoom and the drag now turn about the body you're looking at, so you can fly freely near
+it.
+
+- Date: 2026-11-20
+- PR: [#364](https://github.com/celestiary/web/pull/364)
+- Issue: [#361](https://github.com/celestiary/web/issues/361)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: none
+- Kind: fix
+
 ### The ground holds still under you low over a planet, and Earth's clouds stop flickering
 
 Below 30 km the camera now turns with the planet, so the ground stays put under you and the sky turns as
