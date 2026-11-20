@@ -1,6 +1,52 @@
 {
   "entries": [
     {
+      "id": "2026-11-20-the-suntan-craft-modelled",
+      "date": "2026-11-20",
+      "headline": "The Suntan craft, modelled",
+      "text": "Find the relay or the lander in the Suntan app and zoom in: the flight system's 3D model rides each craft, its heat shield turned to the Sun and its sling wheel rolling along the orbit, and at release one lander leaves the wheel and flies on alone.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 367,
+          "url": "https://github.com/celestiary/web/pull/367"
+        }
+      ],
+      "epic": {
+        "number": 120,
+        "title": "Missions and models",
+        "url": "https://github.com/celestiary/web/issues/120"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
+      "id": "2026-11-20-zooming-out-after-leaving-a-planet-s-orbit",
+      "date": "2026-11-20",
+      "headline": "Zooming out after leaving a planet's orbit stays near the planet",
+      "text": "After f turned following off, one scroll of the wheel threw the camera millions of kilometres out, and dragging swung it round the Sun. The zoom and the drag now turn about the body you're looking at, so you can fly freely near it.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 364,
+          "url": "https://github.com/celestiary/web/pull/364"
+        },
+        {
+          "kind": "issue",
+          "number": 361,
+          "url": "https://github.com/celestiary/web/issues/361"
+        }
+      ],
+      "epic": {
+        "number": 118,
+        "title": "Navigation, time and sharing",
+        "url": "https://github.com/celestiary/web/issues/118"
+      },
+      "permalink": null,
+      "image": null,
+      "kind": "fix"
+    },
+    {
       "id": "2026-11-20-fly-a-concept-mission-to-the-sun-s-surface-and",
       "date": "2026-11-20",
       "headline": "Fly a concept mission to the Sun's surface, and read its sensors",
