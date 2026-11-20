@@ -39,6 +39,20 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### Rubin's First Look on the sky, and the survey ride says when it's there
+
+In the Rubin Observatory app, "Rubin's image" now also lays Rubin's First Look of June 2025 on the
+sky where it was taken: the southern Virgo Cluster and the Trifid and Lagoon nebulae, 29 square
+degrees, sharper as you zoom in. On the survey cadence, the panel says when the telescope's field
+holds Rubin's images. The images come from CDS's sky-tile service, drawn by a new layer that can show
+other sky surveys, such as Hubble's and JWST's, in the same way.
+
+- Date: 2026-11-20
+- PR: [#365](https://github.com/celestiary/web/pull/365)
+- Issue: [#360](https://github.com/celestiary/web/issues/360)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: none
+
 ### The ground holds still under you low over a planet, and Earth's clouds stop flickering
 
 Below 30 km the camera now turns with the planet, so the ground stays put under you and the sky turns as

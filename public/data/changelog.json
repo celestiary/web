@@ -1,6 +1,31 @@
 {
   "entries": [
     {
+      "id": "2026-11-20-rubin-s-first-look-on-the-sky-and-the-survey",
+      "date": "2026-11-20",
+      "headline": "Rubin's First Look on the sky, and the survey ride says when it's there",
+      "text": "In the Rubin Observatory app, \"Rubin's image\" now also lays Rubin's First Look of June 2025 on the sky where it was taken: the southern Virgo Cluster and the Trifid and Lagoon nebulae, 29 square degrees, sharper as you zoom in. On the survey cadence, the panel says when the telescope's field holds Rubin's images. The images come from CDS's sky-tile service, drawn by a new layer that can show other sky surveys, such as Hubble's and JWST's, in the same way.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 365,
+          "url": "https://github.com/celestiary/web/pull/365"
+        },
+        {
+          "kind": "issue",
+          "number": 360,
+          "url": "https://github.com/celestiary/web/issues/360"
+        }
+      ],
+      "epic": {
+        "number": 321,
+        "title": "The Rubin Observatory and 2026 ED138",
+        "url": "https://github.com/celestiary/web/issues/321"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
       "id": "2026-11-20-the-ground-holds-still-under-you-low-over-a",
       "date": "2026-11-20",
       "headline": "The ground holds still under you low over a planet, and Earth's clouds stop flickering",
