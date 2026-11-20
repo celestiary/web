@@ -23,7 +23,7 @@ tried and dropped.
 | What's planned, in what order, and cross-track decisions (data policy) | [ROADMAP.md](ROADMAP.md): [now / next / later](ROADMAP.md#now--next--later), [tracks](ROADMAP.md#tracks), [the galaxy plan](ROADMAP.md#the-galaxy-plan); epics are issues labelled [`epic`](https://github.com/celestiary/web/issues?q=is%3Aopen+label%3Aepic) |
 | Class hierarchy, scene graph, animation loop | DESIGN.md: [core classes](DESIGN.md#core-class-hierarchy), [scene graph](DESIGN.md#scene-graph-structure-per-planet), [animation loop](DESIGN.md#animation-loop) |
 | Units, frames, coordinates | DESIGN.md [coordinate system & scale](DESIGN.md#coordinate-system--scale); [js/permalink.md](js/permalink.md#coordinate-system) |
-| Camera, navigation, targeting (`goTo`, `setTarget`, keys) | DESIGN.md: [camera controls](DESIGN.md#camera-controls), [navigation](DESIGN.md#navigation-goto-flow), [setTarget and lookAtTarget](DESIGN.md#settarget-lookattarget-c-key) |
+| Camera, navigation, targeting (`goTo`, `setTarget`, keys) | DESIGN.md: [camera controls](DESIGN.md#camera-controls), [follow](DESIGN.md#follow), [navigation](DESIGN.md#navigation-goto-flow), [setTarget and lookAtTarget](DESIGN.md#settarget-lookattarget-c-key); the camera control, proposed: [design/UI.md](design/UI.md#the-camera-control-proposed) |
 | Rendering, overlays and the `v` visibility groups | DESIGN.md: [rendering techniques](DESIGN.md#rendering-techniques), [overlays & visibility groups](DESIGN.md#overlays--visibility-groups) |
 | Cesium layers: Earth, Moon, Mars in place | [CESIUM.md](CESIUM.md): [architecture](CESIUM.md#architecture), [camera, light and ground](CESIUM.md#camera-and-light-coupling), [data](CESIUM.md#data), [atmospheres](CESIUM.md#atmospheres), [tiles and lighting](CESIUM.md#tiles-and-lighting-ion-3d-tiles), [parity check](CESIUM.md#parity-check), [follow-ups](CESIUM.md#follow-ups) |
 | Changing Cesium itself: the fork (celestiary/cesium), the patches in `patches/`, upstreaming | [CESIUM.md, patching Cesium](CESIUM.md#patching-cesium) |
@@ -356,9 +356,11 @@ tried and dropped.
   `python3 -m http.server` doesn't send, so answer it in `page.route` through
   `route.fetch`.  Low over the ground Earth's layer stays warming on
   SwiftShader: set `c.ui.layers.bodies.earth.shown = true` to draw it.  Pause
-  the clock (`;time:pause`): running, the view drifted off the island (the
-  rewritten link's longitude moved 0.2° west in 45 s), and a city out of view never finishes its staged set-up (it replays only
-  in frames that draw it).  The city takes 2.5 to 3.5 minutes at 800x500.
+  the clock (`;time:pause`) for frames that repeat.  Before the camera
+  turned with Earth below 30 km (DESIGN.md [follow](DESIGN.md#follow)), a
+  running view drifted off the island (the rewritten link's longitude moved
+  0.2° west in 45 s), and a city out of view never finishes its staged
+  set-up (it replays only in frames that draw it).  The city takes 2.5 to 3.5 minutes at 800x500.
 - **Cesium is patched on install** (`patches/`, applied by patch-package
   from `postinstall`; [CESIUM.md](CESIUM.md#patching-cesium)).  A fix to
   Cesium goes on a branch of celestiary/cesium with its Cesium specs, then

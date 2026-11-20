@@ -253,13 +253,22 @@ frame loop's budget.
   over n; while the view changes, n is capped at 9, an exponential
   window at 0.9, which a still run re-enters from wherever it stands (a
   converged history, no pop, the noise coming back in over ten frames).
-  "Still" is the march's inputs unchanged since the run's first frame
-  (`inputsUnchanged`: the eye within 2 cm and the Sun within 20″ in the
-  body frame, the rotation within 4″, the projection, the volume's share,
-  the map's version, the target's size, the atmosphere's tables), so a
-  paused clock with the camera at rest is still, the Sun at real time
-  (0.75″ a frame at 20 fps) is still for a few minutes, and 1024× is
-  not.  **The first cut blended at a fixed 0.9**, whose residual is
+  "Still" is the march's inputs unchanged (`inputsUnchanged`): since the
+  run's first frame, the eye within 2 cm in the body frame and the
+  rotation within 4″, the projection, the volume's share, the map's
+  version, the target's size, the atmosphere's tables; and the Sun within
+  20″ **of the frame before**.  So a paused clock with the camera at rest
+  is still, so is real time (the Sun drifts 15″ a second in the body
+  frame, 0.75″ a frame at 20 fps; the converged history lags it by about
+  1.6′), and 1024× is not.  **The Sun was first held to the run's first
+  frame too**, which ended every still run at real time after a second or
+  two and dropped the history to 9: the clouds' flicker with time running
+  ([#344](https://github.com/celestiary/web/issues/344)).  **Nor was a
+  camera low over Earth ever still while time ran** until it turned with
+  the body (DESIGN.md [follow](../../../DESIGN.md#follow), `SPIN_IN_M`):
+  hung on Earth's orbit, it slid over the ground at Earth's turning (460
+  m/s at 7° N; 7 to 100 m a frame headless), and the history never
+  passed 9.  **The first cut blended at a fixed 0.9**, whose residual is
   √((1 − w)/(1 + w)) of a frame's noise, 0.23: the clouds kept animating
   with time paused (the review's "still animating when I pause time").
   The history is accepted, while the view changes, by **variance

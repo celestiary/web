@@ -30,7 +30,7 @@ global.document = global.document ?? {
 }
 
 const Scene = (await import('./Scene.js')).default
-const {formatLatLng} = await import('./Scene.js')
+const {formatLatLng, SPIN_IN_M, SPIN_OUT_M} = await import('./Scene.js')
 
 
 function makeScene() {
@@ -1477,6 +1477,129 @@ describe('Scene following', () => {
     s.syncFollow()
     s.syncFollow()
     expect(camera.platform.parent).toBe(sun.orbitPosition)
+  })
+
+  describe('low over the ground', () => {
+    const R = 1e6
+
+    /**
+     * @param {number} h The camera's height over Jupiter's sphere, m
+     * @returns {object} Arrived at Jupiter, the camera h over it, looking
+     *   off to one side
+     */
+    function lowOverJupiter(h) {
+      const sys = arrivedAtJupiter()
+      sys.camera.position.set(0, R + h, 0)
+      sys.camera.quaternion.setFromAxisAngle(new Vector3(0.2, 1, 0.4).normalize(), 0.7)
+      sys.scene.updateMatrixWorld()
+      return sys
+    }
+
+    /** One frame's animation: the body turns on its axis. */
+    const spin = (scene, body, angle) => {
+      body.rotation.y += angle
+      scene.updateMatrixWorld()
+    }
+
+    it('turns with the body below SPIN_IN_M, so the ground stays put under the camera', () => {
+      const {s, scene, camera, jupiter} = lowOverJupiter(SPIN_IN_M / 2)
+      const world = camera.getWorldPosition(new Vector3)
+      const quat = camera.getWorldQuaternion(new Quaternion)
+      s.syncFollow()
+      scene.updateMatrixWorld()
+      expect(camera.platform.parent).toBe(jupiter)
+      expect(Shared.targets.follow).toBe(jupiter.orbitPosition)
+      expect(Shared.targets.cur).toBe(jupiter)
+      // The picture doesn't jump.
+      expect(camera.getWorldPosition(new Vector3).distanceTo(world)).toBeLessThan(MM)
+      expect(camera.getWorldQuaternion(new Quaternion).angleTo(quat)).toBeLessThan(1e-9)
+      // Where it is over the ground, as the body turns and moves on.
+      const ground = jupiter.worldToLocal(camera.getWorldPosition(new Vector3))
+      for (let i = 1; i <= 10; i++) {
+        spin(scene, jupiter, 0.01)
+        moveJupiter(scene, jupiter, i * 1e-4)
+        s.syncFollow()
+        scene.updateMatrixWorld()
+        expect(jupiter.worldToLocal(camera.getWorldPosition(new Vector3)).distanceTo(ground)).toBeLessThan(MM)
+      }
+    })
+
+    it('stays on the orbit higher up, where the body turns under the camera', () => {
+      const {s, scene, camera, jupiter} = lowOverJupiter(SPIN_OUT_M * 2)
+      s.syncFollow()
+      expect(camera.platform.parent).toBe(jupiter.orbitPosition)
+      const world = offsetFrom(camera, jupiter)
+      spin(scene, jupiter, 0.01)
+      s.syncFollow()
+      scene.updateMatrixWorld()
+      expect(offsetFrom(camera, jupiter).distanceTo(world)).toBeLessThan(MM)
+    })
+
+    it('goes back to the orbit above SPIN_OUT_M, and not between the two', () => {
+      const {s, scene, camera, jupiter} = lowOverJupiter(SPIN_IN_M / 2)
+      s.syncFollow()
+      expect(camera.platform.parent).toBe(jupiter)
+      camera.position.setLength(R + ((SPIN_IN_M + SPIN_OUT_M) / 2))
+      scene.updateMatrixWorld()
+      s.syncFollow()
+      expect(camera.platform.parent).toBe(jupiter)
+      camera.position.setLength(R + (SPIN_OUT_M * 1.1))
+      scene.updateMatrixWorld()
+      const world = camera.getWorldPosition(new Vector3)
+      const quat = camera.getWorldQuaternion(new Quaternion)
+      s.syncFollow()
+      scene.updateMatrixWorld()
+      expect(camera.platform.parent).toBe(jupiter.orbitPosition)
+      expect(camera.getWorldPosition(new Vector3).distanceTo(world)).toBeLessThan(MM)
+      expect(camera.getWorldQuaternion(new Quaternion).angleTo(quat)).toBeLessThan(1e-9)
+    })
+
+    it('writes the link\'s rotation in the orbit\'s frame, as on the orbit', () => {
+      const {s, scene, camera, jupiter} = lowOverJupiter(SPIN_IN_M / 2)
+      spin(scene, jupiter, 0.8)
+      s.syncFollow()
+      spin(scene, jupiter, 0.3)
+      scene.updateMatrixWorld()
+      expect(camera.platform.parent).toBe(jupiter)
+      const onOrbit = jupiter.orbitPosition.getWorldQuaternion(new Quaternion).invert()
+          .multiply(camera.getWorldQuaternion(new Quaternion))
+      expect(s.linkCameraQuaternion().angleTo(onOrbit)).toBeLessThan(1e-9)
+      expect(camera.quaternion.angleTo(onOrbit)).toBeGreaterThan(0.1)
+    })
+
+    it('leaves for the frame above when following is turned off, where it is', () => {
+      const {s, scene, camera, sun, jupiter} = lowOverJupiter(SPIN_IN_M / 2)
+      s.syncFollow()
+      expect(camera.platform.parent).toBe(jupiter)
+      scene.updateMatrixWorld()
+      const world = camera.getWorldPosition(new Vector3)
+      s.setFollowing(false)
+      scene.updateMatrixWorld()
+      expect(camera.platform.parent).toBe(sun.orbitPosition)
+      expect(Shared.targets.cur).toBe(sun)
+      expect(camera.getWorldPosition(new Vector3).distanceTo(world)).toBeLessThan(MM)
+      expect(s.linkCameraQuaternion().angleTo(camera.quaternion)).toBe(0)
+    })
+
+    it('leaves a landed camera to the landing, which turns with the body already', () => {
+      const {s, camera, jupiter} = lowOverJupiter(SPIN_IN_M / 2)
+      s.syncFollow()
+      Shared.targets.landed = true
+      s.syncFollow()
+      expect(camera.platform.parent).toBe(jupiter)
+      expect(s._spinBody).toBe(null)
+      Shared.targets.landed = false
+    })
+
+    it('waits for a go\'s travel, which moves the camera in the orbit\'s frame', () => {
+      const {s, camera, jupiter} = lowOverJupiter(SPIN_IN_M / 2)
+      Shared.targets.tween = {travels: true}
+      s.syncFollow()
+      expect(camera.platform.parent).toBe(jupiter.orbitPosition)
+      Shared.targets.tween = null
+      s.syncFollow()
+      expect(camera.platform.parent).toBe(jupiter)
+    })
   })
 })
 
