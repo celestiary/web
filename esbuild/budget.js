@@ -65,8 +65,10 @@ export const STATIC_BUDGET = {
   // view and the panel's find buttons, a KB), so 2,385.  2,448 with three.js
   // 0.187 (from 0.171: three itself grew, 776 KB to 846 KB in the build,
   // about 65 KB of it in the first load, its WebGLRenderer and core; nothing
-  // of celestiary's), so 2,449 for a KB of room.
-  totalMinifiedKB: 2449,
+  // of celestiary's), so 2,449 for a KB of room.  With a camera left behind
+  // turning about its target (#361: Scene pivotBody, ThreeUi _updatePivot,
+  // dragControls getPivot, under a KB), 2,450.
+  totalMinifiedKB: 2450,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -125,7 +127,10 @@ export const RUNTIME_BUDGET = {
   // After #259's star tiers (2026-10-20): 26 requests, 925 KB (the
   // catalogue's bright tier is 157 KB of it).  After #258: 25 requests,
   // 2,614 KB (stars.dat was 1,848 KB of it).  Before it: 81, 2,859 KB.
-  ready: {requests: 28, kb: 1020},
+  // With three.js 0.187 (#366) main measured 1,015 to 1,019 KB from run to
+  // run here, and #364's pivot took a CI run to 1,021.8: 1,024 KB, for the
+  // runs' spread.
+  ready: {requests: 28, kb: 1024},
   // After #259: 39 requests, 3,918 KB.  Raised from #258's 29 requests:
   // the catalogue's faint tiers are 12 packs where stars.dat was one file,
   // by design (a deep link needs only its field's; DESIGN.md "The star

@@ -18,9 +18,10 @@ const _platformQuat = new Quaternion
  * The camera's local position then is its offset from the new anchor,
  * which is small whatever the anchor's distance from the Sun, so the
  * precision is that of a camera at the body (the frame-local way `goTo`
- * works).  The platform is left at the anchor's origin with no rotation,
- * which the controls rely on (`controls.target` is the platform's
- * position).
+ * works).  The platform is left at the anchor's origin with no rotation;
+ * the controls turn about that origin (ThreeUi._updatePivot), unless the
+ * camera has been left behind, when they turn about the target
+ * (Scene.pivotBody).
  *
  * The world matrices are read fresh from the nodes' local transforms, so
  * call it after the frame's animation, when the bodies are where they will

@@ -1601,6 +1601,41 @@ describe('Scene following', () => {
       expect(camera.platform.parent).toBe(jupiter)
     })
   })
+
+  describe('the pivot left behind (#361)', () => {
+    it('is the platform\'s origin while following: no pivot body', () => {
+      const {s} = arrivedAtJupiter()
+      expect(Shared.targets.follow).not.toBe(null)
+      expect(s.pivotBody()).toBe(null)
+    })
+
+    it('is the body just left when following is turned off', () => {
+      const {s, sun, jupiter} = arrivedAtJupiter()
+      s.setFollowing(false)
+      expect(Shared.targets.cur).toBe(sun)
+      expect(s.pivotBody()).toBe(jupiter)
+    })
+
+    it('follows the target once left behind, and not the frame\'s own body', () => {
+      const {s, io} = arrivedAtJupiter()
+      s.setFollowing(false)
+      s.setTarget('io', {look: false})
+      expect(s.pivotBody()).toBe(io)
+      s.setTarget('sun', {look: false})
+      expect(s.pivotBody()).toBe(null)
+    })
+
+    it('is none landed, or while a go travels', () => {
+      const {s} = arrivedAtJupiter()
+      s.setFollowing(false)
+      Shared.targets.landed = true
+      expect(s.pivotBody()).toBe(null)
+      Shared.targets.landed = false
+      Shared.targets.tween = {travels: true}
+      expect(s.pivotBody()).toBe(null)
+      Shared.targets.tween = null
+    })
+  })
 })
 
 
