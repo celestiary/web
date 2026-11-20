@@ -39,6 +39,31 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### Rubin's discovery image, on the sky where it was taken
+
+Turn on "Rubin's image" in the Rubin app and NOIRLab's picture of the field where Rubin found 2026
+ED138 lies over the stars it shows, placed by those stars to under an arcsecond. Zoom in from the
+telescope's 3.5° field and it sharpens to Rubin's own resolution; the object's path crosses it.
+
+- Date: 2026-11-20
+- PR: [#357](https://github.com/celestiary/web/pull/357)
+- Issue: [#333](https://github.com/celestiary/web/issues/333)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: none
+- Featured: yes
+
+### A link to a body by its name alone opens it
+
+A link such as celestiary.org/#earth or #moon stayed on the loading screen. It now opens on that body
+like #sun/earth does, as do #earth/moon, #mars and the rest.
+
+- Date: 2026-11-20
+- PR: [#348](https://github.com/celestiary/web/pull/348)
+- Issue: [#336](https://github.com/celestiary/web/issues/336)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: none
+- Kind: fix
+
 Behind the scenes: celestiary's own sky inside another app's world, the sky guest
 ([#350](https://github.com/celestiary/web/pull/350)), first for exo.cafe's abode, and with its shadow drawing
 only the metered frames on portal-netgl 0.6.11 ([#351](https://github.com/celestiary/web/pull/351)).

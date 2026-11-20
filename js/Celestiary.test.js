@@ -236,6 +236,22 @@ class StubLoader {
     }
     onDone(path, this.loaded[parts[parts.length - 1]])
   }
+
+  // As the real one: the path from below the root, by the parents.
+  fullPath(path, root) {
+    const parts = path.split('/')
+    const peek = (name) => {
+      try {
+        return this.loaded[name] ?? JSON.parse(readFileSync(`./public/${descriptorUrl(name)}`, 'utf-8'))
+      } catch {
+        return null
+      }
+    }
+    for (let p = peek(parts[0])?.parent; p && p !== root && !parts.includes(p) && peek(p); p = peek(p).parent) {
+      parts.unshift(p)
+    }
+    return Promise.resolve(parts.join('/'))
+  }
 }
 
 
@@ -1550,6 +1566,28 @@ describe('the target in the link', () => {
       expect(heard).toEqual(['Tracking off', `ev ${app.ui.exposureCompensation()}`])
       Shared.targets.track = false
     })
+
+    // #336: a body below the Sun was added before the Sun, Scene.add threw
+    // "No parent obj", and the page never left its loading screen.
+    it.each([['earth', 'earth'], ['moon', 'moon'], ['earth/moon', 'moon'], ['mars', 'mars']])(
+        'opening the page on a body below the Sun (#%s) loads its parents first and goes there', async (path, target) => {
+          global.location.hash = `#${path}`
+          const app = new Celestiary(makeStubStore(), {style: {}, appendChild: () => {}, addEventListener: () => {}},
+              {}, () => {}, () => {}, () => {})
+          apps.push(app)
+          // A path alone waits a second on the first load (_navigate); longer
+          // on a busy machine.
+          for (let ms = 0; !app._arrivals && ms < 10000; ms += 50) {
+            await new Promise((resolve) => setTimeout(resolve, 50))
+          }
+          expect(app.scene.objects.sun).toBeDefined()
+          expect(app.scene.objects[target]).toBeDefined()
+          expect(Shared.targets.obj).toBe(app.scene.objects[target])
+          expect(app._arrivals).toBe(1)
+          expect(app.loader.pathByName[target]).toBe(target === 'moon' ? 'sun/earth/moon' : `sun/${target}`)
+          Shared.targets.tween = null
+          Shared.targets.tweenNextFn = null
+        })
 
     it('opening the page on a path goes there, following, without a message', async () => {
       global.location.hash = '#sun/earth'

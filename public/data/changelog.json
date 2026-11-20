@@ -1,6 +1,58 @@
 {
   "entries": [
     {
+      "id": "2026-11-20-rubin-s-discovery-image-on-the-sky-where-it-was",
+      "date": "2026-11-20",
+      "headline": "Rubin's discovery image, on the sky where it was taken",
+      "text": "Turn on \"Rubin's image\" in the Rubin app and NOIRLab's picture of the field where Rubin found 2026 ED138 lies over the stars it shows, placed by those stars to under an arcsecond. Zoom in from the telescope's 3.5° field and it sharpens to Rubin's own resolution; the object's path crosses it.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 357,
+          "url": "https://github.com/celestiary/web/pull/357"
+        },
+        {
+          "kind": "issue",
+          "number": 333,
+          "url": "https://github.com/celestiary/web/issues/333"
+        }
+      ],
+      "epic": {
+        "number": 321,
+        "title": "The Rubin Observatory and 2026 ED138",
+        "url": "https://github.com/celestiary/web/issues/321"
+      },
+      "permalink": null,
+      "image": null,
+      "featured": true
+    },
+    {
+      "id": "2026-11-20-a-link-to-a-body-by-its-name-alone-opens-it",
+      "date": "2026-11-20",
+      "headline": "A link to a body by its name alone opens it",
+      "text": "A link such as celestiary.org/#earth or #moon stayed on the loading screen. It now opens on that body like #sun/earth does, as do #earth/moon, #mars and the rest.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 348,
+          "url": "https://github.com/celestiary/web/pull/348"
+        },
+        {
+          "kind": "issue",
+          "number": 336,
+          "url": "https://github.com/celestiary/web/issues/336"
+        }
+      ],
+      "epic": {
+        "number": 118,
+        "title": "Navigation, time and sharing",
+        "url": "https://github.com/celestiary/web/issues/118"
+      },
+      "permalink": null,
+      "image": null,
+      "kind": "fix"
+    },
+    {
       "id": "2026-10-28-every-credit-in-one-small-line-along-the-bottom",
       "date": "2026-10-28",
       "headline": "Every credit in one small line along the bottom",
