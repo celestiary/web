@@ -17,13 +17,14 @@ import {absoluteUniforms} from '../hdr.js'
 import {utcToTtJulianDay} from '../celestialFrame.js'
 import {limbDarkening, powerTwo} from '../stellar.js'
 import {activeRegionsAt} from './activeRegions.js'
-import {baumbachK, cmeShellDensity, sheetAt} from './corona.js'
+import {EUV_VIEW, RADIAL_FIRST, RADIAL_SAMPLES, VIEWS, VIEW_EUV, VIEW_EYE} from './activityView.js'
+import {baumbachK, cmeShellDensity, radialReference, sheetAt} from './corona.js'
 import {occluderSeen, visibleFraction} from './eclipse.js'
 import {balmerPerNm} from './emission.js'
 import {glareFieldWeight, glareFunction, glareRadiusDeg} from './glare.js'
 import {MS_PER_DAY, activityLevel, cyclesAt, sunspotNumber} from './solarCycle.js'
 import {newSolarWind} from './SolarWind.js'
-import {cmesAt, flaresAt, prominencesAt} from './solarEvents.js'
+import {cmesAt, eruptionOf, flaresAt, prominencesAt} from './solarEvents.js'
 import {sunBodyQuaternion} from './sunFrame.js'
 import {hash2} from './sunRandom.js'
 import {MAX_FLARES, MAX_REGIONS} from './limits.js'
@@ -68,6 +69,9 @@ const WIND_LEVEL_STEP = 0.15
 // Events are recomputed when the date moves by more than this.
 const EVENT_STEP_MS = 30e3
 const SUN_RADIUS_MM = 695.7
+// The impact radius the quiet prominences and the chromosphere reach
+// (solar radii); an erupting one's top is past it.
+const PROMINENCE_MAX_RHO = 1.2
 const J2000_MS = Date.UTC(2000, 0, 1, 12)
 
 
@@ -119,11 +123,18 @@ export default class SunLayers {
    * @param {object} opts
    * @param {boolean} opts.activity Whether to draw the activity (the Sun)
    * @param {number} [opts.seed]
+   * @param {object} [opts.model] The star's activity against the Sun's
+   *     (stellarActivity.js): its flares' and CMEs' rates, its temperature
+   * @param {string} [opts.view] The view to start in (setView)
    */
-  constructor(star, {activity, seed = 0}) {
+  constructor(star, {activity, seed = 0, model = null, view = VIEW_EYE}) {
     this.star = star
     this.activity = activity
     this.seed = seed
+    this.model = model
+    // How it is drawn: as the eye sees it, or as an EUV imager and a
+    // coronagraph do (setView; activityView.js).
+    this.view = VIEW_EYE
     this.visibleFraction = 1
     this.occluders = []
     // A coronagraph's occulting disc, solar radii (setOcculter); 0 for none.
@@ -142,6 +153,28 @@ export default class SunLayers {
       this.corona = this._newCorona()
       this.wind = newSolarWind(0)
       this._windLevel = 0
+    }
+    this.setView(view)
+  }
+
+
+  /**
+   * The view the star's layers are drawn in (activityView.js; Sun.md, "The
+   * activity view"): 'eye', white light as an eye or a camera sees it, or
+   * 'euv', an EUV imager's disc (He II 304 Å) in a coronagraph's field,
+   * where the flares, prominences, streamers and CMEs that white light
+   * hides are the picture.
+   *
+   * @param {string} view
+   */
+  setView(view) {
+    this.view = VIEWS.includes(view) ? view : VIEW_EYE
+    const euv = this.view === VIEW_EUV ? 1 : 0
+    if (this._disc) {
+      this._disc.uEuv.value = euv
+    }
+    if (this.corona) {
+      this.corona.material.uniforms.uView.value.x = euv
     }
   }
 
@@ -244,6 +277,9 @@ export default class SunLayers {
         uCmeDir: {value: vec4s(MAX_CMES)},
         uCmeShape: {value: vec4s(MAX_CMES)},
         uDays: {value: 0},
+        uPromMaxRho: {value: PROMINENCE_MAX_RHO},
+        uView: {value: new Vector4(0, EUV_VIEW.corona, EUV_VIEW.coolPerNm, EUV_VIEW.white)},
+        uRadialRef: {value: radialReference(RADIAL_SAMPLES, RADIAL_FIRST, CORONA_RADII)},
         uProjectionInverse: {value: null},
         uViewport: {value: new Vector4},
       },
@@ -285,6 +321,8 @@ export default class SunLayers {
       uFlareCount: {value: 0},
       uFlareKernel: {value: vec4s(2 * MAX_FLARES)},
       uFlareContrast: {value: vec4s(2 * MAX_FLARES)},
+      uEuv: {value: this.view === VIEW_EUV ? 1 : 0},
+      uEuvLevels: {value: new Vector4(EUV_VIEW.plage, 0, EUV_VIEW.limb, EUV_VIEW.white)},
     }
     return this._disc
   }
@@ -318,15 +356,19 @@ export default class SunLayers {
       u.uSpotL.value[i].set(...r.leading.unit, r.leading.radius)
       u.uSpotF.value[i].set(...r.following.unit, r.following.radius)
     })
+    // In white light, the flares that show in it, in their impulsive
+    // phase; in the EUV view every flare, by its soft X-ray light curve.
+    const euv = this.view === VIEW_EUV
+    const now = (f) => (euv ? f.euv * f.sxr : f.contrast * f.phase)
     const flares = this.state.flares
-        .filter((f) => this.enabled.flares && f.whiteLight && f.phase > 1e-3)
-        .sort((a, b) => b.contrast - a.contrast)
+        .filter((f) => this.enabled.flares && (euv ? f.sxr > 1e-3 : f.whiteLight && f.phase > 1e-3))
+        .sort((a, b) => now(b) - now(a))
         .slice(0, MAX_FLARES)
     u.uFlareCount.value = 2 * flares.length
     flares.forEach((f, i) => {
       for (let k = 0; k < 2; k++) {
-        u.uFlareKernel.value[(2 * i) + k].set(...f.kernels[k], f.radius)
-        u.uFlareContrast.value[(2 * i) + k].set(f.contrast * f.phase, 0, 0, 0)
+        u.uFlareKernel.value[(2 * i) + k].set(...f.kernels[k], euv ? f.euvRadius : f.radius)
+        u.uFlareContrast.value[(2 * i) + k].set(now(f), 0, 0, 0)
       }
     })
   }
@@ -351,7 +393,7 @@ export default class SunLayers {
         this._lastEventMs = ms
       } else {
         // Flares change in minutes: their phases every frame.
-        this.state.flares = flaresAt(ms, this.state.regions, this.seed)
+        this.state.flares = flaresAt(ms, this.state.regions, this.seed, this.model)
       }
       this.ms = ms
     }
@@ -371,7 +413,9 @@ export default class SunLayers {
     if (this.corona) {
       // Nothing to draw where the brightest of it is under the floor at
       // this exposure: the bare disc's stopped-down frames, and from afar.
-      this.corona.visible = this.enabled.corona && this.discValue() * offDiscBrightest(1.0001) > VISIBLE_FLOOR
+      // An instrument's view draws it at its own level, whatever the exposure.
+      this.corona.visible = this.enabled.corona &&
+        (this.view !== VIEW_EYE || this.discValue() * offDiscBrightest(1.0001) > VISIBLE_FLOOR)
     }
   }
 
@@ -385,8 +429,8 @@ export default class SunLayers {
     const regions = activeRegionsAt(ms, this.seed)
     this.state = {
       regions,
-      flares: flaresAt(ms, regions, this.seed),
-      cmes: cmesAt(ms, this.seed),
+      flares: flaresAt(ms, regions, this.seed, this.model),
+      cmes: cmesAt(ms, this.seed, this.model),
       prominences: prominencesAt(ms, this.seed),
       sn: sunspotNumber(ms),
       level: activityLevel(ms),
@@ -547,7 +591,9 @@ export default class SunLayers {
     // veils nothing, though the frame's edge may be 80° from it.
     const field = glareFieldWeight(offAxis)
     u.uFieldWeight.value = field
-    this.glare.visible = this.enabled.glare && field > 0 && reach > 0.1 && offAxis - halfDiag < reach &&
+    // The veil is the eye's: an instrument's view has none.
+    this.glare.visible = this.enabled.glare && this.view === VIEW_EYE &&
+      field > 0 && reach > 0.1 && offAxis - halfDiag < reach &&
       glareFunction(0.1) * scale > VISIBLE_FLOOR
   }
 
@@ -577,15 +623,50 @@ export default class SunLayers {
     const toView = (v) => tmp.set(...v).applyQuaternion(bodyToView)
     const value = this.discValue()
     u.uDiscValue.value = value
-    u.uMaxRho.value = visibleRadius(value)
+    const instrument = this.view !== VIEW_EYE
+    u.uMaxRho.value = instrument ? CORONA_RADII : visibleRadius(value)
     u.uDays.value = ((this.ms ?? 0) / MS_PER_DAY) % 1000
     if (this.sheet) {
       u.uSheetPole.value.set(...this.sheet.pole)
       u.uSheetWarp.value = this.sheet.warp
       u.uWarpPhase.value.set(...this.sheet.phase)
     }
+    // The CMEs: their directions fixed in space at launch (the Carrington
+    // frame then), their fronts now; and under each the prominence that
+    // erupted, if one did: an arch across the same direction.
+    const cmes = this.enabled.cmes ? this.state.cmes.slice(-MAX_CMES) : []
+    u.uCmeCount.value = cmes.length
+    const eq = this._q[1]
+    const parent = this.star.getWorldQuaternion(new Quaternion)
+    let slot = 0
+    let maxRho = PROMINENCE_MAX_RHO
+    cmes.forEach((c, i) => {
+      const launchJde = this.jde - ((this.ms - c.launch) / MS_PER_DAY)
+      sunBodyQuaternion(launchJde, eq).premultiply(parent)
+      const lat = c.source.lat * Math.PI / 180
+      const lon = c.source.lon * Math.PI / 180
+      const launched = (x, y, z) => tmp.set(x, y, z).applyQuaternion(eq).transformDirection(camera.matrixWorldInverse)
+      const d = launched(Math.cos(lat) * Math.cos(lon), Math.sin(lat), -Math.cos(lat) * Math.sin(lon))
+      u.uCmeDir.value[i].set(d.x, d.y, d.z, c.front)
+      u.uCmeShape.value[i].set(c.width, cmeShellDensity(c.mass, c.front, c.width), (c.launch / 3.6e6) % 1, 0)
+      const e = this.enabled.prominences && slot < MAX_PROMINENCES ? eruptionOf(c, this.seed) : null
+      if (e) {
+        u.uPromCentre.value[slot].set(d.x, d.y, d.z, e.height)
+        // East and north at the source, turned by the filament's tilt.
+        const [ct, st] = [Math.cos(e.tilt), Math.sin(e.tilt)]
+        const t = launched(
+            (-ct * Math.sin(lon)) - (st * Math.sin(lat) * Math.cos(lon)),
+            st * Math.cos(lat),
+            (-ct * Math.cos(lon)) + (st * Math.sin(lat) * Math.sin(lon)))
+        u.uPromTangent.value[slot].set(t.x, t.y, t.z, e.halfLength)
+        u.uPromShape.value[slot].set(e.thickness, e.halpha, e.seed, e.hollow)
+        maxRho = Math.max(maxRho, 1.02 + e.height)
+        slot++
+      }
+    })
+    this.eruptions = slot
     // The prominences nearest the limb as the camera sees them, the ones
-    // that can show off the disc.
+    // that can show off the disc, in the slots the eruptions leave.
     const camFromSun = tmp.copy(cam).sub(sun).normalize().clone()
     const limbward = (this.enabled.prominences ? this.state.prominences : [])
         .map((p) => {
@@ -593,30 +674,16 @@ export default class SunLayers {
           return {p, limb: Math.abs(c.dot(camFromSun))}
         })
         .sort((x, y) => x.limb - y.limb)
-        .slice(0, MAX_PROMINENCES)
-    u.uPromCount.value = limbward.length
-    limbward.forEach(({p}, i) => {
+        .slice(0, MAX_PROMINENCES - slot)
+    limbward.forEach(({p}) => {
       const c = toView(p.centre)
-      u.uPromCentre.value[i].set(c.x, c.y, c.z, p.height)
+      u.uPromCentre.value[slot].set(c.x, c.y, c.z, p.height)
       const t = toView(p.tangent)
-      u.uPromTangent.value[i].set(t.x, t.y, t.z, p.halfLength)
-      u.uPromShape.value[i].set(p.thickness, p.halpha, p.seed, 0)
+      u.uPromTangent.value[slot].set(t.x, t.y, t.z, p.halfLength)
+      u.uPromShape.value[slot].set(p.thickness, p.halpha, p.seed, 0)
+      slot++
     })
-    // The CMEs: their directions fixed in space at launch (the Carrington
-    // frame then), their fronts now.
-    const cmes = this.enabled.cmes ? this.state.cmes.slice(-MAX_CMES) : []
-    u.uCmeCount.value = cmes.length
-    const eq = this._q[1]
-    const parent = this.star.getWorldQuaternion(new Quaternion)
-    cmes.forEach((c, i) => {
-      const launchJde = this.jde - ((this.ms - c.launch) / MS_PER_DAY)
-      sunBodyQuaternion(launchJde, eq).premultiply(parent)
-      const lat = c.source.lat * Math.PI / 180
-      const lon = c.source.lon * Math.PI / 180
-      const d = tmp.set(Math.cos(lat) * Math.cos(lon), Math.sin(lat), -Math.cos(lat) * Math.sin(lon))
-          .applyQuaternion(eq).transformDirection(camera.matrixWorldInverse)
-      u.uCmeDir.value[i].set(d.x, d.y, d.z, c.front)
-      u.uCmeShape.value[i].set(c.width, cmeShellDensity(c.mass, c.front, c.width), (c.launch / 3.6e6) % 1, 0)
-    })
+    u.uPromCount.value = slot
+    u.uPromMaxRho.value = maxRho
   }
 }

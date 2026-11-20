@@ -1,3 +1,4 @@
+import {euvFlareLevel, euvFlareRadiusMm} from './activityView.js'
 import {WHITE_LIGHT_SHARE, flareContrast} from './emission.js'
 import {
   CARRINGTON_DEG_PER_DAY,
@@ -11,7 +12,7 @@ import {
   sunspotNumber,
 } from './solarCycle.js'
 import {bodyUnit} from './activeRegions.js'
-import {binGenerator, gaussian, logNormal, poisson} from './sunRandom.js'
+import {binGenerator, gaussian, hash2, logNormal, poisson} from './sunRandom.js'
 
 
 /**
@@ -112,11 +113,17 @@ const FLARE_WINDOW_HOURS = 4
  * @param {number} ms UTC
  * @param {Array<object>} regions activeRegionsAt's, at the same time
  * @param {number} [seed]
+ * @param {object} [star] stellarActivity's scales: the flares' rate over
+ *     the Sun's (flareScale), and the photosphere's temperature the white
+ *     light is seen against (teff)
  * @returns {Array<object>} {start, flux, class, rise, decay (ms), whiteLight,
  *     contrast (its kernels' peak), kernels: [unit, unit], radius (rad),
- *     region, phase: the white light's share of its peak now}
+ *     region, phase: the white light's share of its peak now; sxr: the soft
+ *     X-ray and EUV light curve's share of its peak now; euv, euvRadius:
+ *     its level and size (rad) in the activity view (activityView.js)}
  */
-export function flaresAt(ms, regions, seed = 0) {
+export function flaresAt(ms, regions, seed = 0, star = null) {
+  const rateScale = star?.flareScale ?? 1
   const out = []
   const totalArea = regions.reduce((s, r) => s + r.area, 0)
   if (!(totalArea > 0)) {
@@ -126,7 +133,7 @@ export function flaresAt(ms, regions, seed = 0) {
   for (let h = hour - FLARE_WINDOW_HOURS; h <= hour; h++) {
     const rng = binGenerator(h, seed, STREAM_FLARES)
     const sn = sunspotNumber((h + 0.5) * MS_PER_HOUR)
-    const n = poisson(flareRate(sn) / 24, rng)
+    const n = poisson(rateScale * flareRate(sn) / 24, rng)
     for (let k = 0; k < n; k++) {
       const start = (h + rng()) * MS_PER_HOUR
       // N(>F) ∝ F^−(α−1): F = F_min u^(−1/(α−1)).
@@ -156,8 +163,11 @@ export function flaresAt(ms, regions, seed = 0) {
       const phase = whiteLight ? Math.exp(-(((t - 0.7) / 0.35) ** 2)) : 0
       out.push({
         start, flux, class: goesClass(flux), rise, decay, whiteLight,
-        contrast: whiteLight ? flareContrast(flux) : 0,
+        contrast: whiteLight ? flareContrast(flux, star?.teff) : 0,
         phase,
+        sxr: softXrayPhase(ms - start, rise, decay),
+        euv: euvFlareLevel(flux),
+        euvRadius: euvFlareRadiusMm(flux) / SUN_RADIUS_MM,
         kernels: ribbonKernels(region.centre, sep, angle),
         radius: KERNEL_RADIUS_MM / SUN_RADIUS_MM,
         region: region.id,
@@ -165,6 +175,28 @@ export function flaresAt(ms, regions, seed = 0) {
     }
   }
   return out
+}
+
+
+/**
+ * A flare's soft X-ray light curve (GOES's, which the EUV lines follow),
+ * as a share of its peak: up over the rise, then an exponential decay
+ * that has fallen to 5% by the decay's end.
+ *
+ * @param {number} t ms since its start
+ * @param {number} rise ms
+ * @param {number} decay ms
+ * @returns {number} 0 to 1
+ */
+export function softXrayPhase(t, rise, decay) {
+  if (!(t >= 0) || t > rise + decay) {
+    return 0
+  }
+  if (t < rise) {
+    const x = t / rise
+    return x * x * (3 - (2 * x))
+  }
+  return Math.exp(-3 * (t - rise) / decay)
 }
 
 
@@ -255,14 +287,15 @@ export function cmeRate(ms) {
  *     rad), mass (g), source: {lat, lon} in the Carrington frame at
  *     launch, front (solar radii from the centre now)}
  */
-export function cmesAt(ms, seed = 0) {
+export function cmesAt(ms, seed = 0, star = null) {
+  const rateScale = star?.cmeScale ?? 1
   const out = []
   const bin = Math.floor(ms / (CME_BIN_HOURS * MS_PER_HOUR))
   for (let b = bin - (CME_WINDOW_HOURS / CME_BIN_HOURS); b <= bin; b++) {
     const rng = binGenerator(b, seed, STREAM_CMES)
     const mid = (b + 0.5) * CME_BIN_HOURS * MS_PER_HOUR
     const level = activityLevel(mid)
-    const n = poisson(cmeRate(mid) * CME_BIN_HOURS / 24, rng)
+    const n = poisson(rateScale * cmeRate(mid) * CME_BIN_HOURS / 24, rng)
     if (n === 0) {
       continue
     }
@@ -287,6 +320,66 @@ export function cmesAt(ms, seed = 0) {
     }
   }
   return out
+}
+
+
+// --- Erupting prominences.
+
+// A CME's bright core is the prominence that erupted under it: of 186
+// prominence eruptions at Nobeyama, 72% went with a CME (Gopalswamy et al.
+// 2003, ApJ 586, 562), and the classic CME has three parts, front, cavity
+// and core (Illing & Hundhausen 1985).  Here that share of the CMEs carry
+// one, drawn as the prominences are (their cool plasma's Balmer light, He
+// II in the activity view): an arch on two feet whose top follows the
+// CME's core, widening and thinning as it rises (a model of its shape).
+export const ERUPTIVE_SHARE = 0.72
+// The arch's feet are this far apart at the start, half of it, in solar
+// radii (a filament 100-350 Mm long), and spread by this share of its
+// height; its sheet's thickness, likewise.
+export const ERUPTION_HALF_LENGTH = Object.freeze([0.07, 0.25])
+export const ERUPTION_SPREAD = 0.35
+export const ERUPTION_THICKNESS = Object.freeze([0.02, 0.22])
+// Its Hα at the start (a bright prominence's, twice the typical 0.01 nm),
+// falling as it expands: × (h0 / (h0 + h))^0.7, h0 0.6 radii (a model: the
+// plasma thins and ionises; LASCO's cores are seen in Hα to several radii).
+export const ERUPTION_HALPHA_NM = 0.02
+export const ERUPTION_FADE = Object.freeze({scale: 0.6, index: 0.7})
+// Followed to this height (solar radii above the surface).
+export const ERUPTION_MAX_HEIGHT = 6
+const STREAM_ERUPTIONS = 5
+
+
+/**
+ * The erupting prominence under a CME, if it has one.  Its top starts at
+ * a prominence's height and joins the CME's core (0.55 of the front's
+ * radius: corona.js's shell) within a radius or so.
+ *
+ * @param {object} cme cmesAt's
+ * @param {number} [seed]
+ * @returns {object|null} {height, halfLength, thickness (solar radii),
+ *     halpha (nm), tilt (rad, from east), seed, hollow}
+ */
+export function eruptionOf(cme, seed = 0) {
+  const u = (n) => hash2(Math.floor(cme.launch / 1000) + (n * 7919), seed + STREAM_ERUPTIONS) / 4294967296
+  if (u(0) >= ERUPTIVE_SHARE) {
+    return null
+  }
+  const apex = Math.max((0.55 * cme.front) + (0.45 * Math.exp(-(cme.front - 1))), 1.03)
+  const height = apex - 1
+  if (height > ERUPTION_MAX_HEIGHT) {
+    return null
+  }
+  const [l0, l1] = ERUPTION_HALF_LENGTH
+  const [w0, w1] = ERUPTION_THICKNESS
+  return {
+    height,
+    halfLength: l0 + ((l1 - l0) * u(1)) + (ERUPTION_SPREAD * height),
+    thickness: w0 + (w1 * height),
+    halpha: ERUPTION_HALPHA_NM * ((ERUPTION_FADE.scale / (ERUPTION_FADE.scale + height)) ** ERUPTION_FADE.index),
+    tilt: (u(2) - 0.5) * 80 * DEG,
+    seed: u(3),
+    hollow: 1,
+  }
 }
 
 

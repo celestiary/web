@@ -26,6 +26,9 @@ Sun it shows.
 | The layers as three.js objects, per frame; the coronagraph probe | `sun/SunLayers.js`, `sun/sun-shaders.js`, `sun/limits.js` |
 | The solar wind's streamlines | `sun/SolarWind.js` |
 | The regions' spots and the flares' kernels on the disc | `star-shaders.js` (region mode), `Star.js` |
+| The activity view: an EUV imager's disc in a coronagraph's field, its levels and colour table | `sun/activityView.js`; the two shaders' view branches |
+| Erupting prominences under the CMEs | `sun/solarEvents.js` `eruptionOf` |
+| A star's activity against the Sun's, by class, rotation and age | `sun/stellarActivity.js` |
 
 ## Activity by date
 
@@ -280,6 +283,131 @@ is physical: a 10¹⁵ g CME 50° wide at 5 radii is 1.9 times the
 equatorial corona's density there in its shell, a faint loop, as in
 LASCO's running differences.
 
+### Erupting prominences
+
+A CME's bright core is the prominence that erupted under it: of 186
+prominence eruptions seen at Nobeyama, 72% went with a CME (Gopalswamy et
+al. 2003), and the classic CME has three parts, front, cavity and core
+(Illing & Hundhausen 1985).  `eruptionOf(cme)` gives that share of the
+CMEs one (seeded by the launch, so a date's are always the same): an arch
+on two feet across the CME's direction, its top starting at a
+prominence's height (0.03 radii) and joining the CME's core, 0.55 of the
+front's radius, within a radius or so; the feet 0.07-0.25 radii from the
+middle, spreading by 0.35 of the height; the sheet thickening by 0.22 of
+it; its Hα twice a typical prominence's at the start, falling as (0.6 /
+(0.6 + h))^0.7 as it expands (a model: the plasma thins and ionises).  It
+is followed to 6 radii.  The shader draws it with the prominences (their
+uniforms' first slots): the same sheet, hollow under a band below its top
+(`uPromShape.w`), in strands along the arch.  In white light it is Balmer
+light at a prominence's 1e-5 of the disc, a coronagraph's or an eclipse's
+sight; in the activity view (below) it is the picture.
+
+The prominences' sheet had a twin: its plane runs through the Sun's
+centre and the test for a point in it (within the half-length along the
+filament, under its top) held at the antipode too, so every prominence at
+one limb drew a second at the other.  Samples on the far side of the
+centre are now left out.
+
+## The activity view
+
+`?sun=euv` in the URL, or `c.ui.sceneManager.objects.sun.sunLayers.setView('euv')`
+(`'eye'` to go back), draws the Sun as SOHO's and SDO's pictures show it
+(`activityView.js`).  Nothing new is simulated for it: in white light at
+the disc's exposure a flare is a few percent on a few granules, a
+prominence 1e-5 of the disc and a CME 1e-9, all there and none to be
+seen.  The pictures show them because of what the instruments are, and
+the view is those instruments:
+
+- **An EUV imager in He II 304 Å** (EIT, AIA) for the disc and the cool
+  plasma: the photosphere is dark at 304 Å, and the picture is the
+  chromosphere and transition region.  The disc is the supergranules'
+  network, bright elements round cells (the photosphere's supergranule
+  lattice, warped), mottled; plage over the active regions at 8 times the
+  quiet disc (EIT's active regions are 5-10 times the quiet Sun's count
+  rate); a brighter limb.  **Every flare shows**, not only the half with
+  white light, on its soft X-ray light curve (up over the rise, an
+  exponential decay to 5% at the decay's end), at 30 times the quiet disc
+  at C1, as (F/F_C1)^0.6 (120 at M1, 480 at X1), over a radius of 4 Mm at
+  C1 as (F/F_C1)^0.3 (16 Mm at X1): two ragged ribbons and the arcade
+  between them, saturating as they do on the detector.  Prominences and
+  the chromosphere's rim are the Balmer model's structures at 250 per nm
+  of their Hα: a typical prominence 2.5 times the quiet disc, as bright as
+  the network, as they are at 304 Å.
+- **A white-light coronagraph round it** (LASCO): the K-corona and the
+  CMEs, the same Thomson integral, each line of sight over the mean
+  corona's brightness at its radius (`radialReference`: the streamer
+  belt's density at every latitude, 16 radii log-spaced to the shell's
+  edge), as the normalising radial graded filter does (Morgan, Habbal &
+  Woo 2006), with the contrast raised (x²/(x + 0.35)): the corona's six
+  orders of fall taken out, so the streamers, their rays, the dark holes
+  and a CME's front and core show at every radius at once.  No occulter:
+  the field starts at the limb, as in a composite.
+- **The colour table**: each channel 1 − exp(−(level/L)^p) to its
+  ceiling, red first (L 1.4), green through the network's and plage's
+  levels (5.5, p 1.6), blue only for what saturates (22, p 1.8): dark red,
+  orange, yellow, white, as EIT's and AIA's 304 Å tables run.  False
+  colour of a brightness.  The channels saturate in the table because the
+  tone map would turn a red of 500 pink, not white.  Its white is 1.7
+  times the white-light disc's radiance, which the meter shows at 0.6 of
+  the display's, so the exposure is the bare disc's as before and the
+  table's white is the display's.
+
+The eye's glare isn't drawn in the view (an instrument's stray light is
+its own), and the corona's shell is drawn whatever the exposure.  The
+levels are the view's parameters (`EUV_VIEW`), a model of the published
+pictures' look, not a radiative transfer of the line; the structures, and
+when and where they are, are the white-light model's.
+
+Not yet in the view: filaments dark on the disc, coronal holes on the
+disc, flare loops over the limb, the loops of the low corona over the
+regions (171 and 193 Å's picture), a control in the interface and a
+permalink token (it is a URL parameter and a console call for now).
+
+## Other stars
+
+`stellarActivity.js` gives any star its activity against the Sun's, from
+the parameters the star renderer already has (Stars.md): `Star.js` keeps
+it as `star.activityModel`.  The Sun is the reference: its scales are 1 by
+construction (a test).
+
+- **Which stars**: the Sun's kind of activity is a dynamo's in a
+  convective envelope.  *Solar*: cooler than 7,000 K (the F stars on; the
+  photosphere shader's limit for granules and spots), tapered in over the
+  last 750 K where the convection zone is thin (Schmitt 1997: every F to
+  M dwarf within 13 pc is an X-ray source).  *Radiative*: hotter, none
+  (O and B stars' X-rays are their winds' shocks).  *Wind*: giants (log g
+  under 3) past the coronal dividing line, cooler than K1 III's 4,600 K
+  to G5 Ib's 4,900 K (Linsky & Haisch 1979): no hot corona, cool massive
+  winds.  *Degenerate*: white dwarfs.
+- **How much**: the rotation-activity relation of Wright et al. (2011):
+  the Rossby number Ro = P/τ, τ the convective turnover time from the
+  mass (log τ = 1.16 − 1.49 log M − 0.54 log² M days); L_X/L_bol
+  saturated at 10^−3.13 under Ro = 0.13 and falling as Ro^−2.70 above.
+  The Sun (25.38 days, Ro 1.76) comes out at 10^−6.18; they quote −6.24.
+- **Without a period** (every catalogue star, for now): Ro is the Sun's
+  times (age / 4.57 Gyr)^0.566, the spin-down exponent of Mamajek &
+  Hillenbrand (2008), the age the star's seed's draw from 1 to 10 Gyr (a
+  model).  Fully convective M dwarfs (under 0.35 M☉) stay saturated for
+  West et al.'s (2008) activity lifetimes (0.8 Gyr at M0 to 8 at M7, by
+  mass here) and are slow after (Ro 1).  Evolved stars: twice the Rossby
+  number per dex of gravity under log g 3.8 (a model).
+- **What it scales**: the flares' rate at a given energy as L_X^0.95
+  (Audard et al. 2000); the CMEs' with the flares' up to 10 times the
+  Sun's, held there (the Sun's flare-CME relation would carry off more
+  than active stars have: Drake et al. 2013; a strong field holds
+  eruptions in: Alvarado-Gómez et al. 2018; a model); the corona's density
+  as √(L_X / R³), to 30 times.  `flaresAt` and `cmesAt` take the scales.
+- **White light on a cool star**: `flareContrast(flux, teff)` sets the
+  same 10,000 K kernel against the star's own photosphere: 60 times the
+  Sun's contrast at 3,000 K, which is why a red dwarf's flares are seen
+  across parsecs and the Sun's hardly from 1 AU.
+
+**Not wired yet**: the layers draw activity for the Sun only (`activity:
+isTheSun`).  Another star needs its own number in place of the Sun's
+sunspot series (a level and a cycle from the model), its regions in place
+of the lattice's spots, and its rotation in place of the Carrington
+frame: the next step.
+
 ## Eclipses
 
 `eclipse.js` `visibleFraction`: the share of the disc's limb-darkened
@@ -466,6 +594,9 @@ prominences with the disc occulted, and the solar wind from 10 AU.
 | Spot numbers and areas | calibrated to Hoyt & Schatten's group number and Hathaway's areas | the individual groups |
 | Flares | rate (cycle 23's counts), index 2.0, white-light shares and 19% at 360 nm | durations' trend, contrast's trend with class, kernel size |
 | CMEs | rate, width, speed, mass ranges | source split, constant speed, shell shape |
+| Erupting prominences | their share of CMEs (Gopalswamy et al. 2003), the three-part CME | the arch's shape, spread and fading |
+| The activity view | what the instruments are (304 Å, a coronagraph, the radial filter), EIT's active regions' 5-10× | every level, the flares' law, the colour table (by eye to the pictures) |
+| Other stars | the regimes (Linsky & Haisch, Schmitt), Wright et al.'s relation, West et al.'s lifetimes, Audard et al.'s flare law | ages (seeded), the CME cap, the corona's scale, evolved stars |
 | Prominences | sizes (Mackay et al.), Hα intensity (Labrosse et al.), Balmer decrement | numbers and lifetimes, saturation, shape |
 | Chromosphere | heights (Zirin) | its Hα |
 | Corona | Saito's density, Baumbach's check, Thomson scattering, Ludendorff's index | the sheet's tilt and warp by level, streamer gathering, rays |
@@ -479,6 +610,11 @@ prominences with the disc occulted, and the solar wind from 10 AU.
   licence from SILSO, or a decision that the non-commercial terms fit),
   or another public-domain record.
 - An Hα view: the disc in the line, with filaments, plage and flares.
+- The activity view's missing pieces (above), a control for it, and the
+  coronal lines' views (171, 193 Å).
+- Activity drawn for every star that has it (above, "Other stars").
+- An erupting prominence as a twisted rope in three dimensions (it is a
+  flat sheet's arch), its flare under it, and the CME tied to a region.
 - The eclipse sky's horizon glow (the shadow along the pass's rays), and
   the shadow on Earth from space.
 - The Moon's limb profile (Baily's beads) from LOLA.

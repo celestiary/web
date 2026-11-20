@@ -30,6 +30,7 @@ tried and dropped.
 | Moving Cesium into a page of its own, on the fork's Pages, as a cross-origin NetGL guest (proposed): what crosses, lag, hosting | [design/CesiumGuest.md](design/CesiumGuest.md) |
 | Slop New York at Manhattan in Earth's Cesium layer (the layers control's *New York (3D city)*, `layers:nyc`, `?nyc=1`): the nested NetGL chain, Cesium's external renderers, the city's colour contract | [CESIUM.md, New York](CESIUM.md#new-york) |
 | The Sun's activity by date, spots, flares, prominences, corona, CMEs, eclipses, glare, solar wind | [js/scene/Sun.md](js/scene/Sun.md); the photosphere and every star: [js/scene/Stars.md](js/scene/Stars.md) |
+| The activity view (`?sun=euv`: an EUV imager's disc in a coronagraph's field, where flares, erupting prominences, streamers and CMEs show), and a star's activity against the Sun's by class, rotation and age | [js/scene/Sun.md](js/scene/Sun.md): [the activity view](js/scene/Sun.md#the-activity-view), [erupting prominences](js/scene/Sun.md#erupting-prominences), [other stars](js/scene/Sun.md#other-stars) |
 | Planet materials, lighting and exposure, texture sources and their recipes | [js/scene/Planet.md](js/scene/Planet.md): [lighting and exposure](js/scene/Planet.md#lighting-and-exposure), [surface texture sources](js/scene/Planet.md#surface-texture-sources) |
 | The HDR pipeline: the scene buffer, units, the one tone map, display-referred materials | [js/scene/HDR.md](js/scene/HDR.md); DESIGN.md [HDR pipeline](DESIGN.md#hdr-pipeline) |
 | The atmosphere pass | [js/scene/atmos/composition.md](js/scene/atmos/composition.md) (what it does and its knobs); [BRUNETON.md](js/scene/atmos/BRUNETON.md) (the LUT design) |
@@ -277,6 +278,18 @@ tried and dropped.
   `window.celestiarySky` (`c`, `metering`), find its frame by the start of
   its URL: the host's own URL carries the guest's, so `url().includes(...)`
   finds the host and `frame.evaluate` runs in the wrong page.
+- **The Sun's activity view headless** (Sun.md, [the activity
+  view](js/scene/Sun.md#the-activity-view)): open `?sun=euv#sun`, or call
+  `c.ui.sceneManager.objects.sun.sunLayers.setView('euv')`.  What it shows
+  is the model's at the date, so find a moment first, in bun, with
+  `flaresAt`, `cmesAt` and `eruptionOf` (`sun/solarEvents.js`): at
+  2024-04-17 22:15 UTC an X6.6 flare is at 0.8 of its peak and an erupting
+  prominence a radius up.  An eruption is a flat sheet's arch: put the
+  camera along the sheet's normal (its tangent, `uPromTangent[0]`, crossed
+  with its centre, `uPromCentre[0]`, both in view space) to see it face on;
+  `sunLayers.eruptions` counts them, in the prominence uniforms' first
+  slots.  The view's exposure is the bare disc's (the meter's luminous
+  disc), so it needs no settling.
 - **Earth's clouds load from NASA GIBS** a second after the date settles
   (js/scene/Planet.md#clouds). Wait on
   `c.ui.sceneManager.objects.earth.clouds.userData.map.status`

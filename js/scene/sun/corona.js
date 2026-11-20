@@ -231,6 +231,28 @@ export function cmeShellDensity(mass, front, halfWidth) {
 
 
 /**
+ * The mean corona's brightness by radius, for a coronagraph's radial
+ * filter (activityView.js): the K-corona of the streamer belt's density at
+ * every latitude, B/B☉, at radii log-spaced from the first to the last.
+ * A line of sight along the belt reads 1 against it, the polar holes a
+ * few tenths, a CME's shell more.
+ *
+ * @param {number} samples
+ * @param {number} first solar radii
+ * @param {number} last solar radii
+ * @returns {Array<number>} log10 of B/B☉ at each radius
+ */
+export function radialReference(samples, first, last) {
+  const out = []
+  for (let i = 0; i < samples; i++) {
+    const rho = first * ((last / first) ** (i / (samples - 1)))
+    out.push(Math.log10(thomsonBrightness(rho, (r) => coronaDensity(r, 0), -Math.PI / 2, Math.PI / 2, 96)))
+  }
+  return out
+}
+
+
+/**
  * The GLSL of the density and the integral, mirroring the functions above.
  * The caller declares the uniforms it reads: uSheetPole (the sheet's pole,
  * in the frame the samples are in), uSheetWarp, uWarpPhase, uRays.
