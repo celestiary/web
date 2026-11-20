@@ -286,14 +286,24 @@ tried and dropped.
   view](js/scene/Sun.md#the-activity-view)): open `?sun=euv#sun`, or call
   `c.ui.sceneManager.objects.sun.sunLayers.setView('euv')`.  What it shows
   is the model's at the date, so find a moment first, in bun, with
-  `flaresAt`, `cmesAt` and `eruptionOf` (`sun/solarEvents.js`): at
-  2024-04-17 22:15 UTC an X6.6 flare is at 0.8 of its peak and an erupting
-  prominence a radius up.  An eruption is a flat sheet's arch: put the
-  camera along the sheet's normal (its tangent, `uPromTangent[0]`, crossed
-  with its centre, `uPromCentre[0]`, both in view space) to see it face on;
-  `sunLayers.eruptions` counts them, in the prominence uniforms' first
-  slots.  The view's exposure is the bare disc's (the meter's luminous
-  disc), so it needs no settling.
+  `flaresAt` and `cmesAt` (`sun/solarEvents.js`): at 2024-04-17 22:15 UTC
+  an X6.6 flare is at 0.8 of its peak and a CME with an erupting
+  prominence in its core is 3.6 radii out.  The view's exposure is the
+  bare disc's (the meter's luminous disc), so it needs no settling.
+- **The CMEs headless** (Sun.md, [CMEs](js/scene/Sun.md#cmes)): they are
+  a chunk of their own, loaded when one is first in view: `await
+  sunLayers.loadCmeCloud()`, then render a frame.  `sunLayers.cmeItems`
+  holds each drawn CME with its directions in view space (`d` outward,
+  `east`, `north`) and `sunLayers.cmeCloud.shapes` its shape: the rope's
+  axis is cos(tilt) east + sin(tilt) north, and the camera along the axis
+  crossed with `d` sees it face on, along the axis edge on.  The default
+  35 radii is inside any CME over 32 radii out in the camera's direction,
+  which isn't drawn.  `cmeCloud.debug = true` makes each particle write its
+  share of the CME's electrons instead of its light: the sum of the red
+  channel over a target (read as half floats, a `Uint16Array`) is the
+  share that reached the frame, 0.5 each for one CME wholly in view.  A
+  white-light check is `sunLayers.setView('eye')` with
+  `setOcculter(1.5)`, which the meter then exposes for.
 - **Earth's clouds load from NASA GIBS** a second after the date settles
   (js/scene/Planet.md#clouds). Wait on
   `c.ui.sceneManager.objects.earth.clouds.userData.map.status`
@@ -574,7 +584,11 @@ tried and dropped.
   limit, so any first-load code trips it: measure with `yarn bundle-check`
   before the commit, not in its hook.  Comments inside a shader's template
   string ship (the minifier strips only JavaScript's): keep them to a line
-  and put the explanation in the JS comment or the doc.
+  and put the explanation in the JS comment or the doc.  A lazy chunk
+  that imports a module the first load also has splits that module into a
+  file of its own, which the first load then fetches (two more scripts and
+  no fewer bytes, when the CMEs' chunk did): hand the chunk what it shares
+  instead (`SunLayers` `CME_DEPS`, `CreditsFooter` `CREDITS_DIALOG_DEPS`).
 - **Some data is built from other data and committed, with a test that
   fails when it drifts**: after editing a body's descriptor
   (`public/data/<dir>/index.json`: `public/data/earth/`,
@@ -724,6 +738,13 @@ tried and dropped.
     the PR is ready and waits.
 - **Keep the PR description current:** when later pushes change what the
   PR does or fixes, update the description to match.
+- **A permalink can't be a link in PR text written through the GitHub
+  tools:** they wrap any word with an at sign in it in backticks, against
+  stray mentions, which breaks a Markdown link round `#sun@...` and puts
+  the backticks inside a code block.  Put each permalink bare on a line of
+  its own: it comes out as a clean code span to copy.  A path alone
+  (`...?sun=euv#sun`) links as usual.  Read the description back after
+  writing it.
 
 ## Recording what you learn
 

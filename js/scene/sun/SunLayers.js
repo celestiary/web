@@ -1,40 +1,62 @@
 import {
+  AddEquation,
   AdditiveBlending,
   BackSide,
+  Color,
+  CustomBlending,
+  DoubleSide,
+  Float32BufferAttribute,
   Group,
+  HalfFloatType,
+  InstancedBufferAttribute,
+  InstancedBufferGeometry,
+  LinearFilter,
   Matrix3,
   Matrix4,
   Mesh,
+  OneFactor,
   PlaneGeometry,
   Quaternion,
+  Scene,
   ShaderMaterial,
   SphereGeometry,
+  Vector2,
   Vector3,
   Vector4,
+  WebGLRenderTarget,
 } from 'three'
+import {perf} from '../../perf/perf.js'
 import {LUMINOUS_DISC_PX, SUN_DISC_RADIANCE} from '../exposure.js'
-import {absoluteUniforms} from '../hdr.js'
+import {absoluteUniforms, hdrSupported} from '../hdr.js'
 import {utcToTtJulianDay} from '../celestialFrame.js'
 import {limbDarkening, powerTwo} from '../stellar.js'
 import {activeRegionsAt} from './activeRegions.js'
 import {EUV_VIEW, RADIAL_FIRST, RADIAL_SAMPLES, VIEWS, VIEW_EUV, VIEW_EYE} from './activityView.js'
-import {baumbachK, cmeShellDensity, radialReference, sheetAt} from './corona.js'
+import {
+  CORONA_GLSL,
+  GRAMS_PER_ELECTRON,
+  SUN_RADIUS_CM,
+  THOMSON_CM2,
+  baumbachK,
+  dilution,
+  radialReference,
+  sheetAt,
+} from './corona.js'
 import {occluderSeen, visibleFraction} from './eclipse.js'
 import {balmerPerNm} from './emission.js'
 import {glareFieldWeight, glareFunction, glareRadiusDeg} from './glare.js'
 import {MS_PER_DAY, activityLevel, cyclesAt, sunspotNumber} from './solarCycle.js'
 import {newSolarWind} from './SolarWind.js'
-import {cmesAt, eruptionOf, flaresAt, prominencesAt} from './solarEvents.js'
+import {cmesAt, flaresAt, prominencesAt} from './solarEvents.js'
 import {sunBodyQuaternion} from './sunFrame.js'
-import {hash2} from './sunRandom.js'
-import {MAX_FILAMENTS, MAX_FLARES, MAX_REGIONS} from './limits.js'
+import {generator, hash2} from './sunRandom.js'
+import {MAX_CMES, MAX_FILAMENTS, MAX_FLARES, MAX_REGIONS} from './limits.js'
 import {
   CORONA_FRAGMENT,
   CORONA_RADII,
   CORONA_VERTEX,
   GLARE_FRAGMENT,
   GLARE_VERTEX,
-  MAX_CMES,
   MAX_PROMINENCES,
 } from './sun-shaders.js'
 import {ASTRO_UNIT_METER} from '../../shared.js'
@@ -69,12 +91,27 @@ const WIND_LEVEL_STEP = 0.15
 // Events are recomputed when the date moves by more than this.
 const EVENT_STEP_MS = 30e3
 const SUN_RADIUS_MM = 695.7
-// The impact radius the quiet prominences and the chromosphere reach
-// (solar radii); an erupting one's top is past it.
-const PROMINENCE_MAX_RHO = 1.2
 // A filament's width on the disc takes this share of its height (a model).
 const FILAMENT_LEAN = 0.25
 const J2000_MS = Date.UTC(2000, 0, 1, 12)
+
+
+/**
+ * What the CMEs' chunk (cme/CmeCloud.js, cme/cmeModel.js) shares with the
+ * page's first load, handed to it rather than imported by it: a module
+ * both imported would be split into a file of its own for the first load
+ * to fetch (esbuild/budget.js; the credits dialog's CREDITS_DIALOG_DEPS
+ * is the same arrangement).
+ */
+export const CME_DEPS = Object.freeze({
+  three: Object.freeze({
+    AddEquation, Color, CustomBlending, DoubleSide, Float32BufferAttribute, HalfFloatType,
+    InstancedBufferAttribute, InstancedBufferGeometry, LinearFilter, Mesh, OneFactor, Scene, ShaderMaterial,
+    Vector2, Vector3, Vector4, WebGLRenderTarget,
+  }),
+  perf, EUV_VIEW, RADIAL_FIRST, RADIAL_SAMPLES, CORONA_GLSL, CORONA_RADII, GRAMS_PER_ELECTRON, SUN_RADIUS_CM,
+  THOMSON_CM2, MAX_CMES, radialReference, dilution, generator, hash2,
+})
 
 
 /**
@@ -297,11 +334,10 @@ export default class SunLayers {
         uPromCentre: {value: vec4s(MAX_PROMINENCES)},
         uPromTangent: {value: vec4s(MAX_PROMINENCES)},
         uPromShape: {value: vec4s(MAX_PROMINENCES)},
-        uCmeCount: {value: 0},
-        uCmeDir: {value: vec4s(MAX_CMES)},
-        uCmeShape: {value: vec4s(MAX_CMES)},
+        uCmeColumn: {value: null},
+        uCmeFog: {value: null},
+        uCmeOn: {value: 0},
         uDays: {value: 0},
-        uPromMaxRho: {value: PROMINENCE_MAX_RHO},
         uView: {value: new Vector4(0, EUV_VIEW.corona, EUV_VIEW.coolPerNm, EUV_VIEW.white)},
         uRadialRef: {value: radialReference(RADIAL_SAMPLES, RADIAL_FIRST, CORONA_RADII)},
         uProjectionInverse: {value: null},
@@ -326,6 +362,7 @@ export default class SunLayers {
       this._pixelRatio = renderer.getPixelRatio()
       mesh.material.uniforms.uProjectionInverse.value = camera.projectionMatrixInverse
       this._coronaView(camera)
+      this._cmePass(renderer, camera)
     }
     return mesh
   }
@@ -680,42 +717,28 @@ export default class SunLayers {
       u.uSheetWarp.value = this.sheet.warp
       u.uWarpPhase.value.set(...this.sheet.phase)
     }
-    // The CMEs: their directions fixed in space at launch (the Carrington
-    // frame then), their fronts now; and under each the prominence that
-    // erupted, if one did: an arch across the same direction.
+    // The CMEs: each one's directions in view space, fixed in space at its
+    // launch (the Carrington frame then): outward, and east and north at
+    // its source, which its rope's axis lies across (cme/cmeModel.js).
     const cmes = this.enabled.cmes ? this.state.cmes.slice(-MAX_CMES) : []
-    u.uCmeCount.value = cmes.length
     const eq = this._q[1]
     const parent = this.star.getWorldQuaternion(new Quaternion)
-    let slot = 0
-    let maxRho = PROMINENCE_MAX_RHO
-    cmes.forEach((c, i) => {
-      const launchJde = this.jde - ((this.ms - c.launch) / MS_PER_DAY)
+    this.cmeItems = cmes.map((cme) => {
+      const launchJde = this.jde - ((this.ms - cme.launch) / MS_PER_DAY)
       sunBodyQuaternion(launchJde, eq).premultiply(parent)
-      const lat = c.source.lat * Math.PI / 180
-      const lon = c.source.lon * Math.PI / 180
-      const launched = (x, y, z) => tmp.set(x, y, z).applyQuaternion(eq).transformDirection(camera.matrixWorldInverse)
-      const d = launched(Math.cos(lat) * Math.cos(lon), Math.sin(lat), -Math.cos(lat) * Math.sin(lon))
-      u.uCmeDir.value[i].set(d.x, d.y, d.z, c.front)
-      u.uCmeShape.value[i].set(c.width, cmeShellDensity(c.mass, c.front, c.width), (c.launch / 3.6e6) % 1, 0)
-      const e = this.enabled.prominences && slot < MAX_PROMINENCES ? eruptionOf(c, this.seed) : null
-      if (e) {
-        u.uPromCentre.value[slot].set(d.x, d.y, d.z, e.height)
-        // East and north at the source, turned by the filament's tilt.
-        const [ct, st] = [Math.cos(e.tilt), Math.sin(e.tilt)]
-        const t = launched(
-            (-ct * Math.sin(lon)) - (st * Math.sin(lat) * Math.cos(lon)),
-            st * Math.cos(lat),
-            (-ct * Math.cos(lon)) + (st * Math.sin(lat) * Math.sin(lon)))
-        u.uPromTangent.value[slot].set(t.x, t.y, t.z, e.halfLength)
-        u.uPromShape.value[slot].set(e.thickness, e.halpha, e.seed, e.hollow)
-        maxRho = Math.max(maxRho, 1.02 + e.height)
-        slot++
+      const lat = cme.source.lat * Math.PI / 180
+      const lon = cme.source.lon * Math.PI / 180
+      const launched = (x, y, z) =>
+        new Vector3(x, y, z).applyQuaternion(eq).transformDirection(camera.matrixWorldInverse)
+      return {
+        cme,
+        d: launched(Math.cos(lat) * Math.cos(lon), Math.sin(lat), -Math.cos(lat) * Math.sin(lon)),
+        east: launched(-Math.sin(lon), 0, -Math.cos(lon)),
+        north: launched(-Math.sin(lat) * Math.cos(lon), Math.cos(lat), Math.sin(lat) * Math.sin(lon)),
       }
     })
-    this.eruptions = slot
     // The prominences nearest the limb as the camera sees them, the ones
-    // that can show off the disc, in the slots the eruptions leave.
+    // that can show off the disc.
     const camFromSun = tmp.copy(cam).sub(sun).normalize().clone()
     const limbward = (this.enabled.prominences ? this.state.prominences : [])
         .map((p) => {
@@ -723,16 +746,60 @@ export default class SunLayers {
           return {p, limb: Math.abs(c.dot(camFromSun))}
         })
         .sort((x, y) => x.limb - y.limb)
-        .slice(0, MAX_PROMINENCES - slot)
-    limbward.forEach(({p}) => {
+        .slice(0, MAX_PROMINENCES)
+    u.uPromCount.value = limbward.length
+    limbward.forEach(({p}, i) => {
       const c = toView(p.centre)
-      u.uPromCentre.value[slot].set(c.x, c.y, c.z, p.height)
+      u.uPromCentre.value[i].set(c.x, c.y, c.z, p.height)
       const t = toView(p.tangent)
-      u.uPromTangent.value[slot].set(t.x, t.y, t.z, p.halfLength)
-      u.uPromShape.value[slot].set(p.thickness, p.halpha, p.seed, 0)
-      slot++
+      u.uPromTangent.value[i].set(t.x, t.y, t.z, p.halfLength)
+      u.uPromShape.value[i].set(p.thickness, p.halpha, p.seed, 0)
     })
-    u.uPromCount.value = slot
-    u.uPromMaxRho.value = maxRho
+  }
+
+
+  /**
+   * The CMEs' particles, drawn into their own targets for the corona's
+   * shader (cme/CmeCloud.js), which is loaded the first time a CME is in view:
+   * none are drawn until it is, nor where the renderer can't draw to a
+   * half-float target.
+   *
+   * @param {object} renderer
+   * @param {object} camera
+   */
+  _cmePass(renderer, camera) {
+    const u = this.corona.material.uniforms
+    u.uCmeOn.value = 0
+    if (!this.cmeItems?.length || !hdrSupported(renderer)) {
+      return
+    }
+    if (!this.cmeCloud) {
+      this.loadCmeCloud()
+      return
+    }
+    const drawn = this.cmeCloud.render(renderer, camera, this.cmeItems, {
+      sunCentre: u.uSunCentre.value,
+      radius: this.star.props.radius.scalar,
+      seed: this.seed,
+      ms: this.ms,
+    })
+    u.uCmeColumn.value = drawn.threads
+    u.uCmeFog.value = drawn.puffs
+    u.uCmeOn.value = 1
+  }
+
+
+  /**
+   * @returns {Promise} The CMEs' cloud's arrival (once: a failed load isn't
+   *     tried again, and the CMEs stay undrawn)
+   */
+  loadCmeCloud() {
+    this._cmeCloudPending ??= import('./cme/CmeCloud.js').then(({cmeCloud}) => {
+      const {CmeCloud} = cmeCloud(CME_DEPS)
+      this.cmeCloud = new CmeCloud
+    }).catch((err) => {
+      console.warn('The CMEs could not be loaded', err)
+    })
+    return this._cmeCloudPending
   }
 }

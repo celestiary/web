@@ -50,6 +50,11 @@ export const VIEWS = Object.freeze([VIEW_EYE, VIEW_EUV])
  *   thick but forms higher toward the limb: a brighter rim).
  * - `corona`: the coronagraph field's level where the corona is the mean
  *   streamer belt's (the radial filter's 1).
+ * - `cme`: a CME's electrons over the corona's own, in the filter: a
+ *   coronagraph's movies show a CME by its difference from the frame
+ *   before, which takes the steady corona out and leaves the CME standing
+ *   several times clearer than its share of the light (a tenth to a half
+ *   of the corona's at its radius).
  * - `coolPerNm`: the cool plasma's level per nm of the Balmer model's Hα
  *   equivalent width: a typical prominence (0.01 nm) is 2.5 times the
  *   quiet disc, as bright as the network, as prominences are in 304 Å.
@@ -64,6 +69,7 @@ export const EUV_VIEW = Object.freeze({
   filament: 0.65,
   limb: 0.8,
   corona: 5,
+  cme: 3,
   coolPerNm: 250,
   flareAtC1: 30,
   flareIndex: 0.6,

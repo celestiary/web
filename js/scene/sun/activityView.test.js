@@ -13,7 +13,7 @@ import {
 } from './activityView.js'
 import {baumbachK, radialReference} from './corona.js'
 import {CORONA_RADII} from './sun-shaders.js'
-import {ERUPTION_MAX_HEIGHT, ERUPTIVE_SHARE, cmesAt, eruptionOf, softXrayPhase} from './solarEvents.js'
+import {softXrayPhase} from './solarEvents.js'
 
 
 describe('the activity view\'s colour table', () => {
@@ -84,51 +84,5 @@ describe('the coronagraph\'s radial filter', () => {
     expect(near).toBeGreaterThan(0.8)
     expect(near).toBeLessThan(1.6)
     expect(ref[0] - ref[ref.length - 1]).toBeGreaterThan(5)
-  })
-})
-
-
-describe('an erupting prominence', () => {
-  const cme = (front, launch = 1.7e12) => ({launch, front, speed: 450, width: 0.5, mass: 1e15, source: {lat: 10, lon: 20}})
-
-  it('goes with the observed share of CMEs', () => {
-    let n = 0
-    const total = 4000
-    for (let i = 0; i < total; i++) {
-      n += eruptionOf(cme(2, 1.7e12 + (i * 3.7e6))) ? 1 : 0
-    }
-    expect(n / total).toBeGreaterThan(ERUPTIVE_SHARE - 0.04)
-    expect(n / total).toBeLessThan(ERUPTIVE_SHARE + 0.04)
-  })
-
-  it('rises from a prominence\'s height to the CME\'s core, widening and fading', () => {
-    let launch = 1.7e12
-    while (!eruptionOf(cme(1, launch))) {
-      launch += 3.7e6
-    }
-    const at = (front) => eruptionOf(cme(front, launch))
-    expect(at(1).height).toBeCloseTo(0.03, 6)
-    // Past a few radii its top is the core, 0.55 of the front.
-    expect(1 + at(8).height).toBeCloseTo(0.55 * 8, 2)
-    let last = at(1)
-    for (const front of [1.5, 2, 3, 5, 8]) {
-      const e = at(front)
-      expect(e.height).toBeGreaterThan(last.height)
-      expect(e.halfLength).toBeGreaterThan(last.halfLength)
-      expect(e.thickness).toBeGreaterThan(last.thickness)
-      expect(e.halpha).toBeLessThan(last.halpha)
-      expect(e.seed).toBe(last.seed)
-      expect(e.tilt).toBe(last.tilt)
-      last = e
-    }
-    expect(eruptionOf(cme((ERUPTION_MAX_HEIGHT + 1.5) / 0.55, launch))).toBe(null)
-  })
-
-  it('is the same for a date in every session', () => {
-    const ms = Date.UTC(2024, 3, 17, 22, 15)
-    const a = cmesAt(ms).map((c) => eruptionOf(c))
-    const b = cmesAt(ms).map((c) => eruptionOf(c))
-    expect(a).toEqual(b)
-    expect(a.some(Boolean)).toBe(true)
   })
 })

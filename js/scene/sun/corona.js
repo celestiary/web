@@ -208,26 +208,8 @@ export function coronaDensity(r, sinLat) {
 
 
 // A CME's electrons: its mass over 1.17 proton masses an electron (fully
-// ionised, a tenth of the nuclei helium), in a shell at its front
-// (Gaussian, σ 8% of its radius) through its cone.
+// ionised, a tenth of the nuclei helium).  Where they are is cme/cmeModel.js.
 export const GRAMS_PER_ELECTRON = 1.17 * 1.67262192e-24
-export const CME_SHELL_SIGMA = 0.08
-
-
-/**
- * The density at a CME's front, cm⁻³, for the shader.
- *
- * @param {number} mass g
- * @param {number} front solar radii
- * @param {number} halfWidth radians
- * @returns {number}
- */
-export function cmeShellDensity(mass, front, halfWidth) {
-  const electrons = mass / GRAMS_PER_ELECTRON
-  const solidAngle = 2 * Math.PI * (1 - Math.cos(halfWidth))
-  const volume = solidAngle * front * front * CME_SHELL_SIGMA * front * Math.sqrt(2 * Math.PI) * (SUN_RADIUS_CM ** 3)
-  return electrons / volume
-}
 
 
 /**

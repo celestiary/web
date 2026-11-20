@@ -7,3 +7,5 @@ export const MAX_REGIONS = 24
 export const MAX_FLARES = 4
 // The filaments drawn dark on the disc in the activity view.
 export const MAX_FILAMENTS = 12
+// The CMEs drawn at once, the newest (cme/CmeCloud.js).
+export const MAX_CMES = 6

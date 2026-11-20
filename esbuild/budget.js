@@ -68,14 +68,18 @@ export const STATIC_BUDGET = {
   // of celestiary's), so 2,449 for a KB of room.  With a camera left behind
   // turning about its target (#361: Scene pivotBody, ThreeUi _updatePivot,
   // dragControls getPivot, under a KB), 2,450.
-  // 2,461, so 2,462 (11 KB more), with the Sun's activity view (#358; js/scene/Sun.md, "The
-  // activity view"): the EUV imager's and the coronagraph's branches of the
-  // photosphere's and the corona's shaders, which are one program each with
-  // the white-light picture, so not a chunk of their own; the flares' light
-  // curves in the event model the first frame already runs; and a star's
-  // activity against the Sun's (sun/stellarActivity.js, 2 KB), which Star.js
-  // reads as it builds the Sun.
-  totalMinifiedKB: 2462,
+  // 2,460, so 2,461 (10 KB more), with the Sun's activity view (#358;
+  // js/scene/Sun.md, "The activity view"): the EUV imager's and the
+  // coronagraph's branches of the photosphere's and the corona's shaders,
+  // which are one program each with the white-light picture, so not a chunk
+  // of their own; the flares' light curves in the event model the first
+  // frame already runs; and a star's activity against the Sun's
+  // (sun/stellarActivity.js, 2 KB), which Star.js reads as it builds the
+  // Sun.  The CMEs' particles (sun/cme/, 16 KB) are a chunk of their own,
+  // loaded when a CME is first in view, with what they share with the first
+  // load handed to them (SunLayers CME_DEPS): importing it had split the
+  // first load into 13 files for the same bytes.
+  totalMinifiedKB: 2461,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,

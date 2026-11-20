@@ -13,6 +13,7 @@ export const PASSES = [
   {name: 'scene', what: `renderer.render(scene) into the scene buffer: bodies, stars, the Sun, the galaxy's composite`},
   {name: 'galaxy', what: `the Milky Way's march into its cached target, only when the view has changed`},
   {name: 'galaxies', what: `SPARC's galaxies (Galaxies.md): their levels of detail, map bakes, impostor and near marches`},
+  {name: 'cme', what: `the Sun's CMEs: their strands into their own target, which the corona's shader reads (Sun.md)`},
   {name: 'cesium', what: `the Cesium composite's own work: clears, the fading celestiary surface, the JS between steps`},
   {name: 'cesium.blit', what: `the copy of the scene's depth into Cesium's target, per body`},
   {name: 'cesium.shell', what: `the stencil shell: where the body shows, depth-tested against the scene's`},

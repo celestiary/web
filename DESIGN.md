@@ -1557,6 +1557,7 @@ The `` ` `` (backtick) key toggles three's own `Stats` panel (FPS, MS, MB; click
   | `update` | The animation callback, camera and navigation, before any rendering. |
   | `scene` | `renderer.render(scene)` into the scene buffer: bodies, stars, the Sun, the galaxy's composite. |
   | `galaxy` | The Milky Way's march into its cached target (`MilkyWay.js`), only on a frame where the view changed. |
+  | `cme` | The Sun's CMEs: their particles into targets of their own (`sun/cme/CmeCloud.js`), which the corona's shader reads; from the corona's `onBeforeRender`, inside `scene`. |
   | `cesium` | The composite's own work: clears, the fading celestiary surface, the JS between steps. |
   | `cesium.blit` | Copying the scene's depth into Cesium's target, per body. |
   | `cesium.shell` | The stencil shell: where the body shows. |

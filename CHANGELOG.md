@@ -44,9 +44,10 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 Add `?sun=euv` to the address and the Sun is drawn as a space observatory's instruments show it, not
 as the eye does: its disc in extreme ultraviolet, with bright active regions, dark filaments, flares
 that saturate, and prominences round the limb; and round it a coronagraph's field, with the corona's
-streamers and the fronts of coronal mass ejections. Under most ejections a prominence now erupts, a
-twisted arch that rises off the limb. It is the same Sun the app already simulated by date; ordinary
-light hides all of this. There is no button for it yet.
+streamers and coronal mass ejections. An ejection is a cloud in three dimensions, made of thousands of
+threads and puffs: a billowing front, a dark cavity, and in most of them a bright twisted core, the
+prominence that erupted, which you can fly round and watch rise. It is the same Sun the app already
+simulated by date; ordinary light hides all of this. There is no button for it yet.
 
 - Date: 2026-11-20
 - PR: [#358](https://github.com/celestiary/web/pull/358)
