@@ -67,13 +67,21 @@ export const STATIC_BUDGET = {
   // about 65 KB of it in the first load, its WebGLRenderer and core; nothing
   // of celestiary's), so 2,449 for a KB of room.  With a camera left behind
   // turning about its target (#361: Scene pivotBody, ThreeUi _updatePivot,
-  // dragControls getPivot, under a KB), 2,450.  2,451 for the Suntan craft's
-  // exposure (Scene.targetCraftNode and sunlitCraft, asked by ThreeUI each
-  // frame, and the keying in ThreeUI: a fraction of a KB).  2,453 for a link
-  // that names a Suntan craft and keeps the view on it (the `suntan:` path,
-  // the craft's frame and its restore in Celestiary, which reads a link
-  // before anything else loads: 1.5 KB).
-  totalMinifiedKB: 2453,
+  // dragControls getPivot, under a KB), 2,450.  2,460 with the camera
+  // control (#361 step 2: Scene cameraMode, setCameraMode and the held
+  // turning, about 3 KB; ui/CameraModeControl.jsx's label 2.1 KB and
+  // CameraModeMenu.jsx 2.4 KB, plain buttons: MUI's Menu, though already in
+  // the first load, cost more, and loading the menu lazily split the first
+  // load from 11 scripts to 14), so 2,461.
+  // The HiPS sky layer (#360) is lazy but for the `?sky=` parameter in
+  // Scene (showSky) and the Rubin panel's buttons to its imaged fields
+  // (their list and directions are in the lazy code), half a KB: 2,462.
+  // The Suntan craft's exposure (Scene.targetCraftNode and sunlitCraft,
+  // asked by ThreeUI each frame) and a link that names a craft and keeps the
+  // view on it (the `suntan:` path, the craft's frame and its restore in
+  // Celestiary, which reads a link before anything else loads), 2 KB: 2,464,
+  // so 2,465.
+  totalMinifiedKB: 2465,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -93,10 +101,10 @@ export const STATIC_BUDGET = {
   // 744, so 745, with the Suntan app's panel (2 KB: the panel and its
   // token, as the Rubin panel; loaded lazily it would split shared chunks as
   // that one's did).  760, so 761, with three.js 0.187 (from 0.171: about
-  // 16 KB, three's own growth, as above).  762 for the Suntan craft's
-  // exposure (761.0: a fraction of a KB over; Scene.targetCraftNode and
-  // sunlitCraft, which ThreeUI asks each frame, so first load as ThreeUI is).
-  totalGzipKB: 762,
+  // 16 KB, three's own growth, as above).  763, so 764, with the camera
+  // control (#361 step 2, as above).  765, so 766, with the Suntan craft's
+  // exposure and link (as above).
+  totalGzipKB: 766,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,
@@ -136,8 +144,9 @@ export const RUNTIME_BUDGET = {
   // 2,614 KB (stars.dat was 1,848 KB of it).  Before it: 81, 2,859 KB.
   // With three.js 0.187 (#366) main measured 1,015 to 1,019 KB from run to
   // run here, and #364's pivot took a CI run to 1,021.8: 1,024 KB, for the
-  // runs' spread.
-  ready: {requests: 28, kb: 1024},
+  // runs' spread.  The camera control (#361 step 2) adds about 2.5 KB
+  // (1,021.5 here): 1,028.
+  ready: {requests: 28, kb: 1028},
   // After #259: 39 requests, 3,918 KB.  Raised from #258's 29 requests:
   // the catalogue's faint tiers are 12 packs where stars.dat was one file,
   // by design (a deep link needs only its field's; DESIGN.md "The star

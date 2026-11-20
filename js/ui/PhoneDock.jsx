@@ -4,6 +4,7 @@ import useStore from '../store/useStore'
 import ARButton from './ARButton'
 import {ARIcon, AboutIcon, AppsIcon, LayersIcon, MoreIcon, SettingsIcon, TimeIcon} from './DockIcons'
 import DragModeToggle from './DragModeToggle'
+import CameraModeControl from './CameraModeControl'
 import {LayerOptions} from './LayersButton'
 import TimePanel from './TimePanel'
 
@@ -123,6 +124,10 @@ export function DockView({
           {shown === 'layers' && <LayerOptions onChosen={() => setPanel(null)}/>}
           {shown === 'more' &&
             <div className='dock-more'>
+              <div className='dock-more-row'>
+                <span className='dock-more-label'>Camera</span>
+                <CameraModeControl celestiary={celestiary}/>
+              </div>
               <div className='dock-more-row'>
                 <span className='dock-more-label'>Drag</span>
                 <DragModeToggle/>
