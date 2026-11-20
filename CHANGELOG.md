@@ -39,6 +39,17 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### The Suntan craft, modelled
+
+Find the relay or the lander in the Suntan app and zoom in: the flight system's 3D model rides
+each craft, its heat shield turned to the Sun and its sling wheel rolling along the orbit, and at
+release one lander leaves the wheel and flies on alone.
+
+- Date: 2026-11-20
+- PR: [#367](https://github.com/celestiary/web/pull/367)
+- Epic: [#120](https://github.com/celestiary/web/issues/120) Missions and models
+- Permalink: none
+
 ### Fly a concept mission to the Sun's surface, and read its sensors
 
 The new Suntan app in the drawer follows Parker Solar Probe's seven Venus flybys to the Sun,

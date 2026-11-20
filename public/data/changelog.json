@@ -1,6 +1,26 @@
 {
   "entries": [
     {
+      "id": "2026-11-20-the-suntan-craft-modelled",
+      "date": "2026-11-20",
+      "headline": "The Suntan craft, modelled",
+      "text": "Find the relay or the lander in the Suntan app and zoom in: the flight system's 3D model rides each craft, its heat shield turned to the Sun and its sling wheel rolling along the orbit, and at release one lander leaves the wheel and flies on alone.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 367,
+          "url": "https://github.com/celestiary/web/pull/367"
+        }
+      ],
+      "epic": {
+        "number": 120,
+        "title": "Missions and models",
+        "url": "https://github.com/celestiary/web/issues/120"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
       "id": "2026-11-20-fly-a-concept-mission-to-the-sun-s-surface-and",
       "date": "2026-11-20",
       "headline": "Fly a concept mission to the Sun's surface, and read its sensors",
