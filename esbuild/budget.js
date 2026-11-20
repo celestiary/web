@@ -76,7 +76,12 @@ export const STATIC_BUDGET = {
   // The HiPS sky layer (#360) is lazy but for the `?sky=` parameter in
   // Scene (showSky) and the Rubin panel's buttons to its imaged fields
   // (their list and directions are in the lazy code), half a KB: 2,462.
-  totalMinifiedKB: 2462,
+  // The Suntan craft's exposure (Scene.targetCraftNode and sunlitCraft,
+  // asked by ThreeUI each frame) and a link that names a craft and keeps the
+  // view on it (the `suntan:` path, the craft's frame and its restore in
+  // Celestiary, which reads a link before anything else loads), 2 KB: 2,464,
+  // so 2,465.
+  totalMinifiedKB: 2465,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -97,8 +102,9 @@ export const STATIC_BUDGET = {
   // token, as the Rubin panel; loaded lazily it would split shared chunks as
   // that one's did).  760, so 761, with three.js 0.187 (from 0.171: about
   // 16 KB, three's own growth, as above).  763, so 764, with the camera
-  // control (#361 step 2, as above).
-  totalGzipKB: 764,
+  // control (#361 step 2, as above).  764, so 765, with the Suntan craft's
+  // exposure and link (as above).
+  totalGzipKB: 765,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,

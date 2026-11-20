@@ -20,6 +20,13 @@ import {BufferAttribute, DynamicDrawUsage, Sphere, Vector3} from 'three'
 // The splice and the origin stay while the body is in its coarse segment,
 // within ORIGIN_RADII of the origin, and within CHECK_TOLERANCE of the arc;
 // otherwise they're redone, a few hundred vertices and one upload.
+//
+// A body far smaller than its orbit can't be reached by the fine arc: a
+// Suntan craft (suntan/SuntanTrack.js), 7.7 m on a 2.5e10 m orbit, would
+// need tens of thousands of steps for FINE_TOLERANCE, where MAX_FINE_STEPS
+// leaves metres of sag.  With `knot` the body's own place is a vertex of
+// the arc, so the line goes through it exactly, and it's re-spliced when
+// the body has moved CHECK_TOLERANCE from it (each frame while it moves).
 
 
 /** Target sag of the fine arc, in the body's radii. */
@@ -55,11 +62,14 @@ export class BodyLine {
    * @param {number} opts.n coarse vertices
    * @param {boolean} [opts.closed] whether the last vertex is the first
    *     (an ellipse), so the fine arc can wrap
+   * @param {boolean} [opts.knot] whether the body's place is a vertex of
+   *     the fine arc (see above)
    */
-  constructor(line, {n, closed = false}) {
+  constructor(line, {n, closed = false, knot = false}) {
     this.line = line
     this.n = n
     this.closed = closed
+    this.knot = knot
     /** The coarse vertices, in the line's parent's frame. */
     this.coarse = new Float64Array(3 * n)
     /** The curve through them (see setCoarse), or null. */
@@ -70,7 +80,7 @@ export class BodyLine {
     this.steps = 1
     /** Where the drawn vertices are relative to (the line's position). */
     this.origin = new Vector3
-    const capacity = n + (((2 * SPAN_SIDE) + 1) * MAX_FINE_STEPS)
+    const capacity = n + (((2 * SPAN_SIDE) + 1) * MAX_FINE_STEPS) + (knot ? 1 : 0)
     const attr = new BufferAttribute(new Float32Array(3 * capacity), 3)
     attr.setUsage(DynamicDrawUsage)
     line.geometry.setAttribute('position', attr)
@@ -165,6 +175,10 @@ export class BodyLine {
     if (k !== sp.k || body.distanceTo(this.origin) > ORIGIN_RADII * radius) {
       return false
     }
+    // The knot is the body's place at the splice, and the origin.
+    if (this.knot) {
+      return body.distanceTo(this.origin) < CHECK_TOLERANCE * radius
+    }
     // Distance to the arc's segment at u.
     let q = (this._unwrap(u, sp.k) - sp.ka) * this.steps
     q = Math.min(Math.max(Math.floor(q), 0), sp.count - 2)
@@ -257,8 +271,32 @@ export class BodyLine {
       }
       v.addScaledVector(delta, fade(x)).toArray(out, 3 * q)
     }
-    this.span = {k, ka, kb, count}
+    this.span = {k, ka, kb, count: this.knot ? this._putKnot(body, (uk - ka) * m, count) : count}
     this.write(body)
+  }
+
+
+  /**
+   * Put the body's place into the fine arc, at its fine index: a vertex of
+   * its own, or in place of one it's on, so no segment has zero length
+   * (the wide lines' shader takes a segment's direction from it).
+   *
+   * @param {Vector3} body
+   * @param {number} q the body's fractional index in the fine arc
+   * @param {number} count the arc's vertices
+   * @returns {number} the arc's vertices now
+   */
+  _putKnot(body, q, count) {
+    const out = this._fine
+    const i = Math.floor(q)
+    const f = q - i
+    if (f < 1e-9 || f > 1 - 1e-9) {
+      body.toArray(out, 3 * Math.round(q))
+      return count
+    }
+    out.copyWithin(3 * (i + 2), 3 * (i + 1), 3 * count)
+    body.toArray(out, 3 * (i + 1))
+    return count + 1
   }
 
 

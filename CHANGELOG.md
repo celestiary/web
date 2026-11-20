@@ -39,6 +39,18 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### The Suntan craft, modelled
+
+Find the relay or the lander in the Suntan app and zoom in: the flight system's 3D model rides
+each craft, its heat shield turned to the Sun and its sling wheel rolling along the orbit, and at
+release one lander leaves the wheel and flies on alone. Up close the view adapts to the craft's
+glare, its orbit line runs through it, and a link to the view brings you back to it.
+
+- Date: 2026-11-20
+- PR: [#367](https://github.com/celestiary/web/pull/367)
+- Epic: [#120](https://github.com/celestiary/web/issues/120) Missions and models
+- Permalink: [Open this view](https://celestiary.org/#suntan:relay@26.8162,-51.8428,34m;t=9979.535268jd;cq=-0.2435,0.3056,0.0812,0.9169;fov=45deg;s=F;time:pause;apps:open,view=suntan)
+
 ### New York's city, rebuilt from every surveyed building
 
 *New York (3D city)* in the layers control now draws the latest Slop New York: every Manhattan building
@@ -78,6 +90,7 @@ Tap it to choose another way, with each one's key; *y* turns with the planet at 
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
 - Permalink: [Open this view](https://celestiary.org/#sun/earth@7.0316,-7.5554,624m;t=9819.841738jd;cq=-0.3849,0.6474,-0.3869,-0.5319;fov=45deg;s=alpoGF;time:pause)
 
+
 ### Zooming out after leaving a planet's orbit stays near the planet
 
 After *f* turned following off, one scroll of the wheel threw the camera millions of kilometres out, and dragging
@@ -90,6 +103,7 @@ it.
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
 - Permalink: none
 - Kind: fix
+
 ### Fly a concept mission to the Sun's surface, and read its sensors
 
 The new Suntan app in the drawer follows Parker Solar Probe's seven Venus flybys to the Sun,

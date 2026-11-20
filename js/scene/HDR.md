@@ -1055,6 +1055,11 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    would read and which hides the stars near the disc; and from Earth's
    surface the **moonlit sky** (0.001-0.003 cd/m² near full, 2-3
    magnitudes over a dark site) hides the faint stars everywhere.
+   The Suntan craft (suntan/Suntan.md) are sunlit bodies too, handed in
+   by the scene (`Scene.sunlitCraft`), not in its objects, and a targeted
+   craft keys the exposure (`Scene.targetCraftNode`), where its target
+   object, the Sun, keys nothing.
+
    The Sun's glare is drawn now, by the CIE's disability glare equation
    and metered like any light ([Sun.md, glare](Sun.md#glare); it replaced
    the Sun's glow shell); the Moon's, Venus's and Jupiter's are the next

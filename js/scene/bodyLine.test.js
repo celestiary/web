@@ -116,6 +116,37 @@ describe('BodyLine', () => {
   })
 
 
+  it('with a knot, goes through a body too small for the fine arc, and follows it as it moves', () => {
+    // A Suntan craft's proportion: metres on an orbit 2.5e10 m across.
+    const tiny = 3e-10
+    const {line, at, coarse} = ellipseLine(0)
+    const knotted = new BodyLine(line, {n: N, closed: true, knot: true})
+    knotted.setCoarse(coarse, {at, correct: false}, steps, new Vector3)
+    const attr = line.geometry.attributes.position
+    for (const u of [200.37, 200.3700001, 0.25, N - 1.6]) {
+      const body = at(u, new Vector3)
+      knotted.follow(body, u, tiny)
+      // The fine arc alone sags far more than the body's size ...
+      expect(knotted.steps).toBe(steps)
+      // ... but the body is a vertex: the origin, so (0, 0, 0) as drawn.
+      expect(line.position.equals(body)).toBe(true)
+      const xyz = attr.array
+      let atBody = 0
+      for (let j = 0; j < line.geometry.drawRange.count; j++) {
+        if (xyz[3 * j] === 0 && xyz[(3 * j) + 1] === 0 && xyz[(3 * j) + 2] === 0) {
+          atBody++
+        }
+      }
+      expect(atBody).toBe(1)
+      expect(distance(line, body)).toBe(0)
+    }
+    // Still: no new splice, nothing uploaded.
+    const version = attr.version
+    knotted.follow(line.position.clone(), N - 1.6, tiny)
+    expect(attr.version).toBe(version)
+  })
+
+
   it('draws the plain line for a body off its window', () => {
     const {line, at, coarse} = ellipseLine(0)
     const open = new BodyLine(line, {n: N})
