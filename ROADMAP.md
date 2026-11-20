@@ -114,6 +114,8 @@ it and why.
 The recommended order. "Now" is what to pick up first; within a group the
 order is a suggestion.
 
+**Done recently:** the compass, #361's third and last step (PR [#369](https://github.com/celestiary/web/pull/369); [design/UI.md, the camera control](design/UI.md#the-camera-control-proposed)).  Within 3 radii of a body a dial shows north on the ground under the camera; a tap turns north up keeping the pitch, a second levels the view (the horizon below 30 km, straight down higher), and dragging round it turns the heading; it turns tracking off.  `js/compass.js` (the heading, pitch and orientation over the ground), `Scene.cameraHeading`, `turnCamera`, `compassTap`, `ui/CompassControl.jsx` (an SVG dial turned each animation frame by its style; at the scene's top right on a phone, where the column put it on the info sheet).  First load 2,466 KB minified, 765 gzipped.
+
 **Done recently:** the camera control's label and menu, #361's second step (PR [#368](https://github.com/celestiary/web/pull/368); [design/UI.md, the camera control](design/UI.md#the-camera-control-proposed)).  A label in the controls (the phone dock's More panel) says how the camera moves (*Fixed in space*, *Riding Earth's orbit*, *Turning with Earth*, *Standing on Earth*), "(auto)" while the height chooses, lit for a moment when the height switches it; a tap opens the choices with their keys and *Facing the target*.  `Scene.cameraMode`/`setCameraMode`, a held choice for turning (`_spinHold`, cleared by a go), `onCameraMode` for the control; `y` (Celestia's Orbit Synchronously) and `Y` in the link.  The menu is plain buttons on the tokens: MUI's Menu cost more, and loaded lazily it split the first load into 14 files.  First load 2,461 KB minified, 764 gzipped.
 
 **Done recently:** a camera left behind turns about its target, #361's first step (PR [#364](https://github.com/celestiary/web/pull/364); DESIGN.md [follow](DESIGN.md#follow)).  `f` off hangs the platform on the frame above (the Sun's), and `controls.target` was the platform's position, so the zoom and the orbit drag turned about the Sun: one wheel step out took the camera from 64,000 km to 14.6 million km from Earth.  ThreeUi now gives the controls a pivot of their own, the platform's origin while riding a body and the target in the platform's frame once left behind (`_updatePivot`, `Scene.pivotBody`), with the target's ground the zoom's floor and the orbit drag turning about it (`dragControls` `getPivot`); the same step now goes to 69,000 km.
@@ -342,7 +344,8 @@ Roadmap and issues groomed (2026-10-08): [#86](https://github.com/celestiary/web
    [design/UI.md, the camera control](design/UI.md#the-camera-control-proposed)): a camera left behind (`f` off) turns
    about the target rather than the Sun (done, PR [#364](https://github.com/celestiary/web/pull/364)); a label saying how the camera moves (fixed in space, riding the body's orbit, turning with it, standing on
    it), automatic below 30 km and announced (#359), with `y` to turn with the body (done, PR
-   [#368](https://github.com/celestiary/web/pull/368)); then a compass for north-up and a level view.
+   [#368](https://github.com/celestiary/web/pull/368)); and a compass for north-up and a level view (done, PR
+   [#369](https://github.com/celestiary/web/pull/369)).  All three steps are in.
 
 **Next** (the shared engines, below)
 

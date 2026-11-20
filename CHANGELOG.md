@@ -39,6 +39,17 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### A compass near a planet: north up, or level, in a tap
+
+Near a planet a small compass shows which way north is on the ground below. Tap it to turn north up, tap again to
+level the view to the horizon (or look straight down from high up), and drag round it to turn.
+
+- Date: 2026-11-20
+- PR: [#369](https://github.com/celestiary/web/pull/369)
+- Issue: [#361](https://github.com/celestiary/web/issues/361)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@7.0316,-7.5554,624m;t=9819.841738jd;cq=-0.3849,0.6474,-0.3869,-0.5319;fov=45deg;s=alpoGF;time:pause)
+
 ### The camera says how it's moving, and you can change it
 
 A label by the time controls says how the camera moves: riding a planet's orbit, turning with it so the ground stays
