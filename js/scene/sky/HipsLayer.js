@@ -243,7 +243,7 @@ export default class HipsLayer extends Group {
           // The first service failed where this one answered: ask this one first from now on.
           this.serviceIndex = order[k]
         }
-        const material = newTileMaterial(this.sceneReferred)
+        const material = newTileMaterial(this.sceneReferred, {keyBlack: true})
         material.uniforms.map.value = prepareTileTexture(texture)
         const mesh = new Mesh(tileGeometry(t.order, t.pix, this.toScene), material)
         mesh.name = `hips ${this.survey.id} ${key}`

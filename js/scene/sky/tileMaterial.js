@@ -11,15 +11,22 @@ import {DoubleSide, NoColorSpace, ShaderMaterial} from 'three'
 export const FAR_PLANE_INSIDE = 0.999999
 /** After the bodies and the stars, before the overlays; a tile adds its order or level. */
 export const TILE_RENDER_ORDER = 10
+/** With `keyBlack`, the texel value (0 to 1) from which a tile is opaque. */
+export const KEY_BLACK_FULL = 2 / 255
 
 
 /**
  * @param {Function} [sceneReferred] hdr.js's, handed in
+ * @param {object} [opts]
+ * @param {boolean} [opts.keyBlack] Take a black texel as no data and let
+ *   what's under it through: a HiPS tile covers its whole cell, and one
+ *   with no alpha (Rubin's webp) is black where the survey has nothing,
+ *   which hid the stars round the image
  * @returns {ShaderMaterial}
  */
-export function newTileMaterial(sceneReferred = null) {
+export function newTileMaterial(sceneReferred = null, {keyBlack = false} = {}) {
   const material = new ShaderMaterial({
-    uniforms: {map: {value: null}, uOpacity: {value: 1}},
+    uniforms: {map: {value: null}, uOpacity: {value: 1}, uKeyBlack: {value: keyBlack ? 1 : 0}},
     vertexShader: `varying vec2 vUv;
 void main() {
   vUv = uv;
@@ -35,13 +42,17 @@ void main() {
 }`,
     // The texel as it is: display-referred sRGB (the texture is read without
     // decoding), which sceneReferred turns into what the tone map gives back.
-    // A tile's alpha (a HiPS PNG's blank sky) lets what's under it through.
+    // A tile's alpha (a HiPS PNG's blank sky) lets what's under it through,
+    // and so does black where it's keyed: none at 0, all from 2/255 (the
+    // darkest sky a survey holds is a few counts over it).
     fragmentShader: `uniform sampler2D map;
 uniform float uOpacity;
+uniform float uKeyBlack;
 varying vec2 vUv;
 void main() {
   vec4 texel = texture2D(map, vUv);
-  gl_FragColor = vec4(texel.rgb, texel.a * uOpacity);
+  float lit = smoothstep(0.0, ${KEY_BLACK_FULL.toFixed(6)}, max(texel.r, max(texel.g, texel.b)));
+  gl_FragColor = vec4(texel.rgb, texel.a * uOpacity * mix(1.0, lit, uKeyBlack));
 }`,
     transparent: true,
     depthWrite: false,

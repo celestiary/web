@@ -107,6 +107,8 @@ describe('the image layer', () => {
       expect(mesh.material.vertexShader).toContain('mat3(modelViewMatrix) * position')
       expect(mesh.material.vertexShader).not.toContain('modelViewMatrix * vec4(position')
       expect(Object.hasOwn(mesh, 'onBeforeRender')).toBe(false)
+      // The discovery image is whole to its edges: its black isn't keyed out.
+      expect(mesh.material.uniforms.uKeyBlack.value).toBe(0)
     }
     layer.dispose()
   })

@@ -248,6 +248,18 @@ field in April and May.
   ESASky reached through the proxy: the layer on from the link, order 9,
   its tiles ready and drawn, none missing, no console errors, the Pillars
   in the frame (the maintainer's ask on the preview: how to see them).
+- **Black as no data** (the maintainer's look at the preview: zoomed
+  out, a dark surround to the Virgo image hid the stars round it).  A
+  HiPS tile covers its whole cell, and Rubin's webp tiles have no alpha:
+  exactly 0 where the survey has nothing (95% of the order-3 tile, 6% to
+  19% of the order-5 ones), and the layer draws over the star points.  So
+  a HiPS tile's black is keyed out (`tileMaterial.js` `keyBlack`: no
+  alpha at 0, full from 2/255; the darkest real sky in those tiles is a
+  few counts over that); the discovery image, whole to its edges, isn't
+  keyed.  The same 23° view rendered with the layer off, with the key and
+  without it, 800 × 500: without the key 896 pixels are darker than with
+  no layer (stars hidden), with it 22 (the scene's stars under the image
+  itself); the image's own pixels are the same either way.
 - **Rubin's own Virgo tiles in the Rubin app**, headless as above
   (800 × 500, the tile host through the proxy), "Rubin's image" on, the
   clock paused on 15 May 2026 02:00 UTC with Virgo near the meridian: at a

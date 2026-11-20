@@ -83,6 +83,9 @@ describe('the HiPS layer', () => {
     for (const mesh of layer.children) {
       expect(mesh.material.vertexShader).toContain('mat3(modelViewMatrix) * position')
       expect(mesh.geometry.getAttribute('position').count).toBe((GRID + 1) ** 2)
+      // A tile covers its whole cell: black is no data, and lets the stars under it show.
+      expect(mesh.material.uniforms.uKeyBlack.value).toBe(1)
+      expect(mesh.material.fragmentShader).toContain('mix(1.0, lit, uKeyBlack)')
     }
     layer.dispose()
   })
