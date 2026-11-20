@@ -1,5 +1,5 @@
 import {describe, expect, it, mock} from 'bun:test'
-import {Euler, PerspectiveCamera} from 'three'
+import {Euler, PerspectiveCamera, Vector3} from 'three'
 import {attachPointerDrag} from './dragControls'
 
 
@@ -100,6 +100,24 @@ describe('attachPointerDrag', () => {
     expect(camera.position.equals(startPos)).toBe(false)
     // Distance from origin is preserved in rigid-body orbit.
     expect(Math.abs(camera.position.length() - startPos.length())).toBeLessThan(1e-6)
+  })
+
+  it('\'orbit\' turns about getPivot when given: a camera left behind turns about its target (#361)', () => {
+    const el = makeFakeElement()
+    const camera = new PerspectiveCamera()
+    // The target 1 AU from the platform's origin, the camera 1e7 m from it.
+    const pivot = new Vector3(1.496e11, 0, 0)
+    camera.position.set(1.496e11 + 1e7, 0, 0)
+    const fromOrigin = camera.position.length()
+    attachPointerDrag(el, camera, {getDragMode: () => 'orbit', getPivot: () => pivot})
+
+    el.fire('pointerdown', {button: 0, pointerId: 1, clientX: 100, clientY: 100})
+    el.fire('pointermove', {pointerId: 1, clientX: 150, clientY: 130})
+
+    expect(Math.abs(camera.position.distanceTo(pivot) - 1e7)).toBeLessThan(1e-3)
+    // About the origin, the same drag swung it hundreds of millions of km.
+    expect(Math.abs(camera.position.length() - fromOrigin)).toBeGreaterThan(1e3)
+    expect(camera.position.distanceTo(pivot)).toBeLessThan(2e7)
   })
 
   it('getOrbitScale scales an orbit drag, read at each move, and leaves pan alone', () => {

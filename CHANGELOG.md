@@ -50,6 +50,18 @@ puts them, subway entrances where the MTA's are, and fire escapes, storefronts a
 - Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
 - Permalink: [Open this view](https://celestiary.org/#sun/earth@40.5025,-74.0298,780m;t=9792.377067jd;cq=0.2348,-0.1201,-0.2007,0.9435;fov=45deg;s=alpoU;time:pause;layers:nyc)
 
+### Zooming out after leaving a planet's orbit stays near the planet
+
+After *f* turned following off, one scroll of the wheel threw the camera millions of kilometres out, and dragging
+swung it round the Sun. The zoom and the drag now turn about the body you're looking at, so you can fly freely near
+it.
+
+- Date: 2026-11-20
+- PR: [#364](https://github.com/celestiary/web/pull/364)
+- Issue: [#361](https://github.com/celestiary/web/issues/361)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: none
+- Kind: fix
 ### Fly a concept mission to the Sun's surface, and read its sensors
 
 The new Suntan app in the drawer follows Parker Solar Probe's seven Venus flybys to the Sun,

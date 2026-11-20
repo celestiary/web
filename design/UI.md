@@ -200,7 +200,7 @@ announces.  Issue: [#361](https://github.com/celestiary/web/issues/361).
 | Riding the body's orbit | `g`, a link, `f` on | the body's `orbitPosition`: it moves with the body, the body turns under it | the body's centre |
 | Turning with the body | automatic below 30 km while riding (#359, `SPIN_IN_M`; back from 40 km) | the body's spinning node: the ground stays put, the sky turns | the body's centre |
 | Standing on the body | double-click the ground (`land`), a place | the spinning node, the drag mode set to look around | the body's centre |
-| Left behind | `f` off | the frame above (the Sun's, for a planet): the body moves on without the camera | **the frame's origin**, the Sun, 1 AU away: a zoom step there throws the camera out of the solar system |
+| Left behind | `f` off | the frame above (the Sun's, for a planet): the body moves on without the camera | the target (step 1, below); until then **the frame's origin**, the Sun, 1 AU away, where a zoom step threw the camera out of the solar system |
 | Facing the target | `t`, independent of the rest | (any of the above) | (as above) |
 
 The readout says "Following on/off" and "Tracking on/off" for two
@@ -263,8 +263,10 @@ ground, quiet, and the place you go when the view is confusing.
 
 ### Its steps
 
-1. **Fixed in space turns about the target** (the pivot), with tests that
-   a zoom after `f` off stays near the target.  No UI change.
+1. **Fixed in space turns about the target** (done, #361's first PR):
+   `Scene.pivotBody`, `ThreeUi._updatePivot`, the orbit drag's
+   `getPivot`; one zoom step out after `f` off near Earth goes from 64,000
+   to 69,000 km, where it went to 14.6 million.  No UI change.
 2. **The label and its menu**, the automatic state announced, `y`, the
    `Y` link letter.
 3. **The compass**: north-up, level, the ring.
