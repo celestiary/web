@@ -91,7 +91,7 @@ export default function App() {
         {floating && <TimePanel time={celestiary.time} timeStr={timeStr} isPaused={isPaused} setIsPaused={setIsPaused}/>}
         {floating && <CameraModeControl celestiary={celestiary}/>}
         {floating && <DragModeToggle/>}
-        {floating && <LayersButton/>}
+        {floating && <LayersButton celestiary={celestiary}/>}
         {celestiary && <ARDebugHUD celestiary={celestiary}/>}
         <div id='text-buttons'>
           {floating &&

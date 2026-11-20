@@ -22,11 +22,31 @@ export const KEY_BLACK_FULL = 2 / 255
  *   what's under it through: a HiPS tile covers its whole cell, and one
  *   with no alpha (Rubin's webp) is black where the survey has nothing,
  *   which hid the stars round the image
+ * @param {number} [opts.keyBlackFrom] The texel value (0 to 1) up to which
+ *   a keyed tile is clear: 0, or a jpeg survey's (a manifest's `keyBlack`,
+ *   in counts: the compression rings round the edge of the data, out to 16
+ *   counts into the no-data black; Sky.md, "Black as no data")
+ * @param {number} [opts.keyBlackFull] The texel value from which it's
+ *   opaque: KEY_BLACK_FULL, or a jpeg survey's
+ * @param {boolean} [opts.invert] Show the tile's negative: ESASky's Hubble
+ *   tiles are stretched dark-on-light (stars black, the sky near white),
+ *   with black, keyed out first, where there's no data; the key then reads
+ *   the darkest of the texel's neighbours too, so the edge of the data
+ *   doesn't show as a bright rim
  * @returns {ShaderMaterial}
  */
-export function newTileMaterial(sceneReferred = null, {keyBlack = false} = {}) {
+export function newTileMaterial(sceneReferred = null, {
+  keyBlack = false, keyBlackFrom = 0, keyBlackFull = KEY_BLACK_FULL, invert = false,
+} = {}) {
   const material = new ShaderMaterial({
-    uniforms: {map: {value: null}, uOpacity: {value: 1}, uKeyBlack: {value: keyBlack ? 1 : 0}},
+    uniforms: {
+      map: {value: null},
+      uOpacity: {value: 1},
+      uKeyBlack: {value: keyBlack ? 1 : 0},
+      uKeyFrom: {value: keyBlackFrom},
+      uKeyFull: {value: keyBlackFull},
+      uInvert: {value: invert ? 1 : 0},
+    },
     vertexShader: `varying vec2 vUv;
 void main() {
   vUv = uv;
@@ -44,15 +64,34 @@ void main() {
     // decoding), which sceneReferred turns into what the tone map gives back.
     // A tile's alpha (a HiPS PNG's blank sky) lets what's under it through,
     // and so does black where it's keyed: none at 0, all from 2/255 (the
-    // darkest sky a survey holds is a few counts over it).
+    // darkest sky a survey holds is a few counts over it; a jpeg survey's
+    // ramp is wider).  An inverted survey is keyed on its texel as served,
+    // then shown as its negative; and keyed on the darkest of its
+    // neighbours a screen pixel and a half off (or a texel and a half), as
+    // the edge of its data is a blend of the no-data black and the sky, which
+    // the negative turns into a bright rim (Sky.md, "Black as no data").
     fragmentShader: `uniform sampler2D map;
 uniform float uOpacity;
 uniform float uKeyBlack;
+uniform float uKeyFrom;
+uniform float uKeyFull;
+uniform float uInvert;
 varying vec2 vUv;
+float level(vec2 uv) {
+  vec3 t = texture2D(map, uv).rgb;
+  return max(t.r, max(t.g, t.b));
+}
 void main() {
   vec4 texel = texture2D(map, vUv);
-  float lit = smoothstep(0.0, ${KEY_BLACK_FULL.toFixed(6)}, max(texel.r, max(texel.g, texel.b)));
-  gl_FragColor = vec4(texel.rgb, texel.a * uOpacity * mix(1.0, lit, uKeyBlack));
+  float v = max(texel.r, max(texel.g, texel.b));
+  if (uInvert > 0.5) {
+    vec2 d = max(fwidth(vUv) * 1.5, vec2(1.5 / 512.0));
+    v = min(min(v, min(level(vUv + d), level(vUv - d))),
+        min(level(vUv + vec2(d.x, -d.y)), level(vUv - vec2(d.x, -d.y))));
+  }
+  float lit = smoothstep(uKeyFrom, uKeyFull, v);
+  vec3 rgb = mix(texel.rgb, vec3(1.0) - texel.rgb, uInvert);
+  gl_FragColor = vec4(rgb, texel.a * uOpacity * mix(1.0, lit, uKeyBlack));
 }`,
     transparent: true,
     depthWrite: false,

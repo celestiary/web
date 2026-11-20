@@ -17,6 +17,24 @@ export function bodyLayer(bodyLayers, name) {
 
 
 /**
+ * The sky surveys on, with one switched on or off: added at the end, or
+ * taken out; the same list when nothing changes.
+ *
+ * @param {Array<string>} skyOn
+ * @param {string} key
+ * @param {boolean} on
+ * @returns {Array<string>}
+ */
+export function withSurvey(skyOn, key, on) {
+  const has = skyOn.includes(key)
+  if (on === true) {
+    return has ? skyOn : [...skyOn, key]
+  }
+  return has ? skyOn.filter((k) => k !== key) : skyOn
+}
+
+
+/**
  * Per-body render layers.  See CESIUM.md.
  *
  *   - `layerBody` — name of the Cesium-capable body the camera is in range
@@ -38,6 +56,10 @@ export function bodyLayer(bodyLayers, name) {
  *   - `newYorkStatus` — the city's load state: null (not loaded),
  *     `'loading'` (the guest building, then its set-up staged into the
  *     frames), `'ready'` or `'error'`.  Published by CesiumLayers.
+ *   - `skyOn` — the sky-imagery surveys switched on, by key, in the order
+ *     they were (js/scene/sky/Sky.md, "The control"): the layers control's
+ *     switches, the permalink's `sky:` token or `?sky=`.  None by default.
+ *     Celestiary follows it (Scene.setSkySurveys).
  *
  * @param {Function} set
  * @param {Function} get
@@ -56,5 +78,8 @@ export default function createLayersSlice(set, get) {
     newYorkStatus: null,
     setNewYorkOn: (on) => set(() => ({newYorkOn: on === true})),
     setNewYorkState: ({near, status}) => set(() => ({newYorkNear: near === true, newYorkStatus: status ?? null})),
+    skyOn: [],
+    setSkyOn: (keys) => set(() => ({skyOn: [...new Set(keys ?? [])]})),
+    setSkySurvey: (key, on) => set((state) => ({skyOn: withSurvey(state.skyOn, key, on)})),
   }
 }

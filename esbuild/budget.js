@@ -92,7 +92,13 @@ export const STATIC_BUDGET = {
   // loaded when a CME is first in view, with what they share with the first
   // load handed to them (SunLayers CME_DEPS): importing it had split two
   // more files out of the first load for the same bytes.
-  totalMinifiedKB: 2477,
+  // 2,461.3 to 2,462.96 with the layers control's sky imagery (#360): the
+  // Layers button everywhere, the loader of its sky section (SkyImagery.jsx;
+  // the section, the surveys and the turn to a field are lazy, handed the
+  // first load's MUI and React so the split leaves MUI's chunks alone),
+  // LayerSwitch shared with the New York toggle, the `sky:` token and the
+  // store's list: 1.7 KB, so 2,478 on main's 2,477.
+  totalMinifiedKB: 2478,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -116,7 +122,9 @@ export const STATIC_BUDGET = {
   // control (#361 step 2, as above).  764, so 765, with the Suntan craft's
   // exposure and link (as above).
   // 769, so 770 (5 KB more), with the Sun's activity view (#358, above).
-  totalGzipKB: 770,
+  // 0.7 KB more with the layers control's sky imagery (#360, as above),
+  // so 771.
+  totalGzipKB: 771,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,

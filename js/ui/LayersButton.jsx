@@ -7,6 +7,7 @@ import ToggleButton from '@mui/material/ToggleButton'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 import useStore from '../store/useStore'
+import SkyImagery from './SkyImagery'
 import {bodyLayer} from '../store/LayersSlice'
 import {capitalize} from '../utils'
 import LayersIcon from '@mui/icons-material/Layers'
@@ -67,33 +68,30 @@ export function newYorkControl({newYorkNear, newYorkOn, newYorkStatus}) {
 
 
 /**
- * The New York layer's switch, under the renderer tiles: a labelled switch,
- * its caption the cost while off and the load state while on (a spinner
- * while the guest builds).
+ * An optional layer's switch in the layers panel: a labelled switch and its
+ * caption (a spinner beside it while the layer loads).  The New York toggle
+ * and each sky survey's are one.
  *
  * @param {object} props
- * @param {object} props.control newYorkControl's
+ * @param {string} props.id The test id and the caption's id: `layers-button-new-york`, `layers-sky-hst-acs`
+ * @param {string} props.label
+ * @param {string} props.caption
+ * @param {boolean} props.checked
  * @param {Function} props.onChange (on: boolean) => void
+ * @param {boolean} [props.loading]
+ * @param {boolean} [props.error]
+ * @param {object} [props.sx] The row's own
  * @returns {React.ReactElement}
  */
-export function NewYorkToggle({control, onChange}) {
-  const {checked, loading, error, caption} = control
+export function LayerSwitch({id, label, caption, checked, onChange, loading = false, error = false, sx}) {
   return (
-    <Box
-      data-testid='layers-button-new-york'
-      sx={{
-        // One width whatever its caption says, so the panel doesn't jump as
-        // the state changes.
-        display: 'flex', alignItems: 'center', gap: 1, width: NEW_YORK_WIDTH_PX, boxSizing: 'border-box',
-        pt: 1, mt: 0.5, borderTop: '1px solid var(--line-hairline)',
-      }}
-    >
+    <Box data-testid={id} sx={{display: 'flex', alignItems: 'center', gap: 1, boxSizing: 'border-box', ...sx}}>
       <Switch
         size='small'
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        inputProps={{'aria-label': NEW_YORK_LABEL, 'aria-describedby': 'layers-new-york-caption'}}
-        data-testid='layers-button-new-york-switch'
+        inputProps={{'aria-label': label, 'aria-describedby': `${id}-caption`}}
+        data-testid={`${id}-switch`}
         sx={{
           '& .MuiSwitch-switchBase.Mui-checked': {color: 'var(--accent)'},
           '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {backgroundColor: 'var(--accent)'},
@@ -101,10 +99,10 @@ export function NewYorkToggle({control, onChange}) {
       />
       <Box sx={{display: 'flex', flexDirection: 'column', minWidth: 0, textAlign: 'left'}}>
         <Typography variant='body2' sx={{color: 'var(--ink)', lineHeight: 1.3}}>
-          {NEW_YORK_LABEL}
+          {label}
         </Typography>
         <Typography
-          id='layers-new-york-caption'
+          id={`${id}-caption`}
           variant='caption'
           role={loading || error ? 'status' : undefined}
           sx={{color: error ? 'var(--ink-2)' : 'var(--ink-3)', lineHeight: 1.3, display: 'flex', alignItems: 'center', gap: 0.75}}
@@ -119,15 +117,68 @@ export function NewYorkToggle({control, onChange}) {
 
 
 /**
- * The layer tiles for the body the camera is near: Google-Maps-style, one
- * per layer.  LayersButton shows them beside its button; the phone dock
- * (PhoneDock) above its bar.
+ * The New York layer's switch, under the renderer tiles: its caption the
+ * cost while off and the load state while on (a spinner while the guest
+ * builds).
  *
- * @property {Function} [onChosen] called after a tile is picked
- * @returns {ReactElement|null}
+ * @param {object} props
+ * @param {object} props.control newYorkControl's
+ * @param {Function} props.onChange (on: boolean) => void
+ * @returns {React.ReactElement}
  */
-export function LayerOptions({onChosen}) {
+export function NewYorkToggle({control, onChange}) {
+  return (
+    <LayerSwitch
+      id='layers-button-new-york'
+      label={NEW_YORK_LABEL}
+      {...control}
+      onChange={onChange}
+      // One width whatever its caption says, so the panel doesn't jump as
+      // the state changes.
+      sx={{width: NEW_YORK_WIDTH_PX, pt: 1, mt: 0.5, borderTop: '1px solid var(--line-hairline)'}}
+    />
+  )
+}
+
+
+/**
+ * The layers panel: the layer tiles for the body the camera is near
+ * (Google-Maps-style, one per layer) while it's near one, and the sky
+ * imagery's surveys everywhere.  LayersButton shows it beside its button;
+ * the phone dock (PhoneDock) above its bar.
+ *
+ * @property {object} [celestiary] For the sky imagery's fields
+ * @property {Function} [onChosen] called after a body's tile is picked
+ * @returns {ReactElement}
+ */
+export function LayerOptions({celestiary, onChosen}) {
   const layerBody = useStore((state) => state.layerBody)
+  return (
+    <Paper
+      elevation={4}
+      // Scrolls rather than run off the window: the button's top is 222 px
+      // down the right-hand stack, whatever the window's size.
+      sx={{
+        display: 'flex', flexDirection: 'column', p: 1, backgroundColor: 'rgba(20, 20, 20, 0.85)',
+        maxHeight: 'calc(100vh - 240px)', overflowY: 'auto', maxWidth: 'calc(100vw - 32px)', boxSizing: 'border-box',
+      }}
+      data-testid='layers-button-panel'
+    >
+      {layerBody && <BodyLayers layerBody={layerBody} onChosen={onChosen}/>}
+      <SkyImagery celestiary={celestiary} divided={Boolean(layerBody)}/>
+    </Paper>
+  )
+}
+
+
+/**
+ * The body's layer tiles, and the New York toggle under them.
+ *
+ * @property {string} layerBody The Cesium body in range
+ * @property {Function} [onChosen] called after a tile is picked
+ * @returns {ReactElement}
+ */
+function BodyLayers({layerBody, onChosen}) {
   const bodyLayers = useStore((state) => state.bodyLayers)
   const layerStatus = useStore((state) => state.layerStatus)
   const setBodyLayer = useStore((state) => state.setBodyLayer)
@@ -135,9 +186,6 @@ export function LayerOptions({onChosen}) {
   const newYorkOn = useStore((state) => state.newYorkOn)
   const newYorkStatus = useStore((state) => state.newYorkStatus)
   const setNewYorkOn = useStore((state) => state.setNewYorkOn)
-  if (!layerBody) {
-    return null
-  }
   const current = bodyLayer(bodyLayers, layerBody)
   const status = layerStatus[layerBody]
   const bodyName = capitalize(layerBody)
@@ -148,11 +196,7 @@ export function LayerOptions({onChosen}) {
     onChosen?.()
   }
   return (
-    <Paper
-      elevation={4}
-      sx={{display: 'flex', flexDirection: 'column', p: 1, backgroundColor: 'rgba(20, 20, 20, 0.85)'}}
-      data-testid='layers-button-panel'
-    >
+    <>
       <Box sx={{display: 'flex', gap: 1}}>
         {OPTIONS.map(({value, label, icon: Icon, tip}) => {
           const isCesiumError = value === 'cesium' && status === 'error'
@@ -194,37 +238,32 @@ export function LayerOptions({onChosen}) {
         })}
       </Box>
       {newYork && <NewYorkToggle control={newYork} onChange={setNewYorkOn}/>}
-    </Paper>
+    </>
   )
 }
 
 
 /**
- * Render-layer picker for the body the camera is on (see CESIUM.md).
- * Hidden unless the camera is in range of a Cesium-capable body.  Collapsed it is
- * one Layers button; expanded, Google-Maps-style tiles for each layer.
+ * The layers control (see CESIUM.md and js/scene/sky/Sky.md): one Layers
+ * button; open, the body's render layers while the camera is in range of a
+ * Cesium-capable body, and the sky imagery's surveys everywhere.
  *
- * @returns {React.ReactElement|null}
+ * @property {object} [celestiary]
+ * @returns {React.ReactElement}
  */
-export default function LayersButton() {
-  const layerBody = useStore((state) => state.layerBody)
+export default function LayersButton({celestiary}) {
   const [isOpen, setIsOpen] = useState(false)
-
-  if (!layerBody) {
-    return null
-  }
-  const bodyName = capitalize(layerBody)
 
   return (
     <Box sx={{display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 1}}>
-      {isOpen && <LayerOptions onChosen={() => setIsOpen(false)}/>}
-      <Tooltip title={`${bodyName} layers`} describeChild>
+      {isOpen && <LayerOptions celestiary={celestiary} onChosen={() => setIsOpen(false)}/>}
+      <Tooltip title='Layers' describeChild>
         <ToggleButton
           value='layers'
           selected={isOpen}
           onChange={() => setIsOpen(!isOpen)}
           size='small'
-          aria-label={`${bodyName} layers`}
+          aria-label='Layers'
           aria-expanded={isOpen}
           data-testid='layers-button-toggle'
         >

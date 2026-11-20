@@ -293,12 +293,10 @@ export default class Scene {
     this.loadRubin = () => import('./rubin/install.js')
     // The Suntan feature, the same way (getSuntan).
     this.loadSuntan = () => import('./suntan/install.js')
-    // A sky survey's imagery over the stars from the start, by its key: the
-    // `?sky=` parameter (sky/Sky.md), until the surveys have a control.
-    const sky = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('sky')
-    if (sky) {
-      this.showSky(sky)
-    }
+    // The sky surveys the layers control has on (sky/Sky.md, "The
+    // control"), by key: setSkySurveys, from the store's `skyOn`.
+    this._skyWanted = []
+    this.loadSky = () => import('./sky/install.js')
     // Whether vsopAt is VSOP87C itself yet (Animation.vsopReady): set by
     // Celestiary.  Absent, as in tests, it's taken as ready.
     this.vsopReady = null
@@ -3646,8 +3644,28 @@ export default class Scene {
    * @returns {Promise<?object>} The layer, or null for a key no survey has
    */
   async showSky(key) {
-    const {showSurvey} = await import('./sky/install.js')
+    const {showSurvey} = await this.loadSky()
     return showSurvey(this, key, {sceneReferred, addCredit, removeCredit})
+  }
+
+
+  /**
+   * The sky surveys the layers control has on (the store's `skyOn`, the
+   * `sky:` token): each one's layer held for the control (sky/install.js
+   * skyLayers, shared with the Rubin app), and let go of when it's off.
+   * Lazily loaded the first time any is on.
+   *
+   * @param {Array<string>} keys
+   * @returns {Promise<Array<string>>} The keys held for the control now (a
+   *   key no survey has is skipped)
+   */
+  async setSkySurveys(keys) {
+    this._skyWanted = keys
+    if (!keys.length && !this._skyLayers) {
+      return []
+    }
+    // The latest wanted, whatever came in while the code loaded.
+    return (await this.loadSky()).followControl(this, this._skyWanted, {sceneReferred, addCredit, removeCredit})
   }
 
 

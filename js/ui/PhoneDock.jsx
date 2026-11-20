@@ -26,7 +26,6 @@ import TimePanel from './TimePanel'
  * @returns {React.ReactElement}
  */
 export default function PhoneDock({celestiary, timeStr, isPaused, setIsPaused}) {
-  const layerBody = useStore((state) => state.layerBody)
   const ar = useStore((state) => state.ar)
   const widgetsOpen = useStore((state) => state.widgets.isOpen)
   const dispatchWidgets = useStore((state) => state.dispatchWidgets)
@@ -66,7 +65,6 @@ export default function PhoneDock({celestiary, timeStr, isPaused, setIsPaused}) 
       timeStr={timeStr}
       isPaused={isPaused}
       setIsPaused={setIsPaused}
-      layerBody={layerBody}
       ar={ar}
       widgetsOpen={widgetsOpen}
       onApps={() => dispatchWidgets({type: 'toggle'})}
@@ -85,7 +83,6 @@ export default function PhoneDock({celestiary, timeStr, isPaused, setIsPaused}) 
  * @property {string} timeStr
  * @property {boolean} isPaused
  * @property {Function} setIsPaused
- * @property {?string} layerBody the Cesium body in range, if any
  * @property {?object} ar the AR session, if on
  * @property {boolean} widgetsOpen
  * @property {Function} onApps opens or closes the widgets drawer
@@ -93,12 +90,13 @@ export default function PhoneDock({celestiary, timeStr, isPaused, setIsPaused}) 
  * @returns {React.ReactElement}
  */
 export function DockView({
-  dockRef, celestiary, timeStr, isPaused, setIsPaused, layerBody, ar, widgetsOpen, onApps, navigate,
+  dockRef, celestiary, timeStr, isPaused, setIsPaused, ar, widgetsOpen, onApps, navigate,
 }) {
   const [panel, setPanel] = useState(null)
   const time = celestiary.time
-  // A panel whose button has gone (layers, away from a Cesium body) closes.
-  const shown = panel === 'layers' && !layerBody ? null : panel
+  // The layers panel is there everywhere: the sky imagery's surveys, and a
+  // Cesium body's render layers while it's near (layerBody).
+  const shown = panel
   const toggle = (name) => setPanel(shown === name ? null : name)
 
   // A touch on the scene closes the open panel.
@@ -121,7 +119,7 @@ export function DockView({
         <div className='dock-panel' data-testid={`phone-dock-panel-${shown ?? 'ar'}`}>
           {shown === 'time' &&
             <TimePanel time={time} timeStr={timeStr} isPaused={isPaused} setIsPaused={setIsPaused}/>}
-          {shown === 'layers' && <LayerOptions onChosen={() => setPanel(null)}/>}
+          {shown === 'layers' && <LayerOptions celestiary={celestiary} onChosen={() => setPanel(null)}/>}
           {shown === 'more' &&
             <div className='dock-more'>
               <div className='dock-more-row'>
@@ -151,14 +149,13 @@ export function DockView({
           onClick={() => toggle('time')}
           testId='time'
         />
-        {layerBody &&
-          <DockButton
-            label='Layers'
-            icon={<LayersIcon/>}
-            active={shown === 'layers'}
-            onClick={() => toggle('layers')}
-            testId='layers'
-          />}
+        <DockButton
+          label='Layers'
+          icon={<LayersIcon/>}
+          active={shown === 'layers'}
+          onClick={() => toggle('layers')}
+          testId='layers'
+        />
         {ar ?
           <DockButton label='Exit AR' icon={<ARIcon/>} active onClick={() => celestiary.exitAR()} testId='ar'/> :
           <div className='dock-slot'>
