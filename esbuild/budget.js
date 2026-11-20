@@ -46,7 +46,12 @@ export const STATIC_BUDGET = {
   // path, under a KB), at the limit, so a KB of room; with a late Cesium guest
   // frame's distance scale (#344: GuestPages _sent, CesiumLayers
   // _frameDistanceScale) 2,368 and a fraction, so a KB of room again.
-  totalMinifiedKB: 2369,
+  // 2,377 with the Suntan app's panel (ui/SuntanApp.jsx, its icon and token
+  // codec, store/suntanApp.js; chrome in the drawer, as the Rubin panel is,
+  // with its mission and sensors a chunk of their own: scene/suntan/), 8 KB;
+  // MUI's Select for its event list would have been 4 more, so it's a native
+  // select.
+  totalMinifiedKB: 2378,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -61,8 +66,10 @@ export const STATIC_BUDGET = {
   // 739, so 740, for the credits footer (#341: its timing, each credit on
   // arrival then fading, its info icon, and Gaia's and NASA GIBS's credits;
   // credits.js, CreditsFooter.jsx, scene/gibs.js; chrome, so in the first
-  // load with the footer).
-  totalGzipKB: 740,
+  // load with the footer).  742, so 743, for the Suntan app's panel (2 KB:
+  // the panel and its token, as the Rubin panel; loaded lazily it would
+  // split shared chunks as that one's did).
+  totalGzipKB: 743,
   // The largest single first-load file, minified.  Main: 695 KB.
   largestChunkMinifiedKB: 765,
 }

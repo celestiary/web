@@ -1,0 +1,353 @@
+{
+ "units": "mm",
+ "hub_z_mm": -7000.0,
+ "lander_centre_radius_mm": 3996.8911123479725,
+ "tree": [
+  "Suntan",
+  "  Orbiter",
+  "    TPS heat shield",
+  "    TPS truss",
+  "    Bus",
+  "    Solar array x2",
+  "    Cooling radiator x4",
+  "    High-gain antenna",
+  "    FIELDS antenna x4",
+  "    Magnetometer boom",
+  "  Sling wheel",
+  "    Yoke",
+  "    Axle",
+  "    Hub",
+  "    Spoke x4",
+  "    Lander x4",
+  "      Ablator shell",
+  "      HfCN hull",
+  "      Coolant plenum",
+  "      Insulation",
+  "      Instrument core",
+  "      Diamond window",
+  "      Magnet coil x3",
+  "      Vent nozzle x6"
+ ],
+ "parts": [
+  {
+   "name": "TPS heat shield",
+   "count": 1,
+   "dimensions_mm": "disc dia 2300 x 115",
+   "material": "carbon-carbon facesheets on carbon foam, alumina white coat",
+   "density_kg_m3": 150,
+   "volume_mm3": 477796972.70283765,
+   "area_mm2": 9140463.825619504,
+   "mass_kg_each": 71.66954590542565,
+   "mass_kg_total": 71.66954590542565,
+   "rgb": [
+    0.96,
+    0.96,
+    0.93
+   ]
+  },
+  {
+   "name": "TPS truss",
+   "count": 1,
+   "dimensions_mm": "cone frustum shell dia 2000 -> 1080 x 600, wall 6",
+   "material": "Ti-6Al-4V (closed shell standing in for an open truss, 20% solidity)",
+   "density_kg_m3": 886,
+   "volume_mm3": 17349131.270184368,
+   "area_mm2": 7344873.534492365,
+   "mass_kg_each": 15.371330305383351,
+   "mass_kg_total": 15.371330305383351,
+   "rgb": [
+    0.55,
+    0.56,
+    0.6
+   ]
+  },
+  {
+   "name": "Bus",
+   "count": 1,
+   "dimensions_mm": "hex prism 1000 across flats x 1300",
+   "material": "aluminium honeycomb bus with avionics and propellant (effective)",
+   "density_kg_m3": 400,
+   "volume_mm3": 1125833024.91977,
+   "area_mm2": 6235382.907247959,
+   "mass_kg_each": 450.33320996790803,
+   "mass_kg_total": 450.33320996790803,
+   "rgb": [
+    0.74,
+    0.75,
+    0.78
+   ]
+  },
+  {
+   "name": "Solar array",
+   "count": 2,
+   "dimensions_mm": "1120 x 690 x 25",
+   "material": "cells on a water-cooled titanium platen (effective)",
+   "density_kg_m3": 1100,
+   "volume_mm3": 19320000.0,
+   "area_mm2": 1636100.0,
+   "mass_kg_each": 21.252,
+   "mass_kg_total": 42.504,
+   "rgb": [
+    0.07,
+    0.11,
+    0.36
+   ]
+  },
+  {
+   "name": "Cooling radiator",
+   "count": 4,
+   "dimensions_mm": "560 x 480 x 20",
+   "material": "aluminium panel with titanium coolant tubes (effective)",
+   "density_kg_m3": 1000,
+   "volume_mm3": 5376000.0,
+   "area_mm2": 579200.0,
+   "mass_kg_each": 5.3759999999999994,
+   "mass_kg_total": 21.503999999999998,
+   "rgb": [
+    0.7,
+    0.8,
+    0.88
+   ]
+  },
+  {
+   "name": "High-gain antenna",
+   "count": 1,
+   "dimensions_mm": "dish dia 600 x 100 deep, mast dia 60 x 220",
+   "material": "CFRP reflector and mast",
+   "density_kg_m3": 1600,
+   "volume_mm3": 3424021.8331475137,
+   "area_mm2": 682318.7582737022,
+   "mass_kg_each": 5.478434933036022,
+   "mass_kg_total": 5.478434933036022,
+   "rgb": [
+    0.9,
+    0.9,
+    0.86
+   ]
+  },
+  {
+   "name": "FIELDS antenna",
+   "count": 4,
+   "dimensions_mm": "whip dia 10 x 2000",
+   "material": "niobium C-103 (modelled solid)",
+   "density_kg_m3": 8850,
+   "volume_mm3": 157079.63267948967,
+   "area_mm2": 62988.932704475366,
+   "mass_kg_each": 1.3901547492134836,
+   "mass_kg_total": 5.560618996853934,
+   "rgb": [
+    0.62,
+    0.62,
+    0.68
+   ]
+  },
+  {
+   "name": "Magnetometer boom",
+   "count": 1,
+   "dimensions_mm": "dia 60 x 3500",
+   "material": "CFRP tube (modelled solid, 20% solidity)",
+   "density_kg_m3": 320,
+   "volume_mm3": 9896016.858807849,
+   "area_mm2": 665389.3240303183,
+   "mass_kg_each": 3.1667253948185117,
+   "mass_kg_total": 3.1667253948185117,
+   "rgb": [
+    0.28,
+    0.28,
+    0.3
+   ]
+  },
+  {
+   "name": "Yoke",
+   "count": 1,
+   "dimensions_mm": "U frame 2240 wide x 5135 long, 200 deep",
+   "material": "Ti-6Al-4V box beam (10% solidity)",
+   "density_kg_m3": 443,
+   "volume_mm3": 266600000.0,
+   "area_mm2": 7610000.0,
+   "mass_kg_each": 118.1038,
+   "mass_kg_total": 118.1038,
+   "rgb": [
+    0.45,
+    0.5,
+    0.56
+   ]
+  },
+  {
+   "name": "Axle",
+   "count": 1,
+   "dimensions_mm": "dia 160 x 1640",
+   "material": "Ti-6Al-4V tube (25% solidity)",
+   "density_kg_m3": 1107,
+   "volume_mm3": 32974156.49207847,
+   "area_mm2": 864566.2982679112,
+   "mass_kg_each": 36.50239123673086,
+   "mass_kg_total": 36.50239123673086,
+   "rgb": [
+    0.72,
+    0.72,
+    0.74
+   ]
+  },
+  {
+   "name": "Hub",
+   "count": 1,
+   "dimensions_mm": "cylinder dia 800 x 400, bore dia 164",
+   "material": "aluminium (15% solidity)",
+   "density_kg_m3": 405,
+   "volume_mm3": 192612302.22865164,
+   "area_mm2": 2174459.6383674825,
+   "mass_kg_each": 78.00798240260391,
+   "mass_kg_total": 78.00798240260391,
+   "rgb": [
+    0.34,
+    0.36,
+    0.42
+   ]
+  },
+  {
+   "name": "Spoke",
+   "count": 4,
+   "dimensions_mm": "dia 100 x 3000",
+   "material": "CFRP tube (20% solidity)",
+   "density_kg_m3": 320,
+   "volume_mm3": 23561944.90192345,
+   "area_mm2": 958185.7593448868,
+   "mass_kg_each": 7.539822368615504,
+   "mass_kg_total": 30.159289474462017,
+   "rgb": [
+    0.52,
+    0.52,
+    0.55
+   ]
+  },
+  {
+   "name": "Ablator shell",
+   "count": 4,
+   "dimensions_mm": "sphere dia 1200 / 900",
+   "material": "carbon-phenolic, sacrificial",
+   "density_kg_m3": 1450,
+   "volume_mm3": 519916461.2333624,
+   "area_mm2": 7093296.71182441,
+   "mass_kg_each": 753.8788687883754,
+   "mass_kg_total": 3015.5154751535015,
+   "rgb": [
+    0.13,
+    0.11,
+    0.1
+   ]
+  },
+  {
+   "name": "HfCN hull",
+   "count": 4,
+   "dimensions_mm": "sphere dia 896 / 840",
+   "material": "hafnium carbonitride",
+   "density_kg_m3": 12700,
+   "volume_mm3": 65782908.172426224,
+   "area_mm2": 4719571.28073217,
+   "mass_kg_each": 835.4429337898131,
+   "mass_kg_total": 3341.7717351592523,
+   "rgb": [
+    0.72,
+    0.72,
+    0.76
+   ]
+  },
+  {
+   "name": "Coolant plenum",
+   "count": 4,
+   "dimensions_mm": "sphere dia 836 / 700",
+   "material": "refractory lattice flooded with coolant (effective)",
+   "density_kg_m3": 1500,
+   "volume_mm3": 125185854.18293786,
+   "area_mm2": 3732685.012154253,
+   "mass_kg_each": 187.7787812744068,
+   "mass_kg_total": 751.1151250976272,
+   "rgb": [
+    0.2,
+    0.45,
+    0.85
+   ]
+  },
+  {
+   "name": "Insulation",
+   "count": 4,
+   "dimensions_mm": "sphere dia 696 / 616",
+   "material": "zirconia fibre / aerogel",
+   "density_kg_m3": 200,
+   "volume_mm3": 53529556.95868829,
+   "area_mm2": 2702115.3653888884,
+   "mass_kg_each": 10.705911391737658,
+   "mass_kg_total": 42.82364556695063,
+   "rgb": [
+    0.93,
+    0.89,
+    0.72
+   ]
+  },
+  {
+   "name": "Instrument core",
+   "count": 4,
+   "dimensions_mm": "solid sphere dia 600",
+   "material": "instruments and avionics (effective)",
+   "density_kg_m3": 1000,
+   "volume_mm3": 113097335.52923255,
+   "area_mm2": 1130973.3552923256,
+   "mass_kg_each": 113.09733552923254,
+   "mass_kg_total": 452.38934211693015,
+   "rgb": [
+    0.16,
+    0.52,
+    0.32
+   ]
+  },
+  {
+   "name": "Diamond window",
+   "count": 4,
+   "dimensions_mm": "disc dia 120 x 40",
+   "material": "CVD diamond",
+   "density_kg_m3": 3515,
+   "volume_mm3": 452389.3421169303,
+   "area_mm2": 37699.111843077524,
+   "mass_kg_each": 1.59014853754101,
+   "mass_kg_total": 6.36059415016404,
+   "rgb": [
+    0.74,
+    0.9,
+    1.0
+   ]
+  },
+  {
+   "name": "Magnet coil",
+   "count": 12,
+   "dimensions_mm": "ring major dia 1300, square section 53.2 x 53.2 (area of a dia 60 round)",
+   "material": "copper (modelled solid)",
+   "density_kg_m3": 8960,
+   "volume_mm3": 11547437.149274588,
+   "area_mm2": 868659.1675057472,
+   "mass_kg_each": 103.46503685750031,
+   "mass_kg_total": 1241.5804422900037,
+   "rgb": [
+    0.85,
+    0.47,
+    0.16
+   ]
+  },
+  {
+   "name": "Vent nozzle",
+   "count": 24,
+   "dimensions_mm": "hollow cone dia 40 -> 110 x 120, wall 6",
+   "material": "tungsten",
+   "density_kg_m3": 19300,
+   "volume_mm3": 156074.32303034092,
+   "area_mm2": 56793.71199159628,
+   "mass_kg_each": 3.01223443448558,
+   "mass_kg_total": 72.29362642765392,
+   "rgb": [
+    0.5,
+    0.5,
+    0.56
+   ]
+  }
+ ]
+}

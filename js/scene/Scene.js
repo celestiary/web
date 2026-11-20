@@ -37,6 +37,7 @@ import {orbitAt} from './meanElements.js'
 import {loadModel} from './model.js'
 import {newLabels} from './overlayMarks.js'
 import {newWideLineStrip} from './wideLines.js'
+import {planetsApprox} from './planetsApprox.js'
 import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
 import {faceKeepingRoll} from '../faceKeepingRoll.js'
 import {rehangPlatform} from '../follow.js'
@@ -187,6 +188,10 @@ export default class Scene {
     // built by the Rubin app (getRubin), with whether it's wanted now.
     this.rubin = null
     this._rubinWanted = false
+    // The Suntan mission (suntan/install.js), built by the Suntan app
+    // (getSuntan), with whether it's wanted now.
+    this.suntan = null
+    this._suntanWanted = false
     this.orbitsVisible = true
     // Toggleable settings.  Initialized to the runtime state right after
     // Scene construction (before any user / firstTime toggle): asterisms
@@ -268,6 +273,8 @@ export default class Scene {
     this.loadFlights = () => import('./craft/flights.js')
     // The Rubin feature, the same way (getRubin).
     this.loadRubin = () => import('./rubin/install.js')
+    // The Suntan feature, the same way (getSuntan).
+    this.loadSuntan = () => import('./suntan/install.js')
     // Whether vsopAt is VSOP87C itself yet (Animation.vsopReady): set by
     // Celestiary.  Absent, as in tests, it's taken as ready.
     this.vsopReady = null
@@ -498,7 +505,7 @@ export default class Scene {
         const regimes = [...this._regimes?.values() ?? []].filter((m) => m.parent)
         return [...this._namedUnderSun('orbit'), this.objects['sun']?.sunLayers?.wind,
           ...lagrange, ...lagrange.map((m) => m.syncRing), ...regimes, ...[...this.populations.values()].map((p) => p.marks),
-          ...this._craftTracks.values()]
+          ...this._craftTracks.values(), this.suntan?.track]
       }
       case 'p': {
         // Bodies' names, and the places and lat/lng markers on them (the
@@ -3285,6 +3292,46 @@ export default class Scene {
       latLngAltToBodyFixed, sceneReferred, OVERLAY_LAYER: Shared.OVERLAY_LAYER, ASTRO_UNIT_METER: Shared.ASTRO_UNIT_METER,
     })
     return this.rubin
+  }
+
+
+  /**
+   * The Suntan mission (suntan/Suntan.md): a Parker Solar Probe trajectory,
+   * a sun-synchronous relay and a lander, built the first time the Suntan
+   * app asks, from a dynamic import: nothing of it is in the first load.
+   * Drawn with the orbits (`o`).
+   *
+   * @returns {Promise<?object>} install.js's {mission, events, readSensors,
+   *   track, dispose}; null while the Sun isn't in the scene yet, or once
+   *   it's been removed meanwhile
+   */
+  async getSuntan() {
+    this._suntanWanted = true
+    if (this.suntan) {
+      return this.suntan
+    }
+    if (!this.objects['sun.orbitPosition']) {
+      return null
+    }
+    const {installSuntan} = await this.loadSuntan()
+    if (!this._suntanWanted) {
+      return null
+    }
+    if (!this.suntan) {
+      this.suntan = installSuntan(this, {
+        planetsApprox, newWideLineStrip, newRings, newLabels, OVERLAY_LAYER: Shared.OVERLAY_LAYER,
+      })
+      this._joinOverlay('o', this.suntan.track)
+    }
+    return this.suntan
+  }
+
+
+  /** Out of the scene: the Suntan app's stop. */
+  removeSuntan() {
+    this._suntanWanted = false
+    this.suntan?.dispose()
+    this.suntan = null
   }
 
 

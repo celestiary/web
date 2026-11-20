@@ -1577,6 +1577,8 @@ Thin MUI-based overlay panels:
   (below)
 - `ColonizationApp` — the Human Expansion app's panel
   ([Colonization.md](js/scene/Colonization.md))
+- `SuntanApp` — the Suntan app's panel: a concept mission to the Sun's
+  surface, its play controls and sensors ([Suntan.md](js/scene/suntan/Suntan.md))
 - `Settings` — keyboard shortcut reference
 - `About` — app info and star catalog stats
 - `CreditsFooter` — every attribution on screen in one line along the bottom,
