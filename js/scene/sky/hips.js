@@ -161,17 +161,33 @@ export function selectOrder(survey, fovDeg, heightPx) {
  * @returns {string} The file extension
  */
 export function chooseFormat(formats, webp = true) {
+  return formatOrder(formats, webp)[0]
+}
+
+
+/**
+ * The image formats a survey offers, most preferred first: webp, png, jpeg.
+ *
+ * @param {Array<string>} formats The survey's
+ * @param {boolean} [webp] Whether the browser decodes webp
+ * @returns {Array<string>} File extensions; throws if none is an image
+ */
+export function formatOrder(formats, webp = true) {
   const has = (f) => formats.includes(f)
+  const out = []
   if (webp && has('webp')) {
-    return 'webp'
+    out.push('webp')
   }
   if (has('png')) {
-    return 'png'
+    out.push('png')
   }
   if (has('jpeg') || has('jpg')) {
-    return 'jpg'
+    out.push('jpg')
   }
-  throw new Error(`No image format among ${formats.join(', ')}`)
+  if (!out.length) {
+    throw new Error(`No image format among ${formats.join(', ')}`)
+  }
+  return out
 }
 
 

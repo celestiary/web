@@ -57,7 +57,12 @@ Each frame (`preAnimCb`), while the layer is visible:
   once (and the mirror is asked first from then on, if it answered); one
   that fails from every service is marked missing and never asked again
   (4,096 remembered).
-- **Format:** webp if the survey offers it, then png, then jpeg.
+- **Format:** webp if the survey offers it, then png, then jpeg.  Until
+  a tile has loaded in the preferred format, a tile that fails in it on
+  every service moves the survey to the next listed format, once, and is
+  asked again in it (a record can list a format the host doesn't serve:
+  Rubin's First Look lists png and webp, and its tiles can't be tried from
+  here).  Once a tile has loaded, the format is kept.
 
 Each tile is an 8 × 8 grid on the unit sphere in the survey's frame,
 turned to the scene's J2000 frame (`frameMatrix`: wcs.js's

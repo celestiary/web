@@ -1,5 +1,5 @@
 import {BufferGeometry, Float32BufferAttribute, Group, Mesh, Quaternion, TextureLoader, Vector3} from 'three'
-import {angle, applyTransposed, cellGrid, cellsInDisc, chooseFormat, frameMatrix, newCoverage, selectOrder,
+import {angle, applyTransposed, cellGrid, cellsInDisc, formatOrder, frameMatrix, newCoverage, selectOrder,
   tilePath} from './hips.js'
 import {TILE_RENDER_ORDER, disposeTileMesh, newTileMaterial, prepareTileTexture} from './tileMaterial.js'
 
@@ -79,7 +79,11 @@ export default class HipsLayer extends Group {
     this.onDrawn = onDrawn
     this.toScene = frameMatrix(survey.frame)
     this.coverage = newCoverage(survey.coverage ?? null)
-    this.ext = chooseFormat(survey.formats, webp)
+    /** The formats to try, most preferred first (hips.js formatOrder). */
+    this.formats = formatOrder(survey.formats, webp)
+    this.formatIndex = 0
+    /** Whether a tile has loaded in the current format: then it is kept. */
+    this.formatConfirmed = false
     /** The service asked first: the mirror, once the primary failed where it answered. */
     this.serviceIndex = 0
     /** key → {order, pix, mesh, state, used} */
@@ -93,6 +97,12 @@ export default class HipsLayer extends Group {
     this.disposed = false
     this._cells = null
     this.preAnimCb = () => this.update()
+  }
+
+
+  /** @returns {string} The tile format asked for now */
+  get ext() {
+    return this.formats[this.formatIndex]
   }
 
 
@@ -198,11 +208,12 @@ export default class HipsLayer extends Group {
    * @param {number} order
    * @param {number} pix
    * @param {number} service Index in the survey's serviceUrls
+   * @param {string} [ext] The format, the current one by default
    * @returns {string}
    */
-  tileUrl(order, pix, service) {
+  tileUrl(order, pix, service, ext = this.ext) {
     const base = this.survey.serviceUrls[service].replace(/\/+$/, '')
-    return `${base}/${tilePath(order, pix, this.ext)}`
+    return `${base}/${tilePath(order, pix, ext)}`
   }
 
 
@@ -216,14 +227,17 @@ export default class HipsLayer extends Group {
     this.tiles.set(key, tile)
     const services = this.survey.serviceUrls.length
     const order = [this.serviceIndex, ...[...Array(services).keys()].filter((i) => i !== this.serviceIndex)]
-    const attempt = (k) => {
+    const attempt = (k, ext = this.ext) => {
       this.loading++
       this.requested++
-      this.loadTexture(this.tileUrl(t.order, t.pix, order[k])).then((texture) => {
+      this.loadTexture(this.tileUrl(t.order, t.pix, order[k], ext)).then((texture) => {
         this.loading--
         if (this.disposed || this.tiles.get(key) !== tile) {
           texture.dispose?.()
           return
+        }
+        if (ext === this.ext) {
+          this.formatConfirmed = true
         }
         if (k > 0) {
           // The first service failed where this one answered: ask this one first from now on.
@@ -245,7 +259,18 @@ export default class HipsLayer extends Group {
           return
         }
         if (k + 1 < order.length) {
-          attempt(k + 1)
+          attempt(k + 1, ext)
+          return
+        }
+        // No tile in this format has loaded yet: the survey may not serve
+        // it (a record can list one it doesn't).  Fall back to the next
+        // format once, for the survey, and ask this tile again in it; a
+        // tile asked in the old format meanwhile is asked again too.
+        if (!this.formatConfirmed && ext === this.ext && this.formatIndex === 0 && this.formats.length > 1) {
+          this.formatIndex++
+        }
+        if (ext !== this.ext) {
+          attempt(0, this.ext)
           return
         }
         // Missing from every service (a hole in the coverage, or a 404):

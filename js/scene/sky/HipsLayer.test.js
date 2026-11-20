@@ -146,6 +146,45 @@ describe('the HiPS layer', () => {
 })
 
 
+describe('the format', () => {
+  it('falls back to the next listed format once, when the preferred one fails on every service', async () => {
+    // Rubin's First Look lists png and webp; here CDS serves no webp.
+    const {layer, pending, asked} = newLayer(RUBIN_FIRST_LOOK, [270.596, -23.03], {fails: (u) => u.endsWith('.webp')})
+    layer.preAnimCb()
+    expect(layer.ext).toBe('webp')
+    await settle(pending)
+    // Each webp failed on the primary: the mirror is asked.
+    await settle(pending)
+    // And on both: png from now on, those tiles asked again in it.
+    expect(layer.ext).toBe('png')
+    expect(layer.missing.size).toBe(0)
+    await settle(pending)
+    expect(layer.formatConfirmed).toBe(true)
+    expect(layer.children.length).toBe(MAX_LOADING)
+    for (let i = 0; i < 10; i++) {
+      layer.preAnimCb()
+      await settle(pending)
+    }
+    // No webp asked after the switch.
+    const firstPng = asked.findIndex((u) => u.endsWith('.png'))
+    expect(asked.slice(firstPng).some((u) => u.endsWith('.webp'))).toBe(false)
+    layer.dispose()
+  })
+
+  it('keeps a format once a tile has loaded in it, and marks the misses missing', async () => {
+    const missing = /Npix\d*[02468]\.webp$/
+    const {layer, pending} = newLayer(RUBIN_FIRST_LOOK, [270.596, -23.03], {fails: (u) => missing.test(u)})
+    for (let i = 0; i < 6; i++) {
+      layer.preAnimCb()
+      await settle(pending)
+    }
+    expect(layer.ext).toBe('webp')
+    expect(layer.missing.size).toBeGreaterThan(0)
+    layer.dispose()
+  })
+})
+
+
 describe('the manifests', () => {
   for (const s of [RUBIN_FIRST_LOOK, JWST_NIRCAM]) {
     it(`describes ${s.id}`, () => {
