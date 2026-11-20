@@ -213,6 +213,26 @@ was 1.1″ off the body, the parallax of Earth's radius at 6.7 au against
 47 au, and the two came apart in a 20″ field on the preview; at the true
 distance the ring is on the body from anywhere.
 
+**Relative to the eye** ([#340](https://github.com/celestiary/web/issues/340);
+DESIGN.md [relative-to-eye anchors](../../../DESIGN.md#relative-to-eye-anchors)).
+The daily positions are float64 (`points`), and the line is drawn through
+the cubic between them (`relativeToEye.js` `cubicAt`) at `FINE_PER_DAY`
+(48) steps, 7,345 vertices, whose chords sag 2.4e3 m (0.06 px at 0.00016°
+on 500 px) where the daily chords sagged 5.5e6 m.  Each frame `place`
+puts an anchor at the body's place at the frame's time (the same cubic),
+makes it the line's and the ring's `position`, and re-writes the line's
+vertices as float32 offsets from it (`writeOffsets`; the ring's one vertex
+is the origin).  Three composes the model-view in float64, so the camera
+is subtracted there, and what goes up as float32 is small where the
+camera looks.  As a `Float32Array` at 7e12 m each point was held to 5e5 m:
+at 0.00016° the ring jumped 7 px between frames and the line wandered 5
+px.  The path is sampled again when VSOP87C arrives (`approximate`, the
+scene's `vsopReady`): built from the stand-in Earth, 17,000 km off, the
+ring sat 0.33″ from the body, 1.8 px at the pixel limit and 320 px at
+0.00016°, which no float precision would have fixed.  The months' names
+stay where the first sampling put them (a label's 17,000 km is nothing at
+the fields they show at).
+
 ## The app
 
 `RubinApp.jsx`, "Rubin Observatory" in the drawer's tray.  Opening it
@@ -481,10 +501,34 @@ rather than import it; `rubin.test.js` holds them equal.
     as written, the readout "Field 0.581″", 172 px a pixel.
   - No page errors.
 
+- The apparent path relative to the eye (#340), headless as above at
+  800×500 (500 device pixels high), from `#sun/ed138@…;apps.rubin:optics=0`
+  (#334's link), in the seat tracking the body, the night of 15 May from
+  03:00 UTC, 20 frames a field with the clock stepped 2 s a frame, each
+  frame rendered and measured in one task (the probe:
+  `relativeToEye.js` `gpuNdc` on the frame's own matrices and vertices,
+  the GPU's float32 arithmetic, against the body's centre in float64).
+  Before is main at da09f91, after this change, the same script:
+
+  | Field | Ring off the body, px (before → after) | Ring's jitter frame to frame | Path's line from the body's centre | Its jitter |
+  |---|---|---|---|---|
+  | 0.0278° (the pixel limit) | 1.84 → 0.000 | 0.043 → 0 | 0.016 → 0.000 | 0.030 → 0 |
+  | 0.001° | 51.2 → 0.001 | 1.12 → 0.000 | 0.42 → 0.001 | 0.82 → 0 |
+  | 0.00016° | 320 → 0.007 | 6.97 → 0.000 | 2.6 (to 5.8) → 0.004 | 5.1 → 0 |
+
+  The orbit line is 0 px from the body's centre in both (its origin at the
+  body, `bodyLine.js`), so the path and the orbit line meet at the body to
+  the path's figure.  Before, most of the ring's offset was the stand-in
+  Earth (the path sampled before VSOP87C arrived: the ring 1.7e7 m from
+  the body in world space; after, 302 m), the jitter float32's.  Rubin's
+  pixel marker is 0 px off in both.  No shader or page errors.  Not seen
+  on a real GPU.
+
 ## Not yet
 
 - **Rubin's light and PSF.**  The instrument has the eye's collecting
-  area and point spread function (#340).  Its pixel and its seeing are
+  area and point spread function (#340; the pass that would apply its PSF
+  and pixel grid is proposed in [HDR.md](../HDR.md#the-view-as-the-instrument-sees-it)).  Its pixel and its seeing are
   drawn on the sky (#339, above), but only as a marker: the star field and
   the body aren't blurred to them.
 
@@ -518,9 +562,13 @@ rather than import it; `rubin.test.js` holds them equal.
 - **Float32 at 47 au** ([#334](https://github.com/celestiary/web/issues/334)).
   The body's disc is a far point past 2^22 radii (`FAR_BODY_RATIO`, #338:
   its mesh blinked and drew as a crescent at a 0.00016° field), whatever
-  the field.  Left: the path's ring, which jumps between frames (its points
-  are a `Float32Array` at the body's distance, quantised to 5e5 m), the
-  path and the orbit line missing each other by a step, and depth, which at
-  the seat is 1.0 like empty sky, so the orbit line draws across the
-  point.  The general fix is relative-to-eye placement, option 3 in
-  [#340](https://github.com/celestiary/web/issues/340).
+  the field.  The path's ring and line are relative to the eye now
+  ([the apparent path](#the-apparent-path), #340), on the body to 0.01 px
+  at 0.00016°.  Left of #340: depth, which at the seat is 1.0 like empty
+  sky, so the orbit line draws across the point (a near-plane proxy for
+  the far body's depth); the body's mesh relative to the eye, for a far
+  body drawn as a disc in a field where float32 at its distance shows
+  (the far point stands in for it past 2^22 radii, so nothing needs it
+  now); and the view as the instrument sees it ([HDR.md, the view as the
+  instrument sees it](../HDR.md#the-view-as-the-instrument-sees-it), a
+  proposal).
