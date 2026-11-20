@@ -17,6 +17,8 @@ export default class Loader {
   constructor(bundle = loadBodyBundle) {
     this.loaded = {}
     this.pathByName = {}
+    // The bodies loaded whose parent this loader hasn't (_pathOf).
+    this._roots = new Set()
     this._bundle = bundle
   }
 
@@ -91,8 +93,7 @@ export default class Loader {
       this.loaded[name] = 'pending'
       const arrived = (obj) => {
         this.loaded[name] = obj
-        const path = prefix ? `${prefix}/${name}` : name
-        this.pathByName[name] = path
+        this.pathByName[name] = this._pathOf(prefix, name, obj)
         if (onLoadCb) {
           onLoadCb(name, obj)
         }
@@ -113,6 +114,88 @@ export default class Loader {
             .then((rsp) => (rsp.ok ? rsp.json() : Promise.reject(new Error(`${url}: ${rsp.status}`))))
             .then(arrived, (err) => onErrCb?.(err))
       })
+    }
+  }
+
+
+  /**
+   * A body's path, as the links name it (design/URLs.md): its parent's and
+   * its name, from below the root ('sun/earth/moon', the root 'milkyway'),
+   * however the load came to it, through the root's system or a path
+   * ('sun/earth').  A body whose parent this loader doesn't have is a root,
+   * named by the prefix it was loaded under: the milky way, or a body a
+   * guide loads alone.
+   *
+   * @param {string} prefix The path it was loaded under
+   * @param {string} name
+   * @param {object} obj Its descriptor
+   * @returns {string}
+   */
+  _pathOf(prefix, name, obj) {
+    const parent = obj?.parent
+    if (parent && typeof this.loaded[parent] === 'object' && this.pathByName[parent] !== undefined) {
+      return this._roots.has(parent) ? name : `${this.pathByName[parent]}/${name}`
+    }
+    this._roots.add(name)
+    return prefix ? `${prefix}/${name}` : name
+  }
+
+
+  /**
+   * A body's path from below the root, its ancestors filled in from their
+   * descriptors' `parent`: 'earth' is 'sun/earth' and 'moon' or 'earth/moon'
+   * is 'sun/earth/moon', below 'milkyway'.  The scene adds a body to its
+   * parent, so a path that starts below the root's own system has to load
+   * the bodies above it first (#336): loadPath loads a path's segments in
+   * order, but brings a body it's given alone before its parent, which
+   * another load may have in flight or not have asked for at all.
+   *
+   * A path that starts at the root or in its system is given back as it
+   * is, and so is one whose first body or its parent is nowhere (loadPath
+   * then reports it).
+   *
+   * @param {string} path e.g. 'earth', 'earth/moon'
+   * @param {string} root The scene's root, e.g. 'milkyway'
+   * @returns {Promise<string>} e.g. 'sun/earth'
+   */
+  async fullPath(path, root) {
+    const parts = path.split('/')
+    for (;;) {
+      if (parts[0] === root) {
+        break
+      }
+      const parent = (await this._descriptor(parts[0]))?.parent
+      if (!parent || parent === root || parts.includes(parent) || !(await this._descriptor(parent))) {
+        break
+      }
+      parts.unshift(parent)
+    }
+    return parts.join('/')
+  }
+
+
+  /**
+   * A body's descriptor, to read and not to keep: the one loaded, else the
+   * bundle's, else its own file's.  Loading it is still loadObj's.
+   *
+   * @param {string} name
+   * @returns {Promise<?object>} null if it's nowhere
+   */
+  async _descriptor(name) {
+    const loaded = this.loaded[name]
+    if (loaded && typeof loaded === 'object') {
+      return loaded
+    }
+    const bodies = await this._bundle()
+    const obj = bodies?.[name]
+    if (obj && typeof obj === 'object') {
+      return obj
+    }
+    try {
+      const rsp = await fetch(descriptorUrl(name))
+      return rsp.ok ? await rsp.json() : null
+    } catch {
+      return null
     }
   }
 

@@ -487,7 +487,12 @@ visited as a pair holding the object (Horizons' RA and Dec) on nights of
 4 March, 1 April, 20 June and 11 July; the mount on the field during a
 visit and slewing between.  `SurveyCadence.test.js`: each circle 1.75°
 from its centre at the sky's distance, the current one brightest.
-Headless (SwiftShader), the browser check below.
+Headless (SwiftShader, 15 May 2026, the clock paused): mid-visit the
+mount's alt-az equals the visit's field exactly, and the drawn circle's
+centre, taken back to the site's frame through the scene's Earth, is
+0.002° in elevation and 0.013° in azimuth from it (0.007° on the sky at
+59°); mid-slew the mount is between fields with the beam off; the
+circles' shader compiled, and the object's teal field sits on 2026 ED138.
 
 ## Checked
 

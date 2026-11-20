@@ -39,6 +39,34 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### Rubin surveys the sky, visit by visit
+
+The Rubin Observatory app's new *Survey cadence* switch has the telescope work as a survey night
+does, rather than staring at 2026 ED138: 30-second visits to 3.5° fields, a few seconds' slew
+between neighbours, each field visited again about 33 minutes later, and the object's field among
+them. The night's fields are drawn on the sky as circles, the current one bright, and the panel
+counts the visits and the time to the object's next. The schedule is a model from Rubin's
+published survey rules, not its log, whose visit lists aren't public yet.
+
+- Date: 2026-11-20
+- PR: [#354](https://github.com/celestiary/web/pull/354)
+- Issue: [#332](https://github.com/celestiary/web/issues/332)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: none
+- Featured: yes
+
+### A link to a body by its name alone opens it
+
+A link such as celestiary.org/#earth or #moon stayed on the loading screen. It now opens on that body
+like #sun/earth does, as do #earth/moon, #mars and the rest.
+
+- Date: 2026-11-20
+- PR: [#348](https://github.com/celestiary/web/pull/348)
+- Issue: [#336](https://github.com/celestiary/web/issues/336)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: none
+- Kind: fix
+
 Behind the scenes: celestiary's own sky inside another app's world, the sky guest
 ([#350](https://github.com/celestiary/web/pull/350)), first for exo.cafe's abode, and with its shadow drawing
 only the metered frames on portal-netgl 0.6.11 ([#351](https://github.com/celestiary/web/pull/351)).
