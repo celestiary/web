@@ -362,7 +362,13 @@ the view is those instruments:
   table's white is the display's.
 
 The eye's glare isn't drawn in the view (an instrument's stray light is
-its own), and the corona's shell is drawn whatever the exposure.  The
+its own), and the corona's shell is drawn whatever the exposure, but
+only round a resolved disc: the field's levels are over the disc's, a
+picture while the frame is exposed for the disc, which the meter does
+from a disc of 8 px to one of 32 (`luminousDiscGain`); the field comes in
+over the same pixels (`viewFieldWeight`).  From Earth at a wide field the
+disc is blown, and a field at its level would be a white cloud tens of
+radii wide, and what the meter read.  The
 levels are the view's parameters (`EUV_VIEW`), a model of the published
 pictures' look, not a radiative transfer of the line; the structures, and
 when and where they are, are the white-light model's.

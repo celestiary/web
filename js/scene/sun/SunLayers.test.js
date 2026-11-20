@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'bun:test'
 import {SUN_DISC_RADIANCE} from '../exposure.js'
-import {VISIBLE_FLOOR, offDiscBrightest, visibleRadius} from './SunLayers.js'
+import {VISIBLE_FLOOR, offDiscBrightest, viewFieldWeight, visibleRadius} from './SunLayers.js'
 import {CORONA_RADII} from './sun-shaders.js'
 import {newSolarWind, parkerLag} from './SolarWind.js'
 
@@ -17,6 +17,19 @@ describe('the Sun\'s off-disc layers, by exposure', () => {
     expect(visibleRadius(totality)).toBeLessThan(CORONA_RADII)
     // At a coronagraph's long exposure, all of the shell.
     expect(visibleRadius(SUN_DISC_RADIANCE * 1e5)).toBe(CORONA_RADII)
+  })
+})
+
+
+describe('the activity view\'s field', () => {
+  it('comes in as the disc resolves, over the pixels the meter takes the disc\'s exposure', () => {
+    // The Sun from 1 AU at 45° on a 1080 px screen is 13 px: mostly out.
+    expect(viewFieldWeight(4)).toBe(0)
+    expect(viewFieldWeight(8)).toBe(0)
+    expect(viewFieldWeight(13)).toBeLessThan(0.15)
+    expect(viewFieldWeight(20)).toBeCloseTo(0.5, 6)
+    expect(viewFieldWeight(32)).toBe(1)
+    expect(viewFieldWeight(500)).toBe(1)
   })
 })
 

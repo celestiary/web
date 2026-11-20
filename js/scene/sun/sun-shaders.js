@@ -279,7 +279,8 @@ void main() {
   float rho = length(q);
   // The pixel's footprint in impact radius, taken before any branch.
   float pix = max(fwidth(rho), 1.0e-6);
-  if (rho < uOcculter || rho > uMaxRho) {
+  // Out of a coronagraph's field, or of the view's while the disc is small.
+  if (rho < uOcculter || rho > uMaxRho || (uView.x > 0.5 && uView.y + uView.z <= 0.0)) {
     discard;
   }
   float thetaEnd = atan(sqrt(max(CORONA_RADII * CORONA_RADII - rho * rho, 0.0)), rho);

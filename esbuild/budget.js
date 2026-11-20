@@ -41,15 +41,15 @@ export const STATIC_BUDGET = {
   // split the first load into 16 files; Cesium's credits timed to the ion
   // logo, CesiumLayers bingShown and credits.js keepsLogo; and Gaia tiles'
   // class counts, starTile.js).  The dialog and its facts are a chunk of
-  // their own.  2,376 with the Sun's activity view (js/scene/Sun.md, "The
-  // activity view": 9 KB minified, 3.5 KB gzipped): the EUV imager's and
+  // their own.  2,377.3, so 2,379, with the Sun's activity view (js/scene/Sun.md,
+  // "The activity view": 10 KB minified, 3.5 KB gzipped): the EUV imager's and
   // the coronagraph's branches of the photosphere's and the corona's
   // shaders, which are one program each with the white-light picture, so
   // not a chunk of their own; the erupting prominences and the flares'
   // light curves in the event model the first frame already runs; and a
   // star's activity against the Sun's (sun/stellarActivity.js, 2 KB), which
   // Star.js reads as it builds the Sun.
-  totalMinifiedKB: 2377,
+  totalMinifiedKB: 2379,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,

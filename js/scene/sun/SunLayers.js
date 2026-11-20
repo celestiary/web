@@ -12,7 +12,7 @@ import {
   Vector3,
   Vector4,
 } from 'three'
-import {SUN_DISC_RADIANCE} from '../exposure.js'
+import {LUMINOUS_DISC_PX, SUN_DISC_RADIANCE} from '../exposure.js'
 import {absoluteUniforms} from '../hdr.js'
 import {utcToTtJulianDay} from '../celestialFrame.js'
 import {limbDarkening, powerTwo} from '../stellar.js'
@@ -114,6 +114,26 @@ export function visibleRadius(discValue, floor = VISIBLE_FLOOR) {
     }
   }
   return hi
+}
+
+
+/**
+ * How much of the activity view's field (the coronagraph's corona, the
+ * cool plasma off the limb) is drawn round a disc of a size on screen.
+ * The view's levels are over the disc's, so they are a picture only while
+ * the frame is exposed for the disc, which the meter does once the disc
+ * is resolved (exposure.js luminousDiscGain, over the same pixels): from
+ * afar, where the exposure is the scene's and the disc is blown, a field
+ * at the disc's level would be a white cloud tens of radii wide, and what
+ * the meter read.
+ *
+ * @param {number} diameterPx The disc's diameter on screen
+ * @returns {number} 0 to 1
+ */
+export function viewFieldWeight(diameterPx) {
+  const [lo, hi] = LUMINOUS_DISC_PX
+  const x = Math.min(Math.max((diameterPx - lo) / (hi - lo), 0), 1)
+  return x * x * (3 - (2 * x))
 }
 
 
@@ -625,6 +645,13 @@ export default class SunLayers {
     u.uDiscValue.value = value
     const instrument = this.view !== VIEW_EYE
     u.uMaxRho.value = instrument ? CORONA_RADII : visibleRadius(value)
+    if (instrument) {
+      // The view's field comes in as the disc resolves (viewFieldWeight).
+      const pxRad = (camera.fov * Math.PI / 180) / Math.max(u.uViewport.value.w, 1)
+      const weight = viewFieldWeight(2 * this.discRadius / pxRad)
+      u.uView.value.y = EUV_VIEW.corona * weight
+      u.uView.value.z = EUV_VIEW.coolPerNm * weight
+    }
     u.uDays.value = ((this.ms ?? 0) / MS_PER_DAY) % 1000
     if (this.sheet) {
       u.uSheetPole.value.set(...this.sheet.pole)
