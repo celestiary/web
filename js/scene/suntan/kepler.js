@@ -211,13 +211,7 @@ export function orbitState(orbit, t) {
  */
 export function sampleTimes(orbit, t0, t1, n) {
   const {e, tPeri, period} = orbit
-  const anomalyAt = (t) => {
-    const M = ((t - tPeri) / period) * TWO_PI
-    const k = Math.floor((M + Math.PI) / TWO_PI)
-    return solveKepler(M - (k * TWO_PI), e) + (k * TWO_PI)
-  }
-  const E0 = anomalyAt(t0)
-  const E1 = t1 - t0 >= period ? E0 + TWO_PI : anomalyAt(t1)
+  const [E0, E1] = sampleAnomalies(orbit, t0, t1)
   const times = []
   for (let i = 0; i <= n; i++) {
     const E = E0 + (((E1 - E0) * i) / n)
@@ -225,4 +219,49 @@ export function sampleTimes(orbit, t0, t1, n) {
   }
   times[0] = t0
   return times
+}
+
+
+/**
+ * The eccentric anomaly at a time, counted on through each revolution
+ * rather than wrapped, so it increases with t.
+ *
+ * @param {object} orbit From makeOrbit or orbitFromState
+ * @param {number} t Seconds
+ * @returns {number} radians, 0 at the perihelion at tPeri
+ */
+export function anomalyAt(orbit, t) {
+  const M = ((t - orbit.tPeri) / orbit.period) * TWO_PI
+  const k = Math.floor((M + Math.PI) / TWO_PI)
+  return solveKepler(M - (k * TWO_PI), orbit.e) + (k * TWO_PI)
+}
+
+
+/**
+ * The span of eccentric anomaly sampleTimes covers: from t0's, to t1's or
+ * one revolution on, whichever is less.
+ *
+ * @param {object} orbit
+ * @param {number} t0 Seconds
+ * @param {number} t1 Seconds, > t0
+ * @returns {Array<number>} [E0, E1]
+ */
+export function sampleAnomalies(orbit, t0, t1) {
+  const E0 = anomalyAt(orbit, t0)
+  return [E0, t1 - t0 >= orbit.period ? E0 + TWO_PI : anomalyAt(orbit, t1)]
+}
+
+
+/**
+ * The place on an orbit at an eccentric anomaly, as orbitState's.
+ *
+ * @param {object} orbit
+ * @param {number} E radians
+ * @returns {Array<number>} metres, from the focus
+ */
+export function pointAtAnomaly(orbit, E) {
+  const {a, e, periDir, alongDir} = orbit
+  const x = a * (Math.cos(E) - e)
+  const y = a * Math.sqrt(1 - (e * e)) * Math.sin(E)
+  return add(scale(periDir, x), scale(alongDir, y))
 }

@@ -1,6 +1,7 @@
-import {Group, Object3D} from 'three'
+import {Group, Object3D, Vector3} from 'three'
+import {BodyLine, MAX_FINE_STEPS} from '../bodyLine.js'
 import {craftQuaternion} from './craftModel.js'
-import {sampleTimes} from './kepler.js'
+import {anomalyAt, pointAtAnomaly, sampleAnomalies} from './kepler.js'
 
 
 // The Suntan mission drawn (Suntan.md): one line per leg, and the relay and
@@ -13,6 +14,7 @@ const WIDTH = 1.5
 const OPACITY = 0.9
 // Per leg drawn; even in eccentric anomaly, so the perihelia are smooth.
 const SEGMENTS = 720
+const TWO_PI = 2 * Math.PI
 const UNIX_EPOCH_JD = 2440587.5
 const DAY = 86400
 // How far from a craft a go to it arrives (Scene.goTo): the craft is a
@@ -54,17 +56,24 @@ export default class SuntanTrack extends Group {
     this.mission = mission
     this.paths = new Group()
     this.paths.name = 'suntan.paths'
+    // Each leg's line through the craft on it, as the planets' are through
+    // them (bodyLine.js): the curve in float64, written relative to the
+    // craft, with a fine arc of the same ellipse spliced in round it and
+    // the craft's place a knot of the arc.  Drawn plainly, float32 vertices
+    // 2.5e10 m out were good to 2 km, and 720 chords over an orbit sag 235
+    // km inside it, so close up the line jumped about the craft, and missed.
+    this.lines = []
     for (const leg of mission.legs) {
       const color = SUNTAN_COLORS[leg.id] ?? SUNTAN_COLORS[leg.phase]
       if (leg.id === 'surface' || color === undefined) {
         continue
       }
-      const t1 = Number.isFinite(leg.t1) ? leg.t1 : leg.t0 + leg.orbit.period
-      const times = sampleTimes(leg.orbit, leg.t0, t1, SEGMENTS)
-      const points = new Float32Array(times.length * 3)
-      times.forEach((t, i) => toScene(leg.stateAt(t).r, points, 3 * i))
-      this.paths.add(deps.newWideLineStrip(points, {name: `suntan.${leg.id}`, color, width: WIDTH, opacity: OPACITY}))
+      const n = SEGMENTS + 1
+      const mesh = deps.newWideLineStrip(new Float32Array(3 * n), {name: `suntan.${leg.id}`, color, width: WIDTH, opacity: OPACITY})
+      this.paths.add(mesh)
+      this.lines.push(new LegLine(leg, mesh, n))
     }
+    this._body = new Vector3()
     this.relay = deps.newRings(SUNTAN_COLORS.relay, 1)
     this.relay.name = 'suntan.relay'
     this.lander = deps.newRings(SUNTAN_COLORS.descent, 1)
@@ -116,6 +125,7 @@ export default class SuntanTrack extends Group {
     // then arrives at the relay it rides on.
     this._placeNode(this.nodes.relay, relay)
     this._placeNode(this.nodes.lander, lander)
+    this._followLines(t, {relay, lander: separate ? lander : null})
     // The models (craftModel.js), once loaded: the stack on the relay, with
     // its rim lander until the copy on the lander's node flies off.
     if (this.models) {
@@ -127,6 +137,38 @@ export default class SuntanTrack extends Group {
       if (released) {
         released.visible = !separate
       }
+    }
+  }
+
+
+  /**
+   * Keep each line through the craft on its orbit (bodyLine.js): the relay
+   * first, then the lander once it flies alone.  A line no craft is on is
+   * drawn plainly.  Skipped while the lines are hidden.
+   *
+   * @param {number} t Unix seconds
+   * @param {{relay: ?object, lander: ?object}} states mission.stateAt's
+   */
+  _followLines(t, states) {
+    if (!this.visible || !this.paths.visible) {
+      return
+    }
+    for (const line of this.lines) {
+      let id = null
+      for (const craft of ['relay', 'lander']) {
+        // The same orbit, not the same leg: the relay orbit's line before
+        // the release and after it are one circle, drawn twice.
+        const state = states[craft]
+        if (id === null && state && state.leg.orbit === line.leg.orbit && state.leg.id !== 'surface') {
+          id = craft
+        }
+      }
+      if (id === null) {
+        line.drawn.follow(this._body, NaN, 1)
+        continue
+      }
+      const node = this.nodes[id]
+      line.drawn.follow(this._body.copy(node.position), line.indexAt(t), node.props.radius.scalar)
     }
   }
 
@@ -210,15 +252,53 @@ export default class SuntanTrack extends Group {
 }
 
 
-/**
- * Ecliptic metres to scene axes, (x, z, −y), as DESIGN.md "Frames and time".
- *
- * @param {Array<number>} r
- * @param {Float32Array} out
- * @param {number} offset
- */
-function toScene(r, out, offset) {
-  out[offset] = r[0]
-  out[offset + 1] = r[2]
-  out[offset + 2] = -r[1]
+/** One leg's line, kept through the craft on it (SuntanTrack._followLines). */
+class LegLine {
+  /**
+   * @param {object} leg mission.legs'
+   * @param {object} mesh newWideLineStrip's, whose vertices this writes
+   * @param {number} n coarse vertices
+   */
+  constructor(leg, mesh, n) {
+    this.leg = leg
+    this.n = n
+    const orbit = leg.orbit
+    // One revolution at most, from the leg's start, as sampleTimes has it.
+    const t1 = Number.isFinite(leg.t1) ? leg.t1 : leg.t0 + orbit.period
+    const [E0, E1] = sampleAnomalies(orbit, leg.t0, t1)
+    // A whole revolution by sampleAnomalies' own test: (E0 + 2π) − E0 can
+    // come out a hair under 2π.
+    const closed = t1 - leg.t0 >= orbit.period
+    this.E0 = E0
+    this.span = closed ? TWO_PI : E1 - E0
+    this.drawn = new BodyLine(mesh, {n, closed, knot: true})
+    // The ellipse at coarse index u, even in eccentric anomaly; scene axes.
+    const at = (u, target) => {
+      const r = pointAtAnomaly(orbit, E0 + (this.span * u / (n - 1)))
+      return target.set(r[0], r[2], -r[1])
+    }
+    const xyz = new Float64Array(3 * n)
+    const v = new Vector3()
+    for (let j = 0; j < n; j++) {
+      at(j, v).toArray(xyz, 3 * j)
+    }
+    if (closed) {
+      xyz.copyWithin(3 * (n - 1), 0, 3)
+    }
+    // As fine as the arc goes: for a craft metres across on an orbit tens
+    // of millions of kilometres round, fineSteps always asks for more
+    // (bodyLine.js), and the knot puts the craft on the line regardless.
+    this.drawn.setCoarse(xyz, {at, correct: false}, MAX_FINE_STEPS, new Vector3())
+  }
+
+
+  /**
+   * @param {number} t Unix seconds
+   * @returns {number} the coarse index of the place on this leg's orbit at
+   *   t; past the ends of an open line when t is off the leg, and counted on
+   *   round a closed one
+   */
+  indexAt(t) {
+    return (anomalyAt(this.leg.orbit, t) - this.E0) / this.span * (this.n - 1)
+  }
 }

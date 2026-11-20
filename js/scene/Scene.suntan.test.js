@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'bun:test'
-import {BoxGeometry, BufferGeometry, Float32BufferAttribute, Group, Mesh, Object3D, PerspectiveCamera, Points,
+import {BoxGeometry, BufferGeometry, Float32BufferAttribute, Group, Line, Mesh, Object3D, PerspectiveCamera, Points,
   Scene as ThreeScene, Vector3} from 'three'
 import * as Shared from '../shared.js'
 // Scene's side of the Suntan app (suntan/Suntan.md): building the mission
@@ -14,6 +14,21 @@ function stubRings() {
   const geometry = new BufferGeometry()
   geometry.setAttribute('position', new Float32BufferAttribute(new Float32Array(3), 3))
   return new Points(geometry)
+}
+
+
+/**
+ * @param {Float32Array} positions
+ * @param {object} opts
+ * @returns {object} a Line in a wide line strip's place: the same position
+ *   attribute and draw range, which the track's BodyLines write
+ */
+function stubLine(positions, {name}) {
+  const geometry = new BufferGeometry()
+  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3))
+  const line = new Line(geometry)
+  line.name = name
+  return line
 }
 
 
@@ -48,7 +63,7 @@ function sunOnly() {
       ...deps,
       newRings: stubRings,
       newLabels: () => ({sheet: {positionAttribute: null}, sprites: new Object3D()}),
-      newWideLineStrip: () => new Object3D(),
+      newWideLineStrip: stubLine,
       loadModel: () => modelPromise,
     }),
   })
@@ -136,6 +151,35 @@ describe('Scene and the Suntan app', () => {
       expect(mark.position.equals(node.position)).toBe(true)
       expect(mark.label.sprites.position.equals(node.position)).toBe(true)
     }
+  })
+
+  it('draws the line a craft is on through it, relative to it, as time runs', async () => {
+    // Plain float32 vertices 2.5e10 m out are good to 2 km, and 720 chords
+    // sag 235 km inside the orbit: close up the line jumped about the craft.
+    const {s} = sunOnly()
+    const suntan = await s.getSuntan()
+    const lineOf = (id) => suntan.track.lines.find((l) => l.leg.id === id).drawn.line
+    for (const t of [RELEASE_S + 3600, RELEASE_S + 3601, RELEASE_S + (40 * 86400)]) {
+      suntan.track.place(t)
+      const relay = suntan.track.nodes.relay.position
+      // The relay orbit's line: its origin the relay, a vertex at it.
+      const line = lineOf('relay')
+      expect(line.position.equals(relay)).toBe(true)
+      const xyz = line.geometry.getAttribute('position').array
+      const n = line.geometry.drawRange.count
+      let atCraft = false
+      for (let j = 0; j < n; j++) {
+        atCraft ||= xyz[3 * j] === 0 && xyz[(3 * j) + 1] === 0 && xyz[(3 * j) + 2] === 0
+      }
+      expect(atCraft).toBe(true)
+      // The same circle before release, drawn again, goes through it too.
+      expect(lineOf('sync').position.equals(relay)).toBe(true)
+      // A leg no craft is on is drawn plainly, about the Sun.
+      expect(lineOf('psp1').position.length()).toBe(0)
+    }
+    // And the lander's, on its descent.
+    suntan.track.place(RELEASE_S + 86400)
+    expect(lineOf('descent').position.equals(suntan.track.nodes.lander.position)).toBe(true)
   })
 
   it('leaves the craft for the Sun\'s frame when the app stops, the camera where it was', async () => {

@@ -234,6 +234,13 @@ of heliocentric places is fine only for things seen from far away (orbit
 lines).  Check it by rendering frames with the clock running, not by reading
 world positions, which are doubles.
 
+The craft's orbit lines had the same fault, and chord sag besides (235 km
+for 720 chords round the relay's orbit).  The planets already had the fix,
+`bodyLine.js`, written relative to the body with a fine arc round it; its
+tolerance is a fraction of the body's radius, which a 7.7 m craft can't
+meet, so the craft is also a vertex (`knot`).  Look for the planets' or
+the satellites' answer to a precision problem before writing another.
+
 ### A distance read from depth near the far plane is noise: decide by its error
 
 Jupiter at a telescope FOV from Earth's surface showed white dashes in

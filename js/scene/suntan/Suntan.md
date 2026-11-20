@@ -129,6 +129,19 @@ perihelia are smooth.  Rings and names mark the relay and, from its release,
 the lander, placed each frame from `stateAt` (`preAnimCb`).  The panel's
 *Trajectory* switch hides the lines and keeps the marks.
 
+**Each line goes through the craft on it**, as a planet's orbit line goes
+through the planet (`bodyLine.js`, DESIGN.md "Through the body's centre,
+close up").  Drawn plainly, float32 vertices 2.5e10 m out were good to
+2 km, and 720 chords over the relay's orbit sag 235 km inside it, so up
+close the line jumped about the craft and missed it.  Each leg's ellipse
+is kept in float64 (`SuntanTrack.js` `LegLine`), written relative to the
+craft, with a fine arc of the same ellipse spliced in round it; the arc's
+256 steps a segment still sag metres at this scale, so the craft's own
+place is a knot of the arc (`knot: true`), re-spliced each frame it moves.
+A line follows the relay, or the lander once it flies alone, while either
+is on its orbit (the relay orbit is drawn twice, before the release and
+after, and both follow); the rest are drawn plainly.
+
 ## The app
 
 Opened from the drawer it builds the mission (`Scene.getSuntan`, a dynamic
