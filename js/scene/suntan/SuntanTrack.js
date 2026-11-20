@@ -18,6 +18,10 @@ const DAY = 86400
 // point, so near enough to see the paths bend round it, far enough that
 // at the photosphere the Sun doesn't fill the view.
 const CRAFT_ARRIVAL_M = 3e9
+// The craft's size for the zoom (zoom.js homeBody), metres: about the flight
+// system's half-length in design/suntan/cad/ (11.7 m long).  The camera then
+// eases in to a few metres from the mark.
+const CRAFT_RADIUS_M = 6
 
 /** The craft as targets (Scene.setTarget's `{kind: 'craft'}`), by id. */
 export const SUNTAN_CRAFT = Object.freeze({
@@ -79,6 +83,10 @@ export default class SuntanTrack extends Group {
       node.name = `suntan.${id}.node`
       node.arrivalDistance = CRAFT_ARRIVAL_M
       node.inFlight = false
+      // Riding it, the zoom and the ground floor are about the craft, not
+      // the Sun (zoom.js homeBody).
+      node.isCraftNode = true
+      node.props = {name: SUNTAN_CRAFT[id].name, radius: {scalar: CRAFT_RADIUS_M}}
       this.nodes[id] = node
     }
     if (layer !== null) {

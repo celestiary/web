@@ -84,6 +84,9 @@ describe('Scene and the Suntan app', () => {
     const node = suntan.nodeOf('lander')
     expect(camera.platform.parent).toBe(node)
     expect(Shared.targets.follow).toBe(node)
+    // The zoom is about the craft (zoom.js homeBody), a few metres across.
+    expect(node.isCraftNode).toBe(true)
+    expect(node.props.radius.scalar).toBeLessThan(20)
     Shared.targets.tween = null
     // As time runs the camera moves with it.
     camera.position.set(0, 0, 3e9)

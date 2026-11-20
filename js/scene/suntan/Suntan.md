@@ -164,6 +164,14 @@ on the node, so it rides the craft as time runs, and following is the
 node's (`_followable`).  The lander's node is the stack's until its
 release.  The breadcrumb reads *Sun › Suntan relay*.
 
+**Zooming in on it**: riding a craft, its node is the camera's body for the
+zoom and the ground floor (`zoom.js` `homeBody`: a node with `isCraftNode`
+and its own `props.radius`, 6 m, about the flight system's half-length).
+It was the Sun's, whose 0.7 million km radius about the craft held the camera
+far off; now the zoom eases in from the 3 million km arrival to a few metres
+from the mark (headless: 3e9 m to 7 m in 35 halvings, the near plane
+following to 0.1 m).
+
 - **The panel's buttons**, and **the search** while the app runs: the relay
   and the lander are results (`search/providers/SuntanProvider.js`, empty
   while the app isn't running; `Scene.onSuntanChange` rebuilds the index).
