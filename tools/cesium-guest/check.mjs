@@ -102,6 +102,8 @@ function parseArgs(argv) {
       i--
     } else if (key === '--pan') {
       opts.pan = Number(value)
+    } else if (key === '--dolly') {
+      opts.dolly = Number(value)
     } else if (key === '--motion') {
       opts.motion = Number(value)
     } else if (key === '--wait') {
@@ -381,7 +383,8 @@ async function runMode(browser, opts, mode, ports) {
       lights: {night: body.night === true, parts: body.parts === true, drawn: body.lastLights === true}} : {})}
   }, [opts.motion, opts.wait])
 
-  const pan = mode === 'iframe' && opts.pan > 0 ? await panCheck(page, opts.pan) : null
+  const pan = mode === 'iframe' && (opts.pan > 0 || opts.dolly > 0) ?
+    await panCheck(page, {deg: opts.pan || 0, dolly: opts.dolly || 1}) : null
 
   const replayErrors = city ? await page.evaluate(() => window.c.ui.layers._newYork?.city?.replayErrors ?? null) : null
   await page.close()
@@ -396,8 +399,8 @@ async function runMode(browser, opts, mode, ports) {
  * @param {number} deg How far B is turned from A, about the body
  * @returns {Promise<object>} The two composites' distances from the truth
  */
-async function panCheck(page, deg) {
-  return page.evaluate(async (deg) => {
+async function panCheck(page, move) {
+  return page.evaluate(async ({deg, dolly}) => {
     const {ui} = window.c
     const L = ui.layers
     const body = L.bodies.earth
@@ -407,11 +410,20 @@ async function panCheck(page, deg) {
     // A turn where the camera is, not a move: about the body's centre a
     // degree is ~100 km at Earth's surface, far past what a frame's lag
     // moves the camera (and what a float32 correction can carry).
+    // Or a move straight down, to `dolly` × the camera's height (--dolly):
+    // a frame's distances (its alpha, distance.js) change with the eye,
+    // which a turn leaves where it is.
     const pos = ui.camera.position.clone()
+    earth.getWorldPosition(at)
+    const centre = ui.camera.parent.worldToLocal(at.clone())
+    const r = earth.props.radius.scalar
+    const dist = pos.distanceTo(centre)
+    const posB = centre.clone().add(pos.clone().sub(centre).multiplyScalar((r + (dolly * (dist - r))) / dist))
     let yaw = 0
+    let hold = pos
     const keep = ui._keepAboveGround.bind(ui)
     ui._keepAboveGround = () => {
-      ui.camera.position.copy(pos)
+      ui.camera.position.copy(hold)
       earth.getWorldPosition(at)
       ui.camera.updateMatrixWorld()
       ui.camera.lookAt(at)
@@ -463,10 +475,12 @@ async function panCheck(page, deg) {
     try {
       // The truth: the guest's own frame of B, in step (a long wait).
       yaw = turnB
+      hold = posB
       await frames(2)
       const truth = await frames(2)
       // Back at A, in step; then the guest held and the camera at B.
       yaw = 0
+      hold = pos
       await frames(3)
       const postViews = L.guests.postViews.bind(L.guests)
       // Held: no view goes, but the frame still counts as one, as
@@ -477,22 +491,30 @@ async function panCheck(page, deg) {
       const corrected0 = body.corrected ?? 0
       const corrected = await frames(2, () => {
         yaw = turnB
+        hold = posB
       })
       const correctedFrames = (body.corrected ?? 0) - corrected0
+      // The same, its distances decoded as before #344: by the posted
+      // view's scale, not its own.
+      const frameDistanceScale = L._frameDistanceScale.bind(L)
+      L._frameDistanceScale = (b) => b?.distanceScale ?? 1
+      const oldDecode = await frames(2)
+      L._frameDistanceScale = frameDistanceScale
       L.guestReproject = false
       const uncorrected = await frames(2)
       L.guestReproject = true
       L.guests.postViews = postViews
       const c = distance(corrected, truth)
       const u = distance(uncorrected, truth)
-      return {deg, corrected: c, uncorrected: u, correctedFrames, refused: body.refused ?? 0, lastEnd: body.lastEnd,
-        pngs: {truth: truth.png, corrected: corrected.png, uncorrected: uncorrected.png},
+      return {deg, dolly, corrected: c, oldDecode: distance(oldDecode, truth), uncorrected: u, correctedFrames,
+        refused: body.refused ?? 0, lastEnd: body.lastEnd,
+        pngs: {truth: truth.png, corrected: corrected.png, oldDecode: oldDecode.png, uncorrected: uncorrected.png},
         correctedDraws: body.receiver.replay.reprojectStats.correctedDraws}
     } finally {
       ui._drawFrame = draw
       ui._keepAboveGround = keep
     }
-  }, deg)
+  }, move)
 }
 
 

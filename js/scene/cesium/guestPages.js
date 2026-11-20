@@ -24,6 +24,9 @@ export default class GuestPages {
     // postViews' calls: a frame's drain knows whether the view it drains
     // was posted in the same frame (_correction).
     this._tick = 0
+    // The last views posted, by id: each one's distance scale, so a late
+    // frame's distances decode as encoded (CesiumLayers._frameDistanceScale).
+    this._sent = new Map()
     // The last GUEST_STATS_N frames' waits for a guest's (noteWait).
     this._waits = []
     // requestGroundHeight's last request.
@@ -243,6 +246,10 @@ export default class GuestPages {
       body.waiting = viewId
       body.posted = viewId
       body.postedTick = this._tick
+      this._sent.set(viewId, {distanceScale: view.distanceScale})
+      if (this._sent.size > SENT_VIEWS_KEPT) {
+        this._sent.delete(this._sent.keys().next().value)
+      }
       body.postedAt = performance.now()
       // Short when a late frame can be corrected to the camera; else as
       // long as before the correction, or it's drawn where it was.
@@ -322,6 +329,8 @@ export default class GuestPages {
       body.drainedLights = true
     } else {
       body.drainedDay = true
+      // The view the day frame was drawn for: its distances' scale.
+      body.drainedView = this._sent.get(end.viewId) ?? null
     }
   }
 
@@ -588,6 +597,10 @@ export default class GuestPages {
 const GUEST_STATS_N = 240
 // How long requestGroundHeight waits for a guest page's answer, ms.
 const GROUND_REPLY_MS = 1000
+
+
+// Views remembered for their eyes and scales (_sent): several round trips'.
+const SENT_VIEWS_KEPT = 64
 
 
 // The largest entry of a correction the shader is given (_correction).

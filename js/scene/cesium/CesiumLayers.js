@@ -450,7 +450,8 @@ export default class CesiumLayers {
     // front of the atmosphere and go unhazed), where the sphere's depth
     // (_writeGroundDepths) is exact.
     this.decode.material.depthWrite = this._terrainDepth(name)
-    u.uDistanceScale.value = this.bodies[name]?.distanceScale ?? 1
+    // A guest page's late frame: the scale of the view it was drawn for.
+    u.uDistanceScale.value = this._frameDistanceScale(this.bodies[name])
     // A tileset's shader writes its light log-encoded (sunlitShader).
     u.uLogEncoded.value = CESIUM_BODIES[name]?.ionTileset ? 1 : 0
     u.uProjection.value.copy(this.ui.camera.projectionMatrix)
@@ -1378,6 +1379,21 @@ export default class CesiumLayers {
    * @returns {Array<number>}
    */
   _ecefViewMatrix(name, node) {
+    const {p, r, u, d} = this._ecefCamera(name, node)
+    return [r[0], u[0], -d[0], 0, r[1], u[1], -d[1], 0, r[2], u[2], -d[2], 0, -dot3(r, p), -dot3(u, p), dot3(d, p), 1]
+  }
+
+
+  /**
+   * Cesium's camera for this frame's camera, in ECEF: its position (as
+   * _viewOf sends it) and its right, up and direction (unit, as Cesium's
+   * Camera keeps them).
+   *
+   * @param {string} name
+   * @param {object} node The body's scene node
+   * @returns {{p: Array<number>, r: Array<number>, u: Array<number>, d: Array<number>}}
+   */
+  _ecefCamera(name, node) {
     const view = cameraToEcefView(this.ui.camera.matrixWorld, node.matrixWorld)
     const p = ellipsoidCameraPosition(view.position, node.props.radius.scalar, CESIUM_BODIES[name].radii)
     const unit = (v) => {
@@ -1387,8 +1403,26 @@ export default class CesiumLayers {
     const d = unit(view.direction)
     const u = unit(view.up)
     const r = unit([(d[1] * u[2]) - (d[2] * u[1]), (d[2] * u[0]) - (d[0] * u[2]), (d[0] * u[1]) - (d[1] * u[0])])
-    const dot = (a, b) => (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2])
-    return [r[0], u[0], -d[0], 0, r[1], u[1], -d[1], 0, r[2], u[2], -d[2], 0, -dot(r, p), -dot(u, p), dot(d, p), 1]
+    return {p, r, u, d}
+  }
+
+
+  /**
+   * The scale a guest page's frame's distances (its alpha, distance.js)
+   * were encoded with: its own view's (GuestPages.drainedView), which for a
+   * late frame isn't the view posted this frame (D grows with the height,
+   * so a descent decoded every distance short).  The distances themselves
+   * need no moving: Cesium's stage measures them from the scene's depth,
+   * which a corrected frame's log depth has already put in this camera's
+   * space (a move added on top made a dolly's late frame worse, 4.85 to
+   * 2.86 from the guest's own; design/CesiumGuest.md).
+   *
+   * @param {object} body
+   * @returns {number}
+   */
+  _frameDistanceScale(body) {
+    const drained = body?.remote ? body.drainedView : null
+    return drained?.distanceScale ?? body?.distanceScale ?? 1
   }
 
 
@@ -1951,6 +1985,16 @@ function newDecodeMaterial() {
     transparent: true,
     toneMapped: false,
   })
+}
+
+
+/**
+ * @param {Array<number>} a
+ * @param {Array<number>} b
+ * @returns {number}
+ */
+function dot3(a, b) {
+  return (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2])
 }
 
 
