@@ -1,0 +1,27 @@
+{
+  "id": "rubinobs/SVImages_v2/color_ugri",
+  "key": "rubin-virgo",
+  "title": "Rubin's First Look, the Virgo Cluster",
+  "serviceUrls": [
+    "https://images.rubinobservatory.org/hips/SVImages_v2/color_ugri"
+  ],
+  "minOrder": 3,
+  "maxOrder": 11,
+  "tileWidth": 512,
+  "formats": [
+    "webp"
+  ],
+  "frame": "equatorial",
+  "skyFraction": 0.0005785618751531417,
+  "credit": "NSF–DOE Vera C. Rubin Observatory (RubinObs/NOIRLab/SLAC/NSF/DOE/AURA), under Rubin's use policy; LSSTCam's coadd in u, g, r and i, the tiles Rubin's SkyViewer draws",
+  "licence": "Rubin's use policy",
+  "source": "https://skyviewer.app/",
+  "record": "https://images.rubinobservatory.org/hips/SVImages_v2/color_ugri/properties",
+  "name": "the Virgo Cluster",
+  "coverage": {
+    "5": [6928, 6929],
+    "6": [26346, 26347, 27669, 27671, 27720, 27721, 27724, 27725, 27728, 27730, 27731, 27736],
+    "7": [105215, 105400, 105402, 105403, 105406, 105407, 105450, 105451, 110675, 110681, 110683, 110708, 110709, 110711, 110916, 110918, 110919, 110948, 110949, 110950, 110952, 110953],
+    "8": [420853, 420854, 420855, 420857, 420858, 420859, 421514, 421515, 421518, 421606, 421607, 421618, 421619, 421622, 421623, 421794, 421818, 442693, 442695, 442699, 442721, 442821, 442841, 443557, 443568, 443569, 443572, 443573, 443616, 443617, 443620, 443621, 443632, 443633, 443636, 443637, 443639, 443670, 443752, 443754, 443804, 443805, 443806, 443824, 443825, 443826, 443840]
+  }
+}

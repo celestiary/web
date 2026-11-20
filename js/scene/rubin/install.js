@@ -1,7 +1,8 @@
 import {Vector3} from 'three'
 import HipsLayer from '../sky/HipsLayer.js'
-import {angle, lonLatToVec} from '../sky/hips.js'
-import {RUBIN_FIRST_LOOK, surveyCovers} from '../sky/surveys.js'
+import {footprintCells} from '../sky/footprint.js'
+import {angle, lonLatToVec, mocFromCells} from '../sky/hips.js'
+import {RUBIN_FIRST_LOOK, RUBIN_VIRGO, surveyCovers} from '../sky/surveys.js'
 import ApparentPath from './ApparentPath.js'
 import PixelMarker from './PixelMarker.js'
 import RubinImage from './RubinImage.js'
@@ -112,6 +113,20 @@ export const IMAGE_MANIFEST_PATH = 'data/rubin/noirlab2626d.json'
 export const IMAGE_CREDIT_ID = 'rubin-image'
 /** Rubin's First Look on the sky (js/scene/sky/Sky.md), with the image. */
 export const FIRST_LOOK_CREDIT_ID = 'rubin-first-look'
+export const VIRGO_CREDIT_ID = 'rubin-virgo'
+/** The First Look's images that aren't the Virgo field, which Rubin's own tiles draw. */
+const REST = RUBIN_FIRST_LOOK.footprints.filter((f) => f.image !== 'noirlab2521a')
+/**
+ * CDS's First Look less the Virgo field (Sky.md, "Surveys"): Rubin's own
+ * tiles draw that one, wider, and two layers over one field would draw
+ * turn about.  Its coverage is the manifest's, for the images left
+ * (tools/hips/coverage.mjs's order and pad).
+ */
+export const FIRST_LOOK_REST = {
+  ...RUBIN_FIRST_LOOK,
+  footprints: REST,
+  coverage: mocFromCells(8, new Set(REST.flatMap((f) => [...footprintCells(8, f, 0.05)]))),
+}
 
 
 /**
@@ -126,10 +141,13 @@ export const FIRST_LOOK_CREDIT_ID = 'rubin-first-look'
  * @returns {?string}
  */
 export function imageryLine(raDeg, decDeg, radiusDeg, composite) {
-  if (surveyCovers(RUBIN_FIRST_LOOK, raDeg, decDeg, radiusDeg)) {
-    // Which of its two images: the nearer centre.
+  if (surveyCovers(RUBIN_VIRGO, raDeg, decDeg, radiusDeg)) {
+    return `Rubin's image covers this field: First Look, ${RUBIN_VIRGO.name}`
+  }
+  if (surveyCovers(FIRST_LOOK_REST, raDeg, decDeg, radiusDeg)) {
+    // Which of its images: the nearer centre.
     const v = lonLatToVec(raDeg, decDeg)
-    const near = RUBIN_FIRST_LOOK.footprints.reduce((a, b) =>
+    const near = FIRST_LOOK_REST.footprints.reduce((a, b) =>
       (angle(lonLatToVec(a.raDeg, a.decDeg), v) <= angle(lonLatToVec(b.raDeg, b.decDeg), v) ? a : b))
     return `Rubin's image covers this field: First Look, ${near.name}`
   }
@@ -156,7 +174,8 @@ export function imageryLine(raDeg, decDeg, radiusDeg, composite) {
  * @param {object} deps
  * @param {object} [opts]
  * @param {Function} [opts.onManifest] When the discovery image's manifest is in
- * @returns {{enabled: boolean, layer: ?RubinImage, firstLook: ?HipsLayer, ready: ?Promise, dispose: Function}}
+ * @returns {{enabled: boolean, layer: ?RubinImage, firstLook: ?HipsLayer, virgo: ?HipsLayer, ready: ?Promise,
+ *   dispose: Function}}
  */
 export function newImageSwitch(scene, deps, {onManifest = null} = {}) {
   const fetchJson = deps.fetchJson ?? ((url) => fetch(url).then((r) => {
@@ -172,6 +191,20 @@ export function newImageSwitch(scene, deps, {onManifest = null} = {}) {
     text: `Rubin's First Look: ${RUBIN_FIRST_LOOK.credit} (HiPS ${RUBIN_FIRST_LOOK.licence})`,
     href: RUBIN_FIRST_LOOK.source,
   }
+  const virgoCredit = {text: `${RUBIN_VIRGO.title}: ${RUBIN_VIRGO.credit}`, href: RUBIN_VIRGO.source}
+  const hips = (survey, id, c) => new HipsLayer({
+    survey,
+    view,
+    sceneReferred: deps.sceneReferred,
+    loadTexture: deps.loadTexture,
+    onDrawn: (drawn) => {
+      if (drawn && on) {
+        deps.addCredit?.(id, c, {persistence: 'timed'})
+      } else {
+        deps.removeCredit?.(id)
+      }
+    },
+  })
   const view = () => {
     const ui = scene.ui
     return {
@@ -184,6 +217,7 @@ export function newImageSwitch(scene, deps, {onManifest = null} = {}) {
   const sw = {
     layer: null,
     firstLook: null,
+    virgo: null,
     ready: null,
     get enabled() {
       return on
@@ -191,20 +225,9 @@ export function newImageSwitch(scene, deps, {onManifest = null} = {}) {
     set enabled(value) {
       on = value === true
       if (on && !sw.ready) {
-        sw.firstLook = new HipsLayer({
-          survey: RUBIN_FIRST_LOOK,
-          view,
-          sceneReferred: deps.sceneReferred,
-          loadTexture: deps.loadTexture,
-          onDrawn: (drawn) => {
-            if (drawn && on) {
-              deps.addCredit?.(FIRST_LOOK_CREDIT_ID, firstLookCredit, {persistence: 'timed'})
-            } else {
-              deps.removeCredit?.(FIRST_LOOK_CREDIT_ID)
-            }
-          },
-        })
-        scene.stellarFrame.add(sw.firstLook)
+        sw.firstLook = hips(FIRST_LOOK_REST, FIRST_LOOK_CREDIT_ID, firstLookCredit)
+        sw.virgo = hips(RUBIN_VIRGO, VIRGO_CREDIT_ID, virgoCredit)
+        scene.stellarFrame.add(sw.firstLook, sw.virgo)
         sw.ready = fetchJson(IMAGE_MANIFEST_PATH).then((manifest) => {
           if (disposed) {
             return
@@ -225,10 +248,12 @@ export function newImageSwitch(scene, deps, {onManifest = null} = {}) {
       sw.apply()
     },
     apply() {
-      if (sw.firstLook) {
-        sw.firstLook.visible = on
-        if (!on) {
-          sw.firstLook.setDrawn(false)
+      for (const layer of [sw.firstLook, sw.virgo]) {
+        if (layer) {
+          layer.visible = on
+          if (!on) {
+            layer.setDrawn(false)
+          }
         }
       }
       if (!sw.layer) {
@@ -245,10 +270,13 @@ export function newImageSwitch(scene, deps, {onManifest = null} = {}) {
       disposed = true
       deps.removeCredit?.(IMAGE_CREDIT_ID)
       deps.removeCredit?.(FIRST_LOOK_CREDIT_ID)
+      deps.removeCredit?.(VIRGO_CREDIT_ID)
       sw.layer?.dispose()
       sw.layer = null
       sw.firstLook?.dispose()
       sw.firstLook = null
+      sw.virgo?.dispose()
+      sw.virgo = null
     },
   }
   return sw

@@ -1,5 +1,6 @@
 import jwstNircam from './surveys/jwst-nircam.json'
 import rubinFirstLook from './surveys/rubin-firstlook.json'
+import rubinVirgo from './surveys/rubin-virgo.json'
 import {discMeetsCoverage, lonLatToVec, newCoverage} from './hips.js'
 
 
@@ -12,10 +13,15 @@ import {discMeetsCoverage, lonLatToVec, newCoverage} from './hips.js'
 
 /** Rubin's First Look of 23 June 2025 (CDS): the Rubin app's "Rubin's image". */
 export const RUBIN_FIRST_LOOK = rubinFirstLook
+/**
+ * The First Look's Virgo field from Rubin's own tiles (SkyViewer's, on
+ * images.rubinobservatory.org): LSSTCam's coadd, wider than the press image.
+ */
+export const RUBIN_VIRGO = rubinVirgo
 /** ESASky's JWST NIRCam imaging: the check on real tiles; `?sky=jwst-nircam` (install.js), no control yet. */
 export const JWST_NIRCAM = jwstNircam
 
-export const SURVEYS = [RUBIN_FIRST_LOOK, JWST_NIRCAM]
+export const SURVEYS = [RUBIN_VIRGO, RUBIN_FIRST_LOOK, JWST_NIRCAM]
 
 const toRad = Math.PI / 180
 const coverages = new Map

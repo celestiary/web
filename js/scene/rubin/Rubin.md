@@ -565,11 +565,13 @@ the object, tracked, at 256×.
 [#333](https://github.com/celestiary/web/issues/333)), lays the discovery
 image over the field it was taken of, on the sky where its stars are.
 
-With it, the switch turns on **Rubin's First Look** (23 June 2025: the
-southern Virgo Cluster and the Trifid and Lagoon nebulae, 29 deg²), CDS's
-HiPS of it drawn by the general sky-imagery layer
-([js/scene/sky/Sky.md](../sky/Sky.md); [#360](https://github.com/celestiary/web/issues/360)),
-its credit in the footer while its tiles are drawn.  The two layers share
+With it, the switch turns on **Rubin's First Look** (23 June 2025), drawn
+by the general sky-imagery layer
+([js/scene/sky/Sky.md](../sky/Sky.md); [#360](https://github.com/celestiary/web/issues/360)):
+the Virgo Cluster from Rubin's own tiles (its SkyViewer's, 24 deg²), and
+the Trifid and Lagoon nebulae from CDS's HiPS, which answered 404 when
+this went in (Sky.md, "Surveys"); each one's credit in the footer while
+its tiles are drawn.  The two layers share
 the tile material (`sky/tileMaterial.js`).
 
 **Source and licence.**  NOIRLab's composite

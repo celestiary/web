@@ -5,6 +5,7 @@ import RubinImage, {BASE_LEVEL, GRID, MAX_LOADING, selectLevel, tileBox, tileGeo
   visibleTiles} from './RubinImage.js'
 import {equatorialToScene, pixToWorld, sceneToEquatorial} from './wcs.js'
 import {imageryLine, newImageSwitch} from './install.js'
+import {surveyCovers} from '../sky/surveys.js'
 
 
 const manifest = JSON.parse(readFileSync(new URL('../../../public/data/rubin/noirlab2626d.json', import.meta.url)))
@@ -151,9 +152,16 @@ describe('the image\'s switch', () => {
     await sw.ready
     expect(asked).toEqual(['data/rubin/noirlab2626d.json'])
     // Rubin's First Look with it, as a HiPS layer (sky/HipsLayer.js).
-    expect(stellarFrame.children).toEqual([sw.firstLook, sw.layer])
+    expect(stellarFrame.children).toEqual([sw.firstLook, sw.virgo, sw.layer])
     expect(sw.firstLook.survey.id).toBe('CDS/P/Rubin/FirstLook')
     expect(sw.firstLook.visible).toBe(true)
+    // The Virgo field from Rubin's own tiles, and CDS's layer left the rest.
+    expect(sw.virgo.survey.id).toBe('rubinobs/SVImages_v2/color_ugri')
+    expect(sw.virgo.visible).toBe(true)
+    expect(sw.firstLook.survey.footprints.map((f) => f.image)).toEqual(['noirlab2521b'])
+    expect(surveyCovers(sw.firstLook.survey, 270.904, -24.38, 0.5)).toBe(true)
+    expect(surveyCovers(sw.firstLook.survey, 186.37, 6.93, 0.5)).toBe(false)
+    expect(surveyCovers(sw.virgo.survey, 188.17, 7.09, 0.5)).toBe(true)
     expect(credits.get('rubin-image').text).toContain('CC BY 4.0')
     expect(credits.get('rubin-image').text).toContain('Rubin Observatory/NOIRLab/SLAC/AURA')
     sw.enabled = false
@@ -207,7 +215,7 @@ describe('the readout\'s imagery line', () => {
     expect(imageryLine(270.904, -24.38, 1.75, null)).toBe(
         'Rubin\'s image covers this field: First Look, the Trifid and Lagoon nebulae')
     expect(imageryLine(186.37, 6.93, 1.75, null)).toBe(
-        'Rubin\'s image covers this field: First Look, the southern Virgo Cluster')
+        'Rubin\'s image covers this field: First Look, the Virgo Cluster')
     expect(imageryLine(271.6, -30.0, 1.75, null)).toBe(null)
     // The discovery image's field, once its manifest is in.
     expect(imageryLine(manifest.wcs.crval[0], manifest.wcs.crval[1], 1.75, null)).toBe(null)

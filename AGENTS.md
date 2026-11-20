@@ -530,8 +530,12 @@ tried and dropped.
     CDS's HiPS host, `alasky.cds.unistra.fr`, is reachable but answers
     every static HiPS path (properties, tiles, `Moc.fits`) with a "Page
     unavailable" 404 from here, and its MocServer every MOC with a 413
-    (records answer); the mirror `alaskybis` resets the connection.  So
-    Rubin's First Look is checked on the PR preview.
+    (records answer); the mirror `alaskybis` resets the connection.  A
+    visitor's browser got the same 404 (2026-11-20), so don't take a CDS
+    HiPS as working because its record says so.
+  - `images.rubinobservatory.org` (Rubin's own HiPS, the tiles its
+    SkyViewer draws: the First Look's Virgo field, CORS `*`), and
+    `skyviewer.app` (the viewer's page, whose source names them).
 
   If one is denied, ask the user to add it to the environment's allowed
   hosts, and carry on with what doesn't need it.

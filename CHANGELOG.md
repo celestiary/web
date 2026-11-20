@@ -42,16 +42,19 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 ### Rubin's First Look on the sky, and the survey ride says when it's there
 
 In the Rubin Observatory app, "Rubin's image" now also lays Rubin's First Look of June 2025 on the
-sky where it was taken: the southern Virgo Cluster and the Trifid and Lagoon nebulae, 29 square
-degrees, sharper as you zoom in. On the survey cadence, the panel says when the telescope's field
-holds Rubin's images. The images come from CDS's sky-tile service, drawn by a new layer that can show
-other sky surveys, such as Hubble's and JWST's, in the same way.
+sky where it was taken: the Virgo Cluster, 24 square degrees of galaxies from Rubin's own image
+tiles, sharper as you zoom in. On the survey cadence, the panel says when the telescope's field
+holds Rubin's images. A new layer draws them, one that can show other sky surveys the same way: a
+link with `?sky=jwst-nircam` lays JWST's NIRCam images on the sky, the Pillars of Creation among
+them. The Trifid and Lagoon nebulae, the First Look's other field, will show when CDS's tile service
+answers again.
 
 - Date: 2026-11-20
 - PR: [#365](https://github.com/celestiary/web/pull/365)
 - Issue: [#360](https://github.com/celestiary/web/issues/360)
 - Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
-- Permalink: none
+- Permalink: [Open this view](https://celestiary.org/#sun/ed138@-30.2446,-70.7494,2.684km;from=sun/earth;t=9630.583333jd;cq=0.1938,0.97,-0.093,-0.1132;fov=3.5deg;s=LF;time:pause;apps:open,view=rubin;apps.rubin:optics=0,image=1)
+- Featured: yes
 
 ### The ground holds still under you low over a planet, and Earth's clouds stop flickering
 

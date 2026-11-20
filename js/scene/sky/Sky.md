@@ -116,10 +116,25 @@ fields and that its coverage is near its sky fraction.
 
 | Survey | Service | Orders | Format | Coverage | Used by |
 |---|---|---|---|---|---|
-| Rubin's First Look, `CDS/P/Rubin/FirstLook` | CDS (`alasky`, mirror `alaskybis`) | 0 to 12 (0.1″) | png, webp | 7.07e-4 of the sky (29 deg²) | the Rubin app's "Rubin's image" |
+| Rubin's First Look, the Virgo Cluster, `rubinobs/SVImages_v2/color_ugri` | Rubin's own (`images.rubinobservatory.org/hips/`) | 3 to 11 (0.2″) | webp | 5.79e-4 of the sky (24 deg²) | the Rubin app's "Rubin's image"; `?sky=rubin-virgo` |
+| Rubin's First Look, `CDS/P/Rubin/FirstLook` | CDS (`alasky`, mirror `alaskybis`) | 0 to 12 (0.1″) | png, webp | 7.07e-4 of the sky (29 deg²) | the Rubin app's "Rubin's image", for the Trifid and Lagoon only |
 | JWST NIRCam imaging, `ESAVO/P/JWST/NIRCam_Imaging` | ESA's ESASky (`skies.esac.esa.int`) | 0 to 15 (drawn to 13) | png (with alpha) | 3.4e-5 | the real-tile check; no control yet |
 
-**Rubin's First Look** is CDS's HiPS of two of the images of Rubin's
+**Rubin's First Look, the Virgo Cluster** is Rubin's own HiPS, the one
+its [SkyViewer](https://skyviewer.app/) draws (found in that page's
+source): LSSTCam's coadd of the Virgo field in u, g, r and i ("LSSTCam:
+Virgo", built by `lsst.pipe.tasks.hips.GenerateHipsTask`, 8 June 2025),
+24 deg² about RA 188.2°, Dec +7.1°, wider than the press image, orders 3
+to 11, webp only, served with `access-control-allow-origin: *`.  Its
+coverage is its own `Moc.fits` (455 cells at order 8, its
+`moc_sky_fraction` to four figures).  Its `properties` call it
+`hips_status = private`: served openly, not listed in the registries.  It
+is the survey that draws in the Rubin app today.  The same host has two
+more of the viewer's, not used: `hips/asteroids/color_ugri` (the same
+field) and `hips/oceancosmosm18/color_gri` (35 deg² about RA 221.7°, Dec
+−40.5°).
+
+**Rubin's First Look** from CDS is its HiPS of two of the images of Rubin's
 First Look of 23 June 2025, NOIRLab's
 [noirlab2521a](https://noirlab.edu/public/images/noirlab2521a/) (the
 southern Virgo Cluster, 5.4° × 2.9°) and
@@ -127,7 +142,15 @@ southern Virgo Cluster, 5.4° × 2.9°) and
 Trifid and Lagoon nebulae, 4.7° × 2.9°).  The HiPS is ODbL-1.0
 (CNRS/Unistra); the images are RubinObs/NOIRLab/SLAC/NSF/DOE/AURA under
 [Rubin's use policy](https://rubinobservatory.org/media/design-resources/use-policy).
-The credits footer carries both, timed, while its tiles are drawn.
+The credits footer carries both, timed, while its tiles are drawn.  **In
+the Rubin app it draws the Trifid and Lagoon only** (`FIRST_LOOK_REST`,
+rubin/install.js: its coverage less the Virgo footprint): Rubin's own
+tiles draw Virgo, and two layers over one field draw turn about, their
+tiles sorted by when they loaded.  **CDS answered a visitor's browser
+with 404 too** (the maintainer's, on the preview, 2026-11-20:
+`Norder0/Dir0/Npix7.webp`), as it answers the sandbox, so the Trifid and
+Lagoon aren't drawn until CDS serves its tiles again; nothing else of
+Rubin's public imagery holds that field.
 
 **JWST NIRCam** is ESASky's HiPS of the eJWST archive's NIRCam images,
 single band, transparent where there is no data.  It's in the manifests
@@ -200,6 +223,9 @@ field in April and May.
   answers records, but every MOC with a 413 (2026-11-20).  A visitor's
   browser asks CDS itself, so Rubin's First Look is checked on the
   preview, not here.
+- **Rubin's own** (`images.rubinobservatory.org`, and `skyviewer.app`
+  for the viewer's page): reachable, with `access-control-allow-origin:
+  *` on `properties`, `Moc.fits` and the tiles.
 - **ESA's ESASky** (`skies.esac.esa.int`): reachable, with
   `access-control-allow-origin: *`.  A page in headless Chromium reaches it
   through the proxy with its CA pinned (AGENTS.md).
@@ -222,6 +248,18 @@ field in April and May.
   ESASky reached through the proxy: the layer on from the link, order 9,
   its tiles ready and drawn, none missing, no console errors, the Pillars
   in the frame (the maintainer's ask on the preview: how to see them).
+- **Rubin's own Virgo tiles in the Rubin app**, headless as above
+  (800 × 500, the tile host through the proxy), "Rubin's image" on, the
+  clock paused on 15 May 2026 02:00 UTC with Virgo near the meridian: at a
+  3.5° field aimed at M49 (RA 187.4449°, Dec +8.0004°) order 5, 16 tiles
+  ready; at 0.2° order 9, 36 tiles ready, every request a 200, none
+  missing, no console errors, the credit in the footer.  The frame is the
+  galaxy in colour, its core's centroid 2.1 px each way from the frame's
+  centre (4″ at 1.44″ a pixel, a saturated core 30 px across against the
+  catalogue's place), so the layer puts Rubin's tiles where the sky is.
+  The same link in a fresh page restores the switch and draws.  CDS's
+  layer beside it asked its two coarse tiles at the Trifid's cell, got
+  404s, and asked no more.
 - Rubin's First Look with CDS answered by a test pattern (the tile host
   refuses the sandbox): from a link aimed at the Trifid and Lagoon (RA
   271.0°, Dec −23.9°, a 6° field, `apps.rubin:image=1`) the layer asks
