@@ -31,8 +31,9 @@ export const DEFAULT_NIGHT_MS = Date.UTC(2026, 4, 15)
  * The app's state, as the widgets slice keeps it for the permalink: whether
  * the apparent path is drawn, the night the run's slider is on (ms at
  * 0h UTC), whether the observatory's shell (the enclosure and dome)
- * is drawn, whether Rubin's optics hold the field, and whether Rubin's
- * pixel is drawn at the body (Rubin.md, "The optics").
+ * is drawn, whether Rubin's optics hold the field, whether Rubin's
+ * pixel is drawn at the body (Rubin.md, "The optics"), and whether Rubin's
+ * image is drawn over the field (Rubin.md, "The imagery").
  */
 export const DEFAULT_RUBIN = Object.freeze({
   path: true,
@@ -40,6 +41,7 @@ export const DEFAULT_RUBIN = Object.freeze({
   shell: true,
   optics: true,
   pixel: false,
+  image: false,
 })
 
 const MS_PER_DAY = 86400e3
@@ -60,6 +62,7 @@ export function encodeRubinToken(s) {
     shell: s.shell === d.shell ? null : (s.shell ? 1 : 0),
     optics: s.optics === d.optics ? null : (s.optics ? 1 : 0),
     pixel: (s.pixel === true) === d.pixel ? null : (s.pixel === true ? 1 : 0),
+    image: (s.image === true) === d.image ? null : (s.image === true ? 1 : 0),
   })
   return value || null
 }
@@ -80,6 +83,7 @@ export function decodeRubinToken(value) {
     shell: named.shell === '1' ? true : named.shell === '0' ? false : d.shell,
     optics: named.optics === '1' ? true : named.optics === '0' ? false : d.optics,
     pixel: named.pixel === '1' ? true : named.pixel === '0' ? false : d.pixel,
+    image: named.image === '1' ? true : named.image === '0' ? false : d.image,
   }
 }
 

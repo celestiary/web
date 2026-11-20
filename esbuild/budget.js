@@ -41,8 +41,10 @@ export const STATIC_BUDGET = {
   // split the first load into 16 files; Cesium's credits timed to the ion
   // logo, CesiumLayers bingShown and credits.js keepsLogo; and Gaia tiles'
   // class counts, starTile.js).  The dialog and its facts are a chunk of
-  // their own.
-  totalMinifiedKB: 2367,
+  // their own.  2,368 with Rubin's image (#333: its switch and token
+  // field in the panel; the layer, its WCS and its manifest are in the
+  // Rubin chunk and the data).
+  totalMinifiedKB: 2368,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
