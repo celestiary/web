@@ -1,0 +1,27 @@
+{
+  "_attribution": "IAU Gazetteer of Planetary Nomenclature, USGS Astrogeology Science Center and the IAU Working Group for Planetary System Nomenclature (WGPSN); planetarynames.wr.usgs.gov. Public domain.",
+  "_body": "charon",
+  "_source": "https://asc-planetarynames-data.s3.us-west-2.amazonaws.com/CHARON_nomenclature_center_pts.zip",
+  "_sourceModified": "2026-10-09",
+  "_newestApproval": "2026-02-02",
+  "_generator": "tools/places/build.mjs",
+  "_lngConvention": "east-positive (+E), -180..+180",
+  "_latConvention": "planetocentric",
+  "places": [
+    {"n": "Neverland Regio", "t": 0, "lat": 85, "lng": 60, "k": "regio"},
+    {"n": "Caleuche Chasma", "t": 0, "lat": 72.5, "lng": -118.2, "k": "chasma"},
+    {"n": "Mandjet Chasma", "t": 0, "lat": 4.8, "lng": -65.6, "k": "chasma"},
+    {"n": "Argo Chasma", "t": 0, "lat": 27.8, "lng": 80.4, "k": "chasma"},
+    {"n": "Dorothy", "t": 0, "lat": 58.53, "lng": 40.58, "k": "crater"},
+    {"n": "McCaffrey Dorsum", "t": 1, "lat": 74.28, "lng": -65.11, "k": "dorsum"},
+    {"n": "Butler Mons", "t": 1, "lat": -9.48, "lng": 38.74, "k": "mons"},
+    {"n": "Pirx", "t": 1, "lat": 55.2, "lng": -103.7, "k": "crater"},
+    {"n": "Clarke Montes", "t": 1, "lat": -5.12, "lng": 7.05, "k": "mons"},
+    {"n": "Nemo", "t": 1, "lat": -15.7, "lng": -45.9, "k": "crater"},
+    {"n": "Kubrick Mons", "t": 1, "lat": 3.6, "lng": 30.8, "k": "mons"},
+    {"n": "Revati", "t": 1, "lat": 20.7, "lng": 35.4, "k": "crater"},
+    {"n": "Nasreddin", "t": 1, "lat": 25.5, "lng": -51.4, "k": "crater"},
+    {"n": "Sadko", "t": 1, "lat": -16.1, "lng": -28.8, "k": "crater"},
+    {"n": "Cora", "t": 1, "lat": 17.09, "lng": -8.28, "k": "crater"}
+  ]
+}

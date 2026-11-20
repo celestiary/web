@@ -1,0 +1,17 @@
+{
+  "_attribution": "IAU Gazetteer of Planetary Nomenclature, USGS Astrogeology Science Center and the IAU Working Group for Planetary System Nomenclature (WGPSN); planetarynames.wr.usgs.gov. Public domain.",
+  "_body": "hyperion",
+  "_source": "https://asc-planetarynames-data.s3.us-west-2.amazonaws.com/HYPERION_nomenclature_center_pts.zip",
+  "_sourceModified": "2026-10-09",
+  "_newestApproval": "1982-01-01",
+  "_generator": "tools/places/build.mjs",
+  "_lngConvention": "east-positive (+E), -180..+180",
+  "_latConvention": "planetocentric",
+  "places": [
+    {"n": "Bond-Lassell Dorsum", "t": 0, "lat": 48, "lng": -143.5, "k": "dorsum"},
+    {"n": "Bahloo", "t": 0, "lat": 36, "lng": 164, "k": "crater"},
+    {"n": "Helios", "t": 0, "lat": 71, "lng": -132, "k": "crater"},
+    {"n": "Jarilo", "t": 1, "lat": 61, "lng": 177, "k": "crater"},
+    {"n": "Meri", "t": 1, "lat": 3, "lng": -171, "k": "crater"}
+  ]
+}
