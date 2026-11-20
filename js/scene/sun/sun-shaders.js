@@ -147,7 +147,9 @@ float coronaDensity(vec3 x, float r) {
     float front = dir.w;
     float zf = (r - front) / (${CME_SHELL_SIGMA.toFixed(3)} * front);
     float zc = (r - 0.55 * front) / (0.06 * front);
-    float lumpy = 0.6 + 0.8 * vnoise(x * (6.0 / front) + shape.z * 17.0);
+    // Lumps, and strands along the radius (their mean 1).
+    float lumpy = (0.6 + 0.8 * vnoise(x * (6.0 / front) + shape.z * 17.0)) *
+        (0.55 + 0.9 * vnoise(u * 41.0 + shape.z * 29.0));
     n += shape.y * edge * lumpy * (exp(-0.5 * zf * zf) + 0.35 * exp(-0.5 * zc * zc));
   }
   return n;
@@ -234,13 +236,21 @@ float prominence(vec3 cam, vec3 d, float tStar, float rho, float pix, int i) {
     // An erupting one (sh.w): a band under the top, in strands.
     float fill = smoothstep(top, top * 0.8, z);
     if (sh.w > 0.0) {
-      float band = (z / top - 0.8) / 0.16;
+      // Two strands wound round each other along the arch.
       float zr = z / top;
-      float strands = 0.2 + 0.9 * vnoise(vec3(s * 4.0 + sh.z * 7.0, zr * 11.0, sh.z * 23.0 + uDays)) +
+      float wind = 0.085 * sin(s * 11.0 + sh.z * 6.28);
+      float b1 = (zr - 0.8 - wind) / 0.07;
+      float b2 = (zr - 0.8 + wind) / 0.07;
+      float strands = 0.3 + 0.8 * vnoise(vec3(s * 4.0 + sh.z * 7.0, zr * 11.0, sh.z * 23.0 + uDays)) +
           0.6 * vnoise(vec3(s * 13.0 - sh.z * 5.0, zr * 37.0, sh.z * 41.0 + uDays));
-      fill *= mix(1.0, exp(-band * band) * strands, sh.w);
+      fill *= mix(1.0, (exp(-b1 * b1) + exp(-b2 * b2)) * strands, sh.w);
     }
     path += dt * threads * fill;
+  }
+  // He II 304 Å is far thicker than Hα: a few megametres saturate it; an
+  // erupting one thins as it rises.
+  if (uView.x > 0.5) {
+    return sh.y * (1.0 - exp(-path / (0.006 + 0.15 * h * step(0.5, sh.w))));
   }
   return sh.y * (1.0 - exp(-path / 0.043)) / (1.0 - exp(-1.0));
 }
@@ -290,8 +300,9 @@ void main() {
     }
     float k = THOMSON_FACTOR * sum * dth / rho;
     if (uView.x > 0.5) {
-      // The coronagraph's radial filter, its contrast raised.
-      float x = k / radialRef(rho);
+      // The coronagraph's radial filter, its contrast raised; a little of
+      // the corona's fall left in.
+      float x = k / radialRef(rho) * inversesqrt(rho);
       viewLevel += uView.y * x * x / (x + 0.35);
     } else {
       color += uSunColor * k;

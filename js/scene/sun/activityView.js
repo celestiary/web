@@ -59,7 +59,7 @@ export const EUV_VIEW = Object.freeze({
   white: 1.7,
   plage: 8,
   limb: 0.8,
-  corona: 4,
+  corona: 5,
   coolPerNm: 250,
   flareAtC1: 30,
   flareIndex: 0.6,

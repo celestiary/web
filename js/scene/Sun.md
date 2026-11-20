@@ -297,8 +297,11 @@ middle, spreading by 0.35 of the height; the sheet thickening by 0.22 of
 it; its Hα twice a typical prominence's at the start, falling as (0.6 /
 (0.6 + h))^0.7 as it expands (a model: the plasma thins and ionises).  It
 is followed to 6 radii.  The shader draws it with the prominences (their
-uniforms' first slots): the same sheet, hollow under a band below its top
-(`uPromShape.w`), in strands along the arch.  In white light it is Balmer
+uniforms' first slots): the same sheet, hollow (`uPromShape.w`) but for
+two strands wound round each other under its top, a rope's look, with
+twelve samples along the ray for a quiet prominence's four (the strands
+are thin against the arch), the march bounded to the filament's length so
+that a sheet seen along itself is sampled too.  In white light it is Balmer
 light at a prominence's 1e-5 of the disc, a coronagraph's or an eclipse's
 sight; in the activity view (below) it is the picture.
 
@@ -332,16 +335,22 @@ the view is those instruments:
   between them, saturating as they do on the detector.  Prominences and
   the chromosphere's rim are the Balmer model's structures at 250 per nm
   of their Hα: a typical prominence 2.5 times the quiet disc, as bright as
-  the network, as they are at 304 Å.
+  the network, as they are at 304 Å, and solid: the line is far thicker
+  than Hα, saturating over 4 Mm of path, not 30 (an erupting one over
+  more as it rises and thins, which keeps its strands).
 - **A white-light coronagraph round it** (LASCO): the K-corona and the
   CMEs, the same Thomson integral, each line of sight over the mean
   corona's brightness at its radius (`radialReference`: the streamer
   belt's density at every latitude, 16 radii log-spaced to the shell's
   edge), as the normalising radial graded filter does (Morgan, Habbal &
-  Woo 2006), with the contrast raised (x²/(x + 0.35)): the corona's six
-  orders of fall taken out, so the streamers, their rays, the dark holes
-  and a CME's front and core show at every radius at once.  No occulter:
-  the field starts at the limb, as in a composite.
+  Woo 2006), with the contrast raised (x²/(x + 0.35)) and a little of the
+  fall left in (ρ^−½): the corona's six orders of fall taken out, so the
+  streamers, their rays, the dark holes and a CME's front and core show at
+  every radius at once, a streamer belt along the line of sight at 5
+  times the quiet disc's level at the limb.  No occulter: the field starts
+  at the limb, as in a composite.  A CME's shell is in strands along the
+  radius as well as lumps (their mean 1: its mass is the same), in both
+  views.
 - **The colour table**: each channel 1 − exp(−(level/L)^p) to its
   ceiling, red first (L 1.4), green through the network's and plage's
   levels (5.5, p 1.6), blue only for what saturates (22, p 1.8): dark red,
@@ -401,6 +410,27 @@ construction (a test).
   same 10,000 K kernel against the star's own photosphere: 60 times the
   Sun's contrast at 3,000 K, which is why a red dwarf's flares are seen
   across parsecs and the Sun's hardly from 1 AU.
+
+What it gives by class (L_X, the flares' rate and the corona's density
+over the Sun's; an X1 flare's kernels in white light):
+
+| Star | Regime | Ro | L_X | Flares | Corona | X1 kernel |
+|---|---|---|---|---|---|---|
+| The Sun (G2 V, 25.4 d) | solar | 1.76 | 1 | 1 | 1 | 9% |
+| A young Sun, 1 Gyr | solar | 0.74 | 10 | 9.1 | 3.2 | 9% |
+| F5 V, 3 Gyr | solar | 1.38 | 3.7 | 3.5 | 1.2 | 5% |
+| K2 V, 1 Gyr | solar | 0.74 | 3.4 | 3.2 | 2.9 | 16% |
+| K5 V, 6 Gyr | solar | 2.05 | 0.10 | 0.11 | 0.58 | 36% |
+| M4 V, 2 Gyr (a flare star) | solar, saturated | 0.10 | 7.8 | 7.0 | 20 | 320% |
+| An old M5 V, 9.5 Gyr | solar | 1.0 | 0.014 | 0.018 | 1.3 | 470% |
+| A0 V | radiative | | 0 | 0 | 0 | |
+| G8 III, 3 Gyr | solar | 3.2 | 13 | 11 | 0.1 | 20% |
+| K5 III, M2 Iab | wind | | 0 | 0 | 0 | |
+
+Proxima Centauri with its measured 83 days comes out at 0.02 of the Sun's
+L_X against an observed few tenths: the slow fully convective stars sit
+over the relation.  Measured X-ray luminosities, where published, should
+override it (a follow-up).
 
 **Not wired yet**: the layers draw activity for the Sun only (`activity:
 isTheSun`).  Another star needs its own number in place of the Sun's
