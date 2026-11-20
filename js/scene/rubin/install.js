@@ -3,6 +3,7 @@ import ApparentPath from './ApparentPath.js'
 import PixelMarker from './PixelMarker.js'
 import RubinImage from './RubinImage.js'
 import RubinObservatory from './RubinObservatory.js'
+import SurveyCadence, {sceneToRaDec} from './SurveyCadence.js'
 import {TARGET} from './rubin.js'
 
 
@@ -19,7 +20,7 @@ import {TARGET} from './rubin.js'
  *   telescope), PixelMarker's (`sceneReferred`), and `ASTRO_UNIT_METER`;
  *   the image's (`dataUrl`, `addCredit`, `removeCredit`, and `fetchJson`
  *   or the global fetch)
- * @returns {{observatory: RubinObservatory, path: ApparentPath, pixel: PixelMarker, image: object,
+ * @returns {{observatory: RubinObservatory, path: ApparentPath, pixel: PixelMarker, cadence: SurveyCadence, image: object,
  *   dispose: Function}}
  */
 export function installRubin(scene, deps) {
@@ -29,7 +30,9 @@ export function installRubin(scene, deps) {
   if (!earth || !orbitPosition || !body?.elements) {
     throw new Error('installRubin: Earth and 2026 ED138 must be in the scene')
   }
+  let cadence = null
   const observatory = new RubinObservatory({
+    cadence: (ms) => cadence?.pointing(ms) ?? null,
     earth,
     deps,
     body: () => scene.objects[TARGET] ?? null,
@@ -53,6 +56,10 @@ export function installRubin(scene, deps) {
     },
   })
   orbitPosition.add(path)
+  // The survey's cadence (Rubin.md, "Cadence"): off until the panel's
+  // switch; the object's place from the path's own ephemeris.
+  cadence = new SurveyCadence({deps, targetAt: (jd) => sceneToRaDec(path.positionJ2000(jd))})
+  orbitPosition.add(cadence)
   // Rubin's pixel at the body's place: a child of its orbitPosition, which
   // Animation moves, so it follows the body; off until the panel's switch.
   const pixel = new PixelMarker({
@@ -72,8 +79,10 @@ export function installRubin(scene, deps) {
     observatory,
     path,
     pixel,
+    cadence,
     image,
     dispose() {
+      cadence.dispose()
       observatory.dispose()
       path.dispose()
       pixel.dispose()

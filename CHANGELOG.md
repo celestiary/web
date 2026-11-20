@@ -39,6 +39,23 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### Rubin surveys the sky, visit by visit
+
+The Rubin Observatory app's new *Survey cadence* switch has the telescope work as a survey night
+does, rather than staring at 2026 ED138: 30-second visits to 3.5° fields, a few seconds' slew
+between neighbours, each field visited again about 33 minutes later, and the object's field among
+them. With it on, *Watch the night* rides the telescope from field to field, about a visit a
+second. The night's fields are drawn on the sky as circles, the current one bright, and the panel
+counts the visits and the time to the object's next. The schedule is a model from Rubin's
+published survey rules, not its log, whose visit lists aren't public yet.
+
+- Date: 2026-11-20
+- PR: [#354](https://github.com/celestiary/web/pull/354)
+- Issue: [#332](https://github.com/celestiary/web/issues/332)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: [Open this view](https://celestiary.org/#sun/ed138@-30.2446,-70.7494,2.684km;from=sun/earth;t=9630.783523jd;cq=-0.1325,0.8944,0.4018,-0.1454;fov=30deg;s=LTF;time:pause;apps:open,view=rubin;apps.rubin:optics=0,cadence=1)
+- Featured: yes
+
 ### Rubin's discovery image, on the sky where it was taken
 
 Turn on "Rubin's image" in the Rubin app and NOIRLab's picture of the field where Rubin found 2026
@@ -64,7 +81,6 @@ jumped between frames and drifted off it.
 - Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
 - Permalink: none
 - Kind: fix
-
 ### A link to a body by its name alone opens it
 
 A link such as celestiary.org/#earth or #moon stayed on the loading screen. It now opens on that body

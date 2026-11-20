@@ -2736,8 +2736,12 @@ export default class Scene {
    *   seat's zenith); else the camera keeps its roll
    * @param {boolean} [opts.instant] Put the camera in the seat now, facing
    *   as it does
+   * @param {Quaternion} [opts.aim] Ride the seat's orientation too: every
+   *   frame the camera's is the seat's times this (a telescope's
+   *   boresight: the Rubin app's survey cadence), over the user's own and
+   *   in place of tracking, which the caller turns off
    */
-  rideSeat(seat, {lookAt = null, up = null, instant = false} = {}) {
+  rideSeat(seat, {lookAt = null, up = null, instant = false, aim = null} = {}) {
     let body = seat
     while (body && !(body.props?.radius?.scalar > 0)) {
       body = body.parent
@@ -2765,6 +2769,7 @@ export default class Scene {
     state?.setLanded?.(true)
     Shared.targets.landed = true
     this.seat = seat
+    this.seatAim = aim
   }
 
 
@@ -2792,6 +2797,10 @@ export default class Scene {
     const platform = this.ui.camera.platform
     platform.updateWorldMatrix(true, false)
     this.ui.camera.position.copy(platform.worldToLocal(seat.getWorldPosition(this._seatPos ??= new Vector3)))
+    if (this.seatAim && !Shared.targets.tween) {
+      const seatQuat = seat.getWorldQuaternion(this._seatQuat ??= new Quaternion)
+      platform.getWorldQuaternion(this.ui.camera.quaternion).invert().multiply(seatQuat).multiply(this.seatAim)
+    }
   }
 
 

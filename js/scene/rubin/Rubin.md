@@ -188,7 +188,9 @@ there over the go tween looking along the tube with the site's zenith
 up, and from then on puts the camera at the seat's world position each
 frame (`Scene._syncSeat`, from `syncFollow`, before tracking faces the
 target), so the view rides the mount as the telescope turns, with the
-orientation the user's or tracking's.  In the seat ThreeUI sets the near
+orientation the user's or tracking's; given an `aim` (a quaternion from
+the seat's frame to the camera's) the orientation is the seat's too, each
+frame, which is how the survey's cadence is watched (below).  In the seat ThreeUI sets the near
 plane to 0.3 m (`SEAT_NEAR_M`; the floor of 100 m on Earth would clip
 the parts a metre off) and leaves the ground floor alone (the seat
 stands on the observatory's own ground); a wheel zoom leaves the seat
@@ -273,6 +275,10 @@ unpinned, removes them (`Scene.removeRubin`).
   the dome, the telescope's azimuth and elevation or "parked".
 - **Rubin's optics**: the switch that holds the field to the camera's
   ([below](#the-optics)), and the field's readout.
+- **Survey cadence**: the switch for the modelled night of visits in
+  place of the stare ([below](#cadence)), and two lines more in the
+  readout: the visit (n of N, its filter, or slewing to it) and the time
+  to the next visit of 2026 ED138's field, each marked "(modelled)".
 - **The dome and the building**: the shell switch (`setShell`).
 - **Its path on the sky**: the switch for the arc.
 
@@ -288,7 +294,8 @@ the places were lost to the index's rebuilds on the first search before
 
 **State in the link** (`apps.rubin`, design/URLs.md): `path=0` with the
 path off, `night=<days since 1970>` for a night other than 15 May,
-`shell=0` with the shell off, `optics=0` with Rubin's optics off.  The
+`shell=0` with the shell off, `optics=0` with Rubin's optics off,
+`cadence=1` with the survey's cadence on.  The
 clock is the `t=` token's, as ever.
 
 ## The optics
@@ -407,6 +414,146 @@ KB, esbuild/budget.js: 732 then, 733 with the seat and the shell switch, 734 wit
 camera's tweens, the store) was split out the same way.  The panel
 repeats the few numbers it needs of `rubin.js` (`store/rubinApp.js`)
 rather than import it; `rubin.test.js` holds them equal.
+
+## Cadence
+
+Rubin doesn't stare at one object: it surveys the sky in visits, and the
+pipeline finds a moving object by linking its detections across them.
+The *Survey cadence* switch (`cadence=1` in `apps.rubin`, off by default:
+the stare stays the app's first look) has the telescope keep a survey
+night instead, **a model of one, not Rubin's log**.
+
+**What is real, and what is modelled.**
+
+- **Real:** the visit's shape and the survey's rules, from Rubin's public
+  descriptions: a 30 s visit (as 2 × 15 s or 1 × 30 s) on a 9.6 deg²
+  field, 3.5° across ([Ivezić et al. 2019, *LSST: from science drivers to
+  reference design*](https://arxiv.org/abs/0805.2366)); a field visited
+  twice a night some 33 minutes apart, the pair a tracklet the moving-object
+  pipeline links ([Bianco et al. 2022, the cadence optimisation
+  paper](https://arxiv.org/abs/2108.01683), and the scheduler's baseline
+  simulations, [rubin_scheduler](https://github.com/lsst/rubin_scheduler)
+  and [rubin_sim](https://github.com/lsst/rubin_sim)); the Wide-Fast-Deep
+  footprint's declinations (about −72° to +12° here); a few filter changes
+  a night.  The slew's kinematics are the scheduler's own, read from
+  [`rubin_scheduler/scheduler/model_observatory/kinem_model.py`](https://github.com/lsst/rubin_scheduler/blob/f5a9d641e979163be45022855412b808da6a8af4/rubin_scheduler/scheduler/model_observatory/kinem_model.py)
+  at lsst/rubin_scheduler `f5a9d641` (main on 2026-11-20), `KinemModel`'s
+  defaults: the telescope (TMA, `setup_telescope`) azimuth 7°/s, 7°/s²,
+  28°/s³ of jerk; altitude 3.5°/s, 3.5°/s², 14°/s³; a 3 s settle; the dome
+  (`setup_dome`) azimuth 1.5°/s and 0.75°/s², altitude 1.75°/s and
+  0.875°/s², no jerk limit, and 1 s for the azimuth to settle.  A slew is
+  the longer of the telescope's slower axis plus its settle and the dome's
+  slower axis (its azimuth with its settle), as `slew_times` takes it with
+  `lax_dome` off.  The telescope's jerk-limited time is a constant-jerk
+  S-curve (`axisSlewSeconds`), written here from the standard profile, not
+  ported from the scheduler's `jerk.py`; its cases are tested for
+  continuity, not against the scheduler's numbers.  `tma_movement` in the
+  same file gives the TMA at a percentage of its full performance (100%:
+  10°/s and 10°/s² in azimuth, capped at 7°/s; 5°/s and 5°/s² in altitude),
+  70% the simulations' default; between neighbouring fields the dome
+  decides either way.
+- **Modelled:** every visit's time and field.  Rubin's visit lists for
+  2026 are proprietary for two years (the data policy, DPOL-301; issue
+  [#333](https://github.com/celestiary/web/issues/333)'s scoping comment),
+  and the Minor Planet Center's observations of 2026 ED138 (observatory
+  X05), which would give the times of the object's own visits, weren't
+  reachable from where this was built (minorplanetcenter.net refused).  So
+  the object's field is visited as one modelled pair a night; the
+  discovery composite's 30 visits over 20 nights (4 March to 11 July, the
+  field at RA 18h17m03.45s, Dec −42°46′36″) aren't marked yet.
+
+**The model** (`cadence.js`, pure; `buildNight`):
+
+- **The night**: from the evening's twilight to the morning's, the Sun
+  under −12° (the dome's opening, rubin.js), by the Astronomical Almanac's
+  low-precision Sun and the IAU 1982 sidereal time; no ephemeris calls.
+- **The fields**: a fixed tiling of the footprint, rings of declination 3°
+  apart with fields 3° apart along them, alternate rings half a step on
+  (2,700 fields; the 3.5° fields overlap, and any point is in one).
+- **The altitude limit**: 30°, airmass 2.0, at the start and the end of
+  every visit; a field is chosen only 8° over it, so its pair is still up
+  33 minutes later; none within 3.5° of the zenith (the mount's 86.5°).
+- **Blocks**: from where the telescope points, the nearest field not yet
+  taken (azimuth plus elevation difference), and the next, for 16.5
+  minutes; a second block for as long; then both again in the same order,
+  so each field's second visit is about 33 minutes after its first (the
+  night's last pairs come back sooner, no sooner than 12 minutes).
+- **The slew** before each visit: as above, to where the field will be
+  when the slew ends; a median of about 5 s between neighbours, as Rubin's
+  ~5 s.  A visit is 30 s open and 4 s of readout and shutter.
+- **Filters**: g, r, i, z, y (u is a dark-time filter, left out); a change,
+  two minutes, after three cycles or more, at random by the night's seed.
+- **2026 ED138's field**, centred on the object's place that night (from
+  the path's own ephemeris), opens the cycle nearest the object's highest
+  point in the night; the tiling's fields that hold it are left to it.
+  The object moves under 0.05° in a night, so the field holds it at both
+  visits.
+- **Deterministic**: the night's seed is its day number.  A night is
+  800 to 1,050 visits, built in about 0.2 s once, when the clock first
+  enters it (`nightOf`: the day turns at 16h UTC, about noon at the site),
+  not per frame.
+
+**From the seat** the cadence is ridden, not tracked.  The stare's watch
+tracks 2026 ED138 at 256×, which on the cadence showed nothing: the view
+held the object while the telescope went from field to field 90° away,
+eight visits a second (the maintainer's report on the PR's preview).  So
+with the switch on, *Watch the night* and *Astronomer's seat* ride the
+telescope's pointing (`rideSeat`'s `aim`: the view along the tube, its up
+towards a higher elevation), with tracking off, from the night's first
+visit, at 32× (`CADENCE_RATE`: a 34 s visit takes a second, a night about
+18 minutes).  At Rubin's 3.5° field the current field's circle fills the
+frame's height and the sky steps a field at a time.  The switch flipped
+while in the seat changes the view and the rate at once, both ways; a
+drag doesn't turn the view while it rides the pointing, and a wheel zoom
+leaves the seat as ever.
+
+**In the scene** (`SurveyCadence.js`, made by install.js beside the path,
+on Earth's orbitPosition, in the ecliptic of J2000 precessed to the date
+as the path is):
+
+- **The mount** (`RubinObservatory`, its `cadence` option): by night on
+  the visit's field, tracking it through the visit, then eased (a
+  smoothstep over the slew less the dome's 1 s settle) from where the last visit
+  ended to where the next begins; between cycles it holds the last field.
+  The beam is off while it slews.  By day it parks as before.  The
+  pointing is `cadence.js`'s alt-az (mean sidereal time, first-order
+  precession), not the scene's Earth: the two agree to a small fraction of
+  the field (the browser check, below).
+- **The fields** drawn: each field of the night a 3.5° circle at 1e13 m
+  (0.1″ of parallax from the ground), on the overlay layer, through
+  `sceneReferred`: the current one bright (amber; the object's teal), those
+  visited fading over an hour to a third, those to come dim, the object's
+  dim teal.  The colours are rewritten when the visit changes or a minute
+  passes, not every frame.
+
+**Checked** (`cadence.test.js`, with the Horizons fixture for the object's
+place): the night between the twilights; the tiling covers the
+footprint; visits never overlap and each slew has its time at the rates;
+every visit above 30° at its start and end; more than 95% of fields in
+pairs 10 to 60 minutes apart; a few filter changes; 2026 ED138's field
+visited as a pair holding the object (Horizons' RA and Dec) on nights of
+4 March, 1 April, 20 June and 11 July; the mount on the field during a
+visit and slewing between.  `SurveyCadence.test.js`: each circle 1.75°
+from its centre at the sky's distance, the current one brightest.
+Headless (SwiftShader, 15 May 2026, the clock paused): mid-visit the
+mount's alt-az equals the visit's field exactly, and the drawn circle's
+centre, taken back to the site's frame through the scene's Earth, is
+0.002° in elevation and 0.013° in azimuth from it (0.007° on the sky at
+59°); mid-slew the mount is between fields with the beam off; the
+circles' shader compiled, and the object's teal field sits on 2026 ED138.
+The panel, opened through the store (`dispatchWidgets` `openApp`): the
+switch clicked on sets `cadence: true` in the app's state and the link's
+`apps.rubin:cadence=1`; with the clock paused mid-visit the readout reads
+"Visit 557 of 1012, filter i (modelled)", mid-slew "Slewing to visit 558
+of 1012" with the mount's "Slewing" line; and the rewritten link, with its
+`cq=`, opened in a fresh page, restores the switch on and the same readout.
+The watch, as a visitor uses it (the panel's buttons clicked, the clock
+running): before the seat's aim the view sat 0° from 2026 ED138 and 70° to
+100° from the telescope's pointing, at 256×; with it the view is 0° from
+the pointing and the readout steps a visit about each second at 32×, from
+visit 4 of 1,012 two seconds after *Watch the night*; the switch flipped
+during the stare's watch goes to the pointing and 32×, and flipped back to
+the object, tracked, at 256×.
 
 ## The imagery
 
@@ -692,11 +839,10 @@ image pixel (12994, 14127), inside, and 2026 ED138's ring at (12996,
   4D file might, but nothing here reads it).  The mount's motion and the
   shutter's are the app's own; the real dome's shutter and wind screen, and
   the slew between fields, are more of the same.
-- **The real cadence.**  Rubin doesn't stare at one object: it surveys
-  the sky in 30-second visits, and the discovery came from the
-  pipeline's detections across many visits.  The demo tracks the object
-  all night, to show where it is; a scheduler's pattern of visits is a
-  follow-up.
+- **The real cadence's visit times** ([below](#cadence)): the schedule
+  is a model; the discovery's own visits, when they're public, replace the
+  object's modelled pair.  And the model's own gaps: the Moon, the
+  weather, the twilight survey, the deep-drilling fields.
 - **Moonlight on the model**, in place of the glow.
 - **The near plane outside the seat.**  From under 100 m the dome clips;
   a lower floor near a small object on a large body (as spacecraft get a
