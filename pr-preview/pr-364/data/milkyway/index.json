@@ -1,0 +1,11 @@
+{"type":"galaxy",
+"name":"milkyway",
+"parent":"universe",
+"mass":"1.4E42kg",
+"radius":"1.0E18km",
+"siderealRotationPeriod":"3.1536E14s",
+"axialInclination":"0.0",
+"system":[
+  "stars",
+  "sun"]
+}
