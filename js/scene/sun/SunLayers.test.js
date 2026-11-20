@@ -78,6 +78,65 @@ describe('the view the layers are drawn in', () => {
 })
 
 
+describe('the CMEs\' pass', () => {
+  const star = () => ({props: {radius: {scalar: 6.957e8}}, color: [1, 1, 1], teff: 5772})
+  const camera = {fov: 9, aspect: 16 / 9}
+  const item = (front) => ({cme: {front}})
+  // The Sun 35 radii ahead, the corona shown out to a radius.
+  const layers = (view, maxRho) => {
+    const l = new SunLayers(star(), {activity: true, view})
+    const u = l.corona.material.uniforms
+    u.uSunCentre.value.set(0, 0, -35)
+    u.uMaxRho.value = maxRho
+    l.cmeItems = [item(3.6), item(20)]
+    return l
+  }
+
+  it('isn\'t run in white light beside the bare disc, whose glare hides a CME: only in an eclipse or behind an occulter', () => {
+    const l = layers(VIEW_EYE, 40)
+    expect(l.visibleFraction).toBe(1)
+    expect(l.cmesInView(camera)).toEqual([])
+    l.visibleFraction = 0.01
+    expect(l.cmesInView(camera)).toEqual([])
+    l.visibleFraction = 0
+    expect(l.cmesInView(camera).length).toBe(2)
+  })
+
+  it('leaves out a CME whose core is past where the corona shows at this exposure', () => {
+    const l = layers(VIEW_EYE, 5)
+    l.visibleFraction = 0
+    expect(l.cmesInView(camera).map((i) => i.cme.front)).toEqual([3.6])
+    l.corona.material.uniforms.uMaxRho.value = 1
+    expect(l.cmesInView(camera)).toEqual([])
+  })
+
+  it('is run in the activity view only round a resolved disc', () => {
+    const l = layers(VIEW_EUV, 40)
+    const u = l.corona.material.uniforms
+    expect(l.cmesInView(camera).length).toBe(2)
+    u.uView.value.y = 0
+    u.uView.value.z = 0
+    expect(l.cmesInView(camera)).toEqual([])
+  })
+
+  it('leaves out a CME outside the frame', () => {
+    const l = layers(VIEW_EUV, 40)
+    const u = l.corona.material.uniforms
+    // The Sun 90° off the view's axis, 215 radii away: 3.6 radii is 1°, 20 radii 6°.
+    u.uSunCentre.value.set(215, 0, 0)
+    expect(l.cmesInView(camera)).toEqual([])
+    // 9° off it, the frame's half diagonal 9.2°: both reach in.
+    u.uSunCentre.value.set(215 * Math.sin(9 * Math.PI / 180), 0, -215 * Math.cos(9 * Math.PI / 180))
+    expect(l.cmesInView(camera).length).toBe(2)
+    // 12° off it: only the larger does.
+    u.uSunCentre.value.set(215 * Math.sin(12 * Math.PI / 180), 0, -215 * Math.cos(12 * Math.PI / 180))
+    expect(l.cmesInView(camera).map((i) => i.cme.front)).toEqual([20])
+    l.cmeItems = []
+    expect(l.cmesInView(camera)).toEqual([])
+  })
+})
+
+
 describe('the solar wind', () => {
   it('Parker\'s spiral: ~45° from radial at 1 AU for the slow wind', () => {
     // tan ψ = Ω r / v: 2.87e-6 × 1.496e8 km / 400 km/s ≈ 1.07, so 47°.

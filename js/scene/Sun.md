@@ -349,9 +349,21 @@ when it is small on screen (a fifth of them under 52 px of radius, all
 from 260; in a random order, so any first part is a fair sample, each
 carrying the rest's share).
 
-The cloud is a chunk of its own, loaded when a CME is first in view, and
-needs a renderer that can draw to a half-float target (`?hdr=0` has no
-CMEs).  It imports nothing the page's first load has: its shared modules
+**The pass runs only for CMEs that can show** (`cmesInView`): in white
+light only with the disc hidden, an eclipse's totality or a coronagraph's
+occulter (beside any of the bare disc the eye's glare is a million times
+a CME's light, and the shell is drawn anyway wherever the corona is over
+the floor, on screen or off); in the activity view only round a resolved
+disc; and then only the CMEs in the frame whose core is within the
+radius the corona shows to at that exposure.  At first it ran whenever
+the corona's shell did, which is nearly always within 4.65 AU: every
+frame at Earth drew six CMEs nobody could see, and the homepage fetched
+the chunk before its scene was ready (CI's load budget caught it).
+
+The cloud is a chunk of its own, fetched once a CME has been in view for
+a second and a half (a view passing through, or the first frames before
+the exposure settles, doesn't fetch it), and needs a renderer that can
+draw to a half-float target (`?hdr=0` has no CMEs).  It imports nothing the page's first load has: its shared modules
 are handed to it (`SunLayers` `CME_DEPS`), since a module both imported
 would be split out into another file for the first load to fetch.
 
@@ -719,8 +731,9 @@ overlay's `sun` toggle (`?perf=1&off=sun`) hides all the layers.
   against 19 with the layers off; from the ground by day and in totality
   the frame's ~0.5 s is the atmosphere pass's, the difference lost in
   its noise.  A real GPU's numbers want a `?perf=1&off=sun` snapshot.
-- **The CMEs** (the `cme` pass, `?perf=1`): only while the corona's
-  shell is drawn and a CME is in flight within 40 radii.  Up to six,
+- **The CMEs** (the `cme` pass, `?perf=1`): only while one can show
+  (above): the activity view round a resolved disc, or white light with
+  the disc hidden.  Up to six,
   each 1,900 threads of 98 vertices (186,000 vertices, whose shader
   places each on the rope: two evaluations of the path) and 900 puffs;
   fewer when it is small on screen.  The threads are thin, so their fill

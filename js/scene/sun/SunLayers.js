@@ -42,7 +42,7 @@ import {
   radialReference,
   sheetAt,
 } from './corona.js'
-import {occluderSeen, visibleFraction} from './eclipse.js'
+import {ECLIPSED_DISC, occluderSeen, visibleFraction} from './eclipse.js'
 import {balmerPerNm} from './emission.js'
 import {glareFieldWeight, glareFunction, glareRadiusDeg} from './glare.js'
 import {MS_PER_DAY, activityLevel, cyclesAt, sunspotNumber} from './solarCycle.js'
@@ -91,6 +91,11 @@ const WIND_LEVEL_STEP = 0.15
 // Events are recomputed when the date moves by more than this.
 const EVENT_STEP_MS = 30e3
 const SUN_RADIUS_MM = 695.7
+// A CME is drawn while the corona shows out to at least this share of its
+// front (its core's place: cme/cmeModel.js), and its chunk is fetched once
+// one has been in view this long.
+const CME_CORE_SHARE = 0.45
+const CME_LOAD_AFTER_MS = 1500
 // A filament's width on the disc takes this share of its height (a model).
 const FILAMENT_LEAN = 0.25
 const J2000_MS = Date.UTC(2000, 0, 1, 12)
@@ -770,14 +775,23 @@ export default class SunLayers {
   _cmePass(renderer, camera) {
     const u = this.corona.material.uniforms
     u.uCmeOn.value = 0
-    if (!this.cmeItems?.length || !hdrSupported(renderer)) {
+    this.cmeDrawn = this.cmesInView(camera)
+    if (!this.cmeDrawn.length || !hdrSupported(renderer)) {
+      this._cmeWantedAt = null
       return
     }
     if (!this.cmeCloud) {
-      this.loadCmeCloud()
+      // Asked for once a CME has been in view a while: a view passing
+      // through (the first frames, before the exposure settles; a fly-by)
+      // doesn't fetch the chunk.
+      const now = performance.now()
+      this._cmeWantedAt ??= now
+      if (now - this._cmeWantedAt > CME_LOAD_AFTER_MS) {
+        this.loadCmeCloud()
+      }
       return
     }
-    const drawn = this.cmeCloud.render(renderer, camera, this.cmeItems, {
+    const drawn = this.cmeCloud.render(renderer, camera, this.cmeDrawn, {
       sunCentre: u.uSunCentre.value,
       radius: this.star.props.radius.scalar,
       seed: this.seed,
@@ -786,6 +800,45 @@ export default class SunLayers {
     u.uCmeColumn.value = drawn.threads
     u.uCmeFog.value = drawn.puffs
     u.uCmeOn.value = 1
+  }
+
+
+  /**
+   * The CMEs that can show in this frame (the corona's uniforms are this
+   * frame's: after _coronaView).  Their pass is thousands of particles into
+   * two targets, so it isn't run for what can't be seen:
+   *
+   * - in white light, only with the disc hidden (an eclipse's totality, a
+   *   coronagraph's occulter): beside any of the bare disc the eye's glare
+   *   is a million times a CME's light;
+   * - in the activity view, only round a resolved disc (viewFieldWeight);
+   * - a CME whose core is past the radius the corona shows to at this
+   *   exposure (the shell draws nothing beyond it);
+   * - a CME outside the frame.
+   *
+   * @param {object} camera
+   * @returns {Array<object>} Of cmeItems
+   */
+  cmesInView(camera) {
+    const items = this.cmeItems ?? []
+    const u = this.corona.material.uniforms
+    const eye = this.view === VIEW_EYE
+    if (!items.length || (eye ? this.visibleFraction > ECLIPSED_DISC : u.uView.value.y + u.uView.value.z <= 0)) {
+      return []
+    }
+    const maxRho = u.uMaxRho.value
+    const sun = u.uSunCentre.value
+    const distance = Math.max(sun.length(), 1e-9)
+    const offAxis = Math.acos(Math.min(Math.max(-sun.z / distance, -1), 1))
+    const halfDiagonal = Math.atan(Math.tan(camera.fov * Math.PI / 360) * Math.hypot(1, camera.aspect))
+    return items.filter(({cme}) => {
+      if (maxRho < CME_CORE_SHARE * cme.front) {
+        return false
+      }
+      const reach = Math.min(cme.front * 1.1, maxRho)
+      const radius = distance > reach ? Math.asin(reach / distance) : Math.PI
+      return offAxis - radius < halfDiagonal
+    })
   }
 
 

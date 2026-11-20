@@ -292,10 +292,13 @@ tried and dropped.
   prominence in its core is 3.6 radii out.  The view's exposure is the
   bare disc's (the meter's luminous disc), so it needs no settling.
 - **The CMEs headless** (Sun.md, [CMEs](js/scene/Sun.md#cmes)): they are
-  a chunk of their own, loaded when one is first in view: `await
-  sunLayers.loadCmeCloud()`, then render a frame.  `sunLayers.cmeItems`
-  holds each drawn CME with its directions in view space (`d` outward,
-  `east`, `north`) and `sunLayers.cmeCloud.shapes` its shape: the rope's
+  a chunk of their own, fetched once a CME has been in view for 1.5 s:
+  `await sunLayers.loadCmeCloud()` fetches it at once, then render a
+  frame.  Their pass runs only where one can show (`cmesInView`): the
+  activity view round a resolved disc, or white light with the disc
+  hidden.  `sunLayers.cmeDrawn` holds each CME drawn with its directions
+  in view space (`d` outward, `east`, `north`; `cmeItems` is every CME in
+  flight) and `sunLayers.cmeCloud.shapes` its shape: the rope's
   axis is cos(tilt) east + sin(tilt) north, and the camera along the axis
   crossed with `d` sees it face on, along the axis edge on.  The default
   35 radii is inside any CME over 32 radii out in the camera's direction,
