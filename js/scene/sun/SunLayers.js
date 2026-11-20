@@ -129,11 +129,13 @@ export function visibleRadius(discValue, floor = VISIBLE_FLOOR) {
  * at the disc's level would be a white cloud tens of radii wide, and what
  * the meter read.
  *
- * @param {number} diameterPx The disc's diameter on screen
+ * @param {number} diameterPx The disc's diameter on screen, CSS pixels
+ * @param {number} [pixelRatio] The renderer's, scaling the thresholds as
+ *     the meter's are
  * @returns {number} 0 to 1
  */
-export function viewFieldWeight(diameterPx) {
-  const [lo, hi] = LUMINOUS_DISC_PX
+export function viewFieldWeight(diameterPx, pixelRatio = 1) {
+  const [lo, hi] = LUMINOUS_DISC_PX.map((px) => px * Math.max(pixelRatio, 1e-6))
   const x = Math.min(Math.max((diameterPx - lo) / (hi - lo), 0), 1)
   return x * x * (3 - (2 * x))
 }
@@ -321,6 +323,7 @@ export default class SunLayers {
     named(mesh, 'sun corona')
     mesh.onBeforeRender = (renderer, scene, camera) => {
       renderer.getCurrentViewport(mesh.material.uniforms.uViewport.value)
+      this._pixelRatio = renderer.getPixelRatio()
       mesh.material.uniforms.uProjectionInverse.value = camera.projectionMatrixInverse
       this._coronaView(camera)
     }
@@ -664,8 +667,10 @@ export default class SunLayers {
     u.uMaxRho.value = instrument ? CORONA_RADII : visibleRadius(value)
     if (instrument) {
       // The view's field comes in as the disc resolves (viewFieldWeight).
-      const pxRad = (camera.fov * Math.PI / 180) / Math.max(u.uViewport.value.w, 1)
-      const weight = viewFieldWeight(2 * this.discRadius / pxRad)
+      // The viewport is in device pixels; the meter's rule in CSS pixels.
+      const ratio = this._pixelRatio || 1
+      const pxRad = (camera.fov * Math.PI / 180) / Math.max(u.uViewport.value.w / ratio, 1)
+      const weight = viewFieldWeight(2 * this.discRadius / pxRad, ratio)
       u.uView.value.y = EUV_VIEW.corona * weight
       u.uView.value.z = EUV_VIEW.coolPerNm * weight
     }

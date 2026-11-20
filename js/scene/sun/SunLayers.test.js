@@ -32,6 +32,10 @@ describe('the activity view\'s field', () => {
     expect(viewFieldWeight(20)).toBeCloseTo(0.5, 6)
     expect(viewFieldWeight(32)).toBe(1)
     expect(viewFieldWeight(500)).toBe(1)
+    // The thresholds scale with the pixel ratio, as luminousDiscGain's do.
+    expect(viewFieldWeight(16, 2)).toBe(0)
+    expect(viewFieldWeight(40, 2)).toBeCloseTo(0.5, 6)
+    expect(viewFieldWeight(64, 2)).toBe(1)
   })
 })
 
