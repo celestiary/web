@@ -11,6 +11,7 @@ import About from './ui/About'
 import ARDebugHUD from './ui/ARDebugHUD'
 import CreditsFooter from './ui/CreditsFooter'
 import DragModeToggle from './ui/DragModeToggle'
+import CameraModeControl from './ui/CameraModeControl'
 import ExposureReadout from './ui/ExposureReadout'
 import Homepage from './ui/Homepage'
 import LayersButton from './ui/LayersButton'
@@ -88,6 +89,7 @@ export default function App() {
         {floating &&
           <TooltipIconButton tip='Widgets' onClick={() => dispatchWidgets({type: 'toggle'})} icon={<WidgetsIcon/>}/>}
         {floating && <TimePanel time={celestiary.time} timeStr={timeStr} isPaused={isPaused} setIsPaused={setIsPaused}/>}
+        {floating && <CameraModeControl celestiary={celestiary}/>}
         {floating && <DragModeToggle/>}
         {floating && <LayersButton/>}
         {celestiary && <ARDebugHUD celestiary={celestiary}/>}

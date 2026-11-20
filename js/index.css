@@ -1134,6 +1134,135 @@ button {
   color: var(--ink-3);
 }
 
+/* The camera control's label (ui/CameraModeControl.jsx; design/UI.md, the
+   camera control): lit for a moment when the height switches it. */
+.camera-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-4) var(--space-10);
+  border: 1px solid var(--line-accent);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.camera-mode:hover {
+  background: var(--accent-fill-hover);
+}
+
+.camera-mode:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.camera-mode-caret {
+  color: var(--ink-3);
+}
+
+.camera-mode-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.camera-mode-menu {
+  position: absolute;
+  top: calc(100% + var(--space-6));
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 260px;
+  padding: var(--space-6) 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+
+#phone-dock .camera-mode-menu {
+  top: auto;
+  bottom: calc(100% + var(--space-6));
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.camera-mode-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-12);
+  border: none;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.camera-mode-item:hover:not(:disabled),
+.camera-mode-item:focus-visible {
+  background: var(--accent-fill);
+  outline: none;
+}
+
+.camera-mode-item:disabled {
+  color: var(--ink-4);
+  cursor: default;
+}
+
+.camera-mode-check {
+  width: 1em;
+  color: var(--accent-soft);
+}
+
+.camera-mode-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.camera-mode-hint {
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
+
+.camera-mode-rule {
+  width: 100%;
+  margin: var(--space-4) 0;
+  border: none;
+  border-top: 1px solid var(--line);
+}
+
+@keyframes camera-mode-flash {
+  0% { box-shadow: 0 0 0 0 var(--accent); background: var(--accent-fill-hover); }
+  100% { box-shadow: 0 0 0 6px transparent; background: transparent; }
+}
+
+.camera-mode-flash {
+  animation: camera-mode-flash 1500ms var(--fade-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .camera-mode-flash {
+    animation: none;
+    background: var(--accent-fill);
+  }
+}
+
+.camera-mode-key {
+  margin-left: var(--space-12);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--ink-4);
+}
+
 .dock-pill {
   display: inline-flex;
   align-items: center;
