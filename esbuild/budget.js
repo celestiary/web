@@ -151,8 +151,12 @@ export const RUNTIME_BUDGET = {
   // With three.js 0.187 (#366) main measured 1,015 to 1,019 KB from run to
   // run here, and #364's pivot took a CI run to 1,021.8: 1,024 KB, for the
   // runs' spread.  The camera control (#361 step 2) adds about 2.5 KB
-  // (1,021.5 here): 1,028.
-  ready: {requests: 28, kb: 1028},
+  // (1,021.5 here): 1,028.  The Sun's activity view (#358) adds the 5 KB
+  // its first load does gzipped (above: its branches of two shaders and
+  // of the event model; a CI run took 1,029.6): 1,033.  Its CMEs' chunk
+  // isn't in this: it is fetched only where a CME can show, which the
+  // homepage isn't (when it was, at first, it was the 29th request here).
+  ready: {requests: 28, kb: 1033},
   // After #259: 39 requests, 3,918 KB.  Raised from #258's 29 requests:
   // the catalogue's faint tiers are 12 packs where stars.dat was one file,
   // by design (a deep link needs only its field's; DESIGN.md "The star
