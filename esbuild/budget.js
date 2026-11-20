@@ -72,8 +72,11 @@ export const STATIC_BUDGET = {
   // turning, about 3 KB; ui/CameraModeControl.jsx's label 2.1 KB and
   // CameraModeMenu.jsx 2.4 KB, plain buttons: MUI's Menu, though already in
   // the first load, cost more, and loading the menu lazily split the first
-  // load from 11 scripts to 14), so 2,461.
-  totalMinifiedKB: 2461,
+  // load from 11 scripts to 14), so 2,461.  With the compass (#361 step 3:
+  // js/compass.js, Scene cameraHeading, turnCamera and compassTap,
+  // ui/CompassControl.jsx, its dial an inline SVG), 2,464 and a fraction
+  // (2,465 with the ion token baked in), so 2,466.
+  totalMinifiedKB: 2466,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -94,8 +97,8 @@ export const STATIC_BUDGET = {
   // token, as the Rubin panel; loaded lazily it would split shared chunks as
   // that one's did).  760, so 761, with three.js 0.187 (from 0.171: about
   // 16 KB, three's own growth, as above).  763, so 764, with the camera
-  // control (#361 step 2, as above).
-  totalGzipKB: 764,
+  // control (#361 step 2, as above).  765 with the compass (step 3).
+  totalGzipKB: 765,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,

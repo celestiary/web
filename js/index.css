@@ -1164,6 +1164,45 @@ button {
   color: var(--ink-3);
 }
 
+/* The compass (ui/CompassControl.jsx; design/UI.md, the camera control):
+   its needle's accent end points north on the ground under the camera. */
+.compass {
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.compass:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* On a phone, on the scene at the top right, clear of the sheet and the dock. */
+.compass-phone {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 64px);
+  right: var(--space-12);
+  z-index: 5;
+}
+
+.compass-ring {
+  fill: var(--surface);
+  stroke: var(--line-accent);
+  stroke-width: 1.5;
+}
+
+.compass-north {
+  fill: var(--accent-soft);
+}
+
+.compass-south {
+  fill: var(--ink-4);
+}
+
 .camera-mode-wrap {
   position: relative;
   display: inline-block;
