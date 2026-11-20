@@ -43,13 +43,15 @@ export const STATIC_BUDGET = {
   // class counts, starTile.js).  The dialog and its facts are a chunk of
   // their own.  2,367 with a body opened by its path below the Sun (#336:
   // Loader fullPath, _descriptor and _pathOf, Celestiary _loadBody's full
-  // path, under a KB), at the limit, so a KB of room.  2,369 with Rubin's
-  // survey cadence (#332: the panel's switch, its caption and the visit
-  // readout, the token field; under 1 KB minified; the schedule and the
-  // fields' drawing are in the lazy Rubin chunk).  2,370 with the seat's
-  // aim (#332: Scene.rideSeat's `aim` and the panel riding the telescope's
+  // path, under a KB), at the limit, so a KB of room; with a late Cesium guest
+  // frame's distance scale (#344: GuestPages _sent, CesiumLayers
+  // _frameDistanceScale) 2,368 and a fraction, so a KB of room again.  With
+  // Rubin's survey cadence (#332: the panel's switch, its caption and the
+  // visit readout, the token field; under 1 KB minified; the schedule and
+  // the fields' drawing are in the lazy Rubin chunk) and the seat's aim
+  // (#332: Scene.rideSeat's `aim` and the panel riding the telescope's
   // pointing on the cadence, half a KB, Scene and the panel both first
-  // load).
+  // load), 2,370.
   totalMinifiedKB: 2370,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
