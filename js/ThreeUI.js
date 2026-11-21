@@ -148,9 +148,10 @@ export default class ThreeUi {
     if (toneMapParam && toneMapParam !== 'neutral') {
       this.setToneMap(toneMapParam)
     }
-    // And the output colour space: stored values, or `?colorspace=srgb`.
-    if (params.get('colorspace') === 'srgb') {
-      this.setOutputColorSpace(SRGBColorSpace)
+    // And the output colour space: sRGB, or `?colorspace=linear` to see the
+    // frame unencoded, for diagnosis.
+    if (params.get('colorspace') === 'linear') {
+      this.setOutputColorSpace(LinearSRGBColorSpace)
     }
     // And the colour textures decoded from sRGB, `?decode=1` (perf/textureDecode.js).
     this.textureDecode = false
@@ -450,7 +451,10 @@ export default class ThreeUi {
     // As for a body 1 AU from the Sun until one is targeted; see
     // _updateExposure.
     renderer.toneMappingExposure = exposureAt(ASTRO_UNIT_METER)
-    renderer.outputColorSpace = LinearSRGBColorSpace
+    // sRGB to the screen (HDR.md, "Colour spaces"): the atmosphere pass
+    // encodes the frame itself (its encodeOut), and three's materials drawn
+    // to the screen after it (the overlay pass) by three's colorspace_fragment.
+    renderer.outputColorSpace = SRGBColorSpace
     this.width = this.container.offsetWidth
     this.height = this.container.offsetHeight
     renderer.setClearColor(backgroundColor, 1)
@@ -895,12 +899,12 @@ export default class ThreeUi {
 
 
   /**
-   * Set the output colour space, for diagnosis.  The app's is
-   * LinearSRGBColorSpace: stored values go to the screen as they are
-   * (HDR.md, "Colour spaces").  SRGBColorSpace encodes them to sRGB: the
-   * atmosphere pass in its screenOut, and three's materials drawn to the
-   * screen (the overlay pass) by three's own colorspace_fragment.  Textures
-   * are still not decoded, so this alone brightens and flattens the frame.
+   * Set the output colour space.  The app's is SRGBColorSpace (HDR.md,
+   * "Colour spaces"): the atmosphere pass encodes the tone map's linear
+   * values (its encodeOut), and three's materials drawn to the screen (the
+   * overlay pass) are encoded by three's colorspace_fragment.
+   * LinearSRGBColorSpace, for diagnosis, writes them unencoded: darker and
+   * more contrasty, as the frame was before the pipeline was colour-managed.
    *
    * @param {string} space SRGBColorSpace or LinearSRGBColorSpace; another is ignored
    * @returns {string} The output colour space now

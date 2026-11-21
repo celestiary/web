@@ -212,10 +212,10 @@ export const sceneColors = Object.freeze({
   rubin: Object.freeze({path: 0x4fd8c8, beam: 0x9fe8ff}),
   // A galaxy's rotation curve plot (rotationCurve.js).
   rotationCurve: Object.freeze({observed: 0x3987e5, baryons: 0xd95926}),
-  // Human expansion's lines (ColonizationLines.js): rgb triples, 0 to 1,
-  // written into the lines' buffer as they are (never through three's Color,
-  // so not decoded as the hex colours above are).  The hops' ramp, near to
-  // far, and a selected star's route: amber over the ramp's blues.
+  // Human expansion's lines (ColonizationLines.js): sRGB triples, 0 to 1, as
+  // CSS takes them (the app's legend) and decoded for the lines, as three
+  // decodes a hex.  The hops' ramp, near to far, and a selected star's
+  // route: amber over the ramp's blues.
   colonization: Object.freeze({
     ramp: Object.freeze([
       Object.freeze([0.95, 0.97, 1.00]),

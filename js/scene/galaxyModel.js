@@ -1,5 +1,6 @@
 import {ASTRO_UNIT_METER, DISPLAY_GAIN} from '../shared.js'
 import {galacticToSceneMatrix} from './galacticFrame.js'
+import {decodeRgb} from './srgb.js'
 
 
 /**
@@ -176,16 +177,17 @@ export const MAP = Object.freeze({size: 1024, halfKpc: 20})
 export const BOUNDS = Object.freeze({r: 20, y: 5})
 
 /**
- * Each component's colour per unit of luminosity, in stored values
- * (HDR.md), normalised to luma 1: the old disc warm white, the bulge, bar
- * and thick disc older and warmer, the young arms blue, HII regions pink
- * (Hα with Hβ and [OIII]).
+ * Each component's colour per unit of luminosity, linear, normalised to
+ * luma 1: the old disc warm white, the bulge, bar and thick disc older and
+ * warmer, the young arms blue, HII regions pink (Hα with Hβ and [OIII]).
+ * Picked by eye as sRGB values, decoded (HDR.md, "Colour spaces"), so they
+ * show as picked on the encoded screen.
  */
 export const COLORS = Object.freeze({
-  old: unitLuma([1.0, 0.86, 0.7]),
-  bulge: unitLuma([1.0, 0.8, 0.6]),
-  young: unitLuma([0.56, 0.72, 1.0]),
-  hii: unitLuma([1.0, 0.42, 0.6]),
+  old: unitLuma(decodeRgb([1.0, 0.86, 0.7])),
+  bulge: unitLuma(decodeRgb([1.0, 0.8, 0.6])),
+  young: unitLuma(decodeRgb([0.56, 0.72, 1.0])),
+  hii: unitLuma(decodeRgb([1.0, 0.42, 0.6])),
 })
 
 /**

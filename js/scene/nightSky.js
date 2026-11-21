@@ -1,5 +1,6 @@
 import {surfaceBrightnessValue} from './eye.js'
 import {smoothstep} from './exposure.js'
+import {decodeRgb} from './srgb.js'
 
 
 /**
@@ -108,7 +109,7 @@ export const ZODIACAL_CLOUD = Object.freeze({
   minImpactAU: 0.0093,
   outerAU: Object.freeze([3.3, 5.2]),
   steps: 32,
-  color: Object.freeze(unitLuma([1.04, 1.0, 0.94])),
+  color: Object.freeze(unitLuma(decodeRgb([1.04, 1.0, 0.94]))),
 })
 
 
@@ -240,7 +241,7 @@ export function zodiacalBrightest(o) {
  * Ellison 1998; Krisciunas 1997; recalled).  Its colour in V is the
  * green line's and sodium's.
  */
-export const AIRGLOW_COLOR = Object.freeze(unitLuma([0.8, 1.0, 0.55]))
+export const AIRGLOW_COLOR = Object.freeze(unitLuma(decodeRgb([0.8, 1.0, 0.55])))
 
 
 /**
