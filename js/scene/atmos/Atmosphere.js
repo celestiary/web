@@ -29,6 +29,14 @@ import {SHELL_AHEAD_GLSL, SUN_BELOW_HORIZON_GLSL} from './rayEnd.js'
 
 
 /**
+ * The final tone map, PBR Neutral (HDR.md).  toneMaps.js replaces this line
+ * with every operator when another is asked for, for diagnosis
+ * (installToneMaps), so the first load carries only this.
+ */
+export const DEFAULT_TONE_MAP_GLSL = 'vec3 finalToneMap(vec3 color) { return neutralToneMap(color); }'
+
+
+/**
  * Physical Rayleigh/Mie atmosphere rendered as a sphere shell around a planet.
  * Works from any camera distance (from space or low orbit).
  *
@@ -628,6 +636,7 @@ void cloudRead(vec2 uv, float tEnd, out vec4 cloud, out vec2 data) {
 #define SEG_STEPS 16
 
 ${NEUTRAL_GLSL}
+${DEFAULT_TONE_MAP_GLSL}
 ${MIE_PHASE_GLSL}
 uniform float uExposureRelative;
 ${EYE_GLSL}
@@ -714,7 +723,7 @@ vec4 sceneToScreen(vec3 scene, vec3 night) {
     return vec4(uDebug < 7.5 ? scene + night : night, 1.0);
   }
   if (uHdr > 0.5) {
-    return screenOut(overNight(neutralToneMap(scene), night));
+    return screenOut(overNight(finalToneMap(scene), night));
   }
   return screenOut(scene);
 }
@@ -727,9 +736,9 @@ vec4 sceneToScreen(vec3 scene, vec3 night) {
 // added to it.
 vec4 atmToScreen(vec3 scene, vec3 sky, vec3 transmittance, vec3 night) {
   if (uHdr > 0.5) {
-    return screenOut(overNight(neutralToneMap(mix(scene, sky + scene * transmittance, uAtmStrength)), night));
+    return screenOut(overNight(finalToneMap(mix(scene, sky + scene * transmittance, uAtmStrength)), night));
   }
-  return screenOut(mix(scene, neutralToneMap(sky) + scene * transmittance, uAtmStrength));
+  return screenOut(mix(scene, finalToneMap(sky) + scene * transmittance, uAtmStrength));
 }
 
 // Map (r, mu_sun) → UV for the precomputed transmittance LUT.

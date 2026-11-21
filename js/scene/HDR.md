@@ -91,6 +91,38 @@ It runs at the end of the atmosphere pass, on every path through it (the
 pass-through when there's no atmosphere too).  A lit surface with no sky over
 it therefore shows `N(k·L)` exactly as before.
 
+### Trying other tone maps
+
+For diagnosing colour (a frame against a photograph), the final map can be
+swapped from the performance panel's *Tone map* control (the backtick key;
+DESIGN.md [performance panel](../../DESIGN.md#performance-panel)) or with
+`?tonemap=<key>` in the URL: `neutral` (the default), `aces`, `agx`,
+`reinhard`, `cineon`, `linear` or `greyscale`.  `toneMaps.js` holds them:
+three's operators (r187) without their exposure multiply, since the buffer
+holds `k·L` already.  The pass's three paths to the screen call
+`finalToneMap`, which in the first load is one line, PBR Neutral
+(`Atmosphere.js` `DEFAULT_TONE_MAP_GLSL`); the first ask for another map
+imports `toneMaps.js`, which swaps that line for every operator, picked by a
+`uToneMap` uniform, and the pass recompiles once (`installToneMaps`).  So the
+default costs neither bytes nor a branch.  `greyscale` is PBR Neutral's output as its Rec. 709
+luminance, to judge brightness apart from hue.
+
+- **Only the final map changes.**  `renderer.toneMapping` stays the scene
+  pass's exposure-only `CustomToneMapping`: setting it to one of three's
+  operators would clamp the HDR buffer to [0, 1] (they saturate) and take the
+  exposure twice.
+- **Display-referred content is still `N⁻¹`'d** (below), so under another
+  map the stars, the Milky Way's display parts, labels and lines show a
+  little off their intended values, and the night sky's light is still added
+  after the map in display values.  The overlay pass (labels, orbits, grids)
+  is drawn after the tone map and keeps its colours, even in `greyscale`.
+- **Stored values throughout**: as everywhere else, nothing decodes or
+  encodes sRGB around the map ([colour spaces](#colour-spaces-stored-values)),
+  so `aces` and `agx`, whose matrices assume linear sRGB primaries, act on
+  sRGB-encoded values here.  That is part of what the control lets one judge.
+- The meter reads the linear composite (`uDebug` 7), not the tone-mapped
+  frame, so the exposure doesn't change with the map.
+
 ### Display-referred content: `N⁻¹`
 
 The stars, galaxy, labels and lines would otherwise go through `N` for the
