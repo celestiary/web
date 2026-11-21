@@ -51,6 +51,11 @@ export default function reifyMeasures(obj) {
       reify(atm['airglow'], 'height', name)
       reify(atm['airglow'], 'thickness', name)
     }
+    if (atm['ozone']) {
+      reify(atm['ozone'], 'bottom', name)
+      reify(atm['ozone'], 'peak', name)
+      reify(atm['ozone'], 'top', name)
+    }
   }
   if (obj['rings']) {
     reify(obj['rings'], 'innerRadius', name)

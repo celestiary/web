@@ -24,7 +24,7 @@ import {EYE_GLSL} from '../eye.js'
 import {EMITTED_GLSL, LUMINOUS_SHOULDER_GLSL, NEUTRAL_GLSL, absoluteUniforms} from '../hdr.js'
 import {NIGHT_SKY_GLSL} from '../nightSky.js'
 import {sphere} from '../shapes'
-import {MIE_PHASE_GLSL, PEAK_TAU_MAX, STEP_INTEGRAL_GLSL, mieParams} from './AtmospherePrecompute.js'
+import {MIE_PHASE_GLSL, OZONE_GLSL, PEAK_TAU_MAX, STEP_INTEGRAL_GLSL, mieParams} from './AtmospherePrecompute.js'
 import {SHELL_AHEAD_GLSL, SUN_BELOW_HORIZON_GLSL} from './rayEnd.js'
 
 
@@ -72,7 +72,7 @@ export function newPhysicalAtmosphere(planetRadius, atmos) {
         uAtmosphereRadius: {value: physRadius},
         uRayleigh: {value: new Vector3(...atmos.rayleigh)},
         uRayleighScaleHeight: {value: atmos.rayleighScaleHeight?.scalar ?? atmos.rayleighScaleHeight},
-        uMieCoeff: {value: atmos.mieCoeff},
+        uMieCoeff: {value: mieParams(atmos).extinction.x},
         uMieScaleHeight: {value: atmos.mieScaleHeight?.scalar ?? atmos.mieScaleHeight},
         // The forward lobe's red asymmetry: this shader's Mie is one lobe.
         uMiePolarity: {value: mieParams(atmos).polarity.x},
@@ -417,8 +417,15 @@ export function newAtmospherePass() {
       uAtmosphereRadius: {value: 1}, // = uGroundRadius → no-op when no atmosphere
       uRayleigh: {value: new Vector3()},
       uRayleighScaleHeight: {value: 1},
-      uMieCoeff: {value: 0},
+      // The aerosol's extinction per channel at the ground, and 1 where it is
+      // per channel, for the Mie's colour (mieParams; mieColour).
+      uMieCoeff: {value: new Vector3()},
+      uMieChroma: {value: 0},
       uMieScaleHeight: {value: 1},
+      // The ozone layer's absorption at its peak and its tent (ozoneParams):
+      // zero absorption for a body without.
+      uOzone: {value: new Vector3()},
+      uOzoneProfile: {value: new Vector3(0, 1, 2)},
       // The Mie phase function and albedo per channel (AtmospherePrecompute
       // mieParams; composition.md "Per-body data").
       uMiePolarity: {value: new Vector3()},
@@ -528,6 +535,15 @@ void main() {
 }
 `
 
+// In the pass: `airExtinction(od)` is the extinction along a path of the
+// transmittance table's three density integrals (Rayleigh, Mie, ozone);
+// `mieColour(inS)` gives the tables' Mie, red's, its colour per channel: grey
+// for a grey aerosol (Mars, Titan: as their data was fitted), or for a
+// chromatic one (Earth's) Bruneton 2017's reconstruction from the Rayleigh's,
+// Mie_c = a · (S_c / S_r) · (β_R,r / β_R,c) · (β_M,c / β_M,r): the path's
+// transmittance colour weighted by the gas's density (composition.md,
+// "Per-body data").  The fallback march (`scatter`, used only before the
+// tables are made) leaves the ozone out.
 const FULLSCREEN_FRAG = `
 precision highp float;
 
@@ -545,7 +561,10 @@ uniform float     uGroundRadius;
 uniform float     uAtmosphereRadius;
 uniform vec3      uRayleigh;
 uniform float     uRayleighScaleHeight;
-uniform float     uMieCoeff;
+uniform vec3      uMieCoeff;
+uniform float     uMieChroma;
+uniform vec3      uOzone;
+uniform vec3      uOzoneProfile;
 uniform float     uMieScaleHeight;
 uniform vec3      uMiePolarity;
 uniform float     uMieBackPolarity;
@@ -644,6 +663,14 @@ void cloudRead(vec2 uv, float tEnd, out vec4 cloud, out vec2 data) {
 ${NEUTRAL_GLSL}
 ${DEFAULT_TONE_MAP_GLSL}
 ${MIE_PHASE_GLSL}
+${OZONE_GLSL}
+vec3 airExtinction(vec3 od) {
+  return uRayleigh * od.r + uMieCoeff * od.g + uOzone * od.b;
+}
+vec3 mieColour(vec4 inS) {
+  if (uMieChroma < 0.5) return vec3(inS.a);
+  return inS.a * inS.rgb / max(inS.r, 1.0e-30) * (uRayleigh.r / uRayleigh) * (uMieCoeff / uMieCoeff.r);
+}
 uniform float uExposureRelative;
 ${EYE_GLSL}
 ${NIGHT_SKY_GLSL}
@@ -853,8 +880,8 @@ ${STEP_INTEGRAL_GLSL}
 int segmentSteps(vec3 eye, vec3 dir, float tMax) {
   float tLow = clamp(-dot(eye, dir), 0.0, tMax);
   float hLow = max(length(eye + dir * tLow) - uGroundRadius, 0.0);
-  float kMax = max(uRayleigh.r, max(uRayleigh.g, uRayleigh.b)) * exp(-hLow / uRayleighScaleHeight)
-      + uMieCoeff * exp(-hLow / uMieScaleHeight);
+  vec3  kLow = uRayleigh * exp(-hLow / uRayleighScaleHeight) + uMieCoeff * exp(-hLow / uMieScaleHeight) + uOzone;
+  float kMax = max(kLow.r, max(kLow.g, kLow.b));
   float n = ceil(kMax * tMax / SEG_STEP_TAU);
   return int(clamp(n, float(SEG_STEPS_MIN), float(SEG_STEPS)));
 }
@@ -920,7 +947,7 @@ void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec4 ms, out
     float dM  = dd.y;
     h0 = h1;
     d0 = d1;
-    vec2  jOd;
+    vec3  jOd;
     // The Sun behind the planet: from above the sphere, under its horizon
     // there; from below it (a march from an eye or to terrain under the
     // datum, where every ray to the Sun leaves the sphere), under the local
@@ -935,13 +962,14 @@ void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec4 ms, out
     if (sunBlocked) {
       // Enough path for the smallest coefficient (AtmospherePrecompute:
       // 1e6 m let 0.3% of the Sun through in Earth's red).
-      jOd = vec2(1.0e12);
+      jOd = vec3(1.0e12);
     } else {
       jOd = texture2D(tTransmittance,
-          vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / r, uSunDirection) * 0.5 + 0.5)).rg;
+          vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / r, uSunDirection) * 0.5 + 0.5)).rgb;
     }
-    vec3 sunT  = exp(-(uMieCoeff * jOd.g + uRayleigh * jOd.r));
-    vec3 sigma = uRayleigh * dR + vec3(uMieCoeff * dM);
+    vec3 sunT  = exp(-airExtinction(jOd));
+    vec3 kOz   = uOzone * ozoneDensity(h);
+    vec3 sigma = uRayleigh * dR + uMieCoeff * dM + kOz;
     vec3 g     = T * stepIntegral(sigma, ds);
     vec3 w     = g * sunT;
     // The light scattered twice or more, isotropic: the step's scattering
@@ -950,8 +978,8 @@ void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec4 ms, out
     vec3 psi = texture2D(tMultiScatter,
         vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / r, uSunDirection) * 0.5 + 0.5)).rgb;
 #if MIE_PEAK
-    vec3 sunTs = exp(-(kMieS * jOd.g + uRayleigh * jOd.r));
-    vec3 sigmaScaled = uRayleigh * dR + kMieS * dM;
+    vec3 sunTs = exp(-(kMieS * jOd.g + uRayleigh * jOd.r + uOzone * jOd.b));
+    vec3 sigmaScaled = uRayleigh * dR + kMieS * dM + kOz;
     vec3 gs    = Ts * stepIntegral(sigmaScaled, ds);
     vec3 ws    = gs * sunTs;
     totalR += dR * ws;
@@ -970,8 +998,8 @@ void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec4 ms, out
 #if !MIE_PEAK
   Ts = T;
 #endif
-  inS = vec4(uRayleigh * totalR, uMieCoeff * totalM);
-  ms.a = uMieCoeff * extraM;
+  inS = vec4(uRayleigh * totalR, uMieCoeff.r * totalM);
+  ms.a = uMieCoeff.r * extraM;
 }
 
 vec2 rsi(vec3 r0, vec3 rd, float sr) {
@@ -1004,7 +1032,7 @@ vec3 peakDepth(vec3 start, vec3 T, vec3 Ts) {
 vec4 scatter(
     vec3 rayDir, vec3 eyePos, vec3 sunDir, float sunIntensity,
     float rPlanet, float rAtmos,
-    vec3 kRlh, float shRlh, float kMie, float shMie, float polarity,
+    vec3 kRlh, float shRlh, vec3 kMie, float shMie, float polarity,
     float tMax) {
 
   rayDir = normalize(rayDir);
@@ -1071,7 +1099,7 @@ vec4 scatter(
     iTime    += iStepSize;
   }
 
-  vec3 extinction = kRlh * iOdRlh + vec3(kMie * iOdMie);
+  vec3 extinction = kRlh * iOdRlh + kMie * iOdMie;
   float alpha = 1.0 - exp(-max(extinction.x, max(extinction.y, extinction.z)));
 
   return vec4(sunIntensity * (pRlh * kRlh * totalRlh + pMie * kMie * totalMie), alpha);
@@ -1257,15 +1285,15 @@ void main() {
       vec3  tBelowS;
       marchSegment(eyePos, rayDir, tExit, inSBelow, msBelow, tBelow, tBelowS);
       vec4  inSAbove = sampleInScatter(uGroundRadius, mu_exit, mu_sExit, false, msAbove);
-      vec2  odAbove  = texture2D(tTransmittance, transmittanceUV(uGroundRadius, mu_exit, uGroundRadius, uAtmosphereRadius)).rg;
+      vec3  odAbove  = texture2D(tTransmittance, transmittanceUV(uGroundRadius, mu_exit, uGroundRadius, uAtmosphereRadius)).rgb;
       inS = inSBelow + vec4(tBelowS * inSAbove.rgb, tBelow.r * inSAbove.a);
       // The table's delta-M single scattering (its a and the extra in
       // msAbove.a) through the segment's delta-M transmittance, less the
       // direct beam's through the true one.
       inSMs = msBelow + vec4(tBelowS * msAbove.rgb,
           tBelowS.r * (inSAbove.a + msAbove.a) - tBelow.r * inSAbove.a);
-      transmittance = tBelow * exp(-(uRayleigh * odAbove.r + vec3(uMieCoeff * odAbove.g)));
-      transmittanceS = tBelowS * exp(-(uRayleigh * odAbove.r + kMieS * odAbove.g));
+      transmittance = tBelow * exp(-airExtinction(odAbove));
+      transmittanceS = tBelowS * exp(-(uRayleigh * odAbove.r + kMieS * odAbove.g + uOzone * odAbove.b));
     } else {
       // Use the ray's atmosphere entry point as the LUT index.
       // When camera is inside atmosphere: t_entry=0 → entryPos=eyePos (camera).
@@ -1294,9 +1322,9 @@ void main() {
       // extinction too (one alpha from the strongest channel, as before)
       // greyed whatever lay behind — Jupiter's and Venus's cloud decks —
       // once exposure stopped washing them out.
-      vec2 odView = texture2D(tTransmittance, transmittanceUV(r_e, mu_lut, uGroundRadius, uAtmosphereRadius)).rg;
-      transmittance = exp(-(uRayleigh * odView.r + vec3(uMieCoeff * odView.g)));
-      transmittanceS = exp(-(uRayleigh * odView.r + kMieS * odView.g));
+      vec3 odView = texture2D(tTransmittance, transmittanceUV(r_e, mu_lut, uGroundRadius, uAtmosphereRadius)).rgb;
+      transmittance = exp(-airExtinction(odView));
+      transmittanceS = exp(-(uRayleigh * odView.r + kMieS * odView.g + uOzone * odView.b));
     }
     float mu    = dot(rayDir, uSunDirection);
     float pRlh  = 3.0/(16.0*PI) * (1.0 + mu * mu);
@@ -1312,7 +1340,7 @@ void main() {
       pPeak = miePeakPhase(mu, uMiePeakPolarity, peakDepth(eyePos + rayDir * t_entry, transmittance, transmittanceS));
     }
     vec3 pMie   = (uMiePeakWeight * pPeak + (1.0 - uMiePeakWeight) * pBroad) * uMieAlbedo;
-    vec3 scattered = uSunIntensity * (pRlh * inS.rgb + pMie * inS.a
+    vec3 scattered = uSunIntensity * (pRlh * inS.rgb + pMie * mieColour(inS)
         + (1.0 - uMiePeakWeight) * pBroad * uMieAlbedo * inSMs.a + inSMs.rgb);
 
     // The transmittance is the physical one, whole: the stars behind the
@@ -1371,7 +1399,7 @@ void main() {
       vec3 tNear;
       vec3 tNearS;
       marchSegment(eyePos, rayDir, min(cloudData.x, tMax), inSNear, msNear, tNear, tNearS);
-      vec3 skyNear = uSunIntensity * (pRlh * inSNear.rgb + pMie * inSNear.a
+      vec3 skyNear = uSunIntensity * (pRlh * inSNear.rgb + pMie * mieColour(inSNear)
           + (1.0 - uMiePeakWeight) * pBroad * uMieAlbedo * msNear.a + msNear.rgb) * uSkyExposure;
       sky = skyNear + tNear * cloud.rgb * uCloudExposure + cloud.a * max(sky - skyNear, vec3(0.0));
       transmittance *= cloud.a;

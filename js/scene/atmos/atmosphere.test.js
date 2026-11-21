@@ -4,7 +4,7 @@ import BODY_DIRS from '../../bodyDirs.json'
 import {descriptorUrl} from '../../bodyBundle.js'
 import {ASTRO_UNIT_METER, DISPLAY_GAIN} from '../../shared.js'
 import {PHYSICAL_SKY_GAIN, exposureAt, skyExposure, skyGain} from '../exposure.js'
-import {mieParams} from './AtmospherePrecompute.js'
+import {mieParams, ozoneParams} from './AtmospherePrecompute.js'
 
 
 /**
@@ -116,6 +116,51 @@ describe('atmosphere JSON data', () => {
       expect(atm.miePolarity).toBeGreaterThan(-1)
       expect(atm.miePolarity).toBeLessThan(1)
     })
+
+    // The channels' wavelengths: the Rayleigh coefficients are Bruneton's
+    // and Hillaire's for 680, 550 and 440 nm (λ⁻⁴ from 1.24062e-6 /m at
+    // 1 µm, Bruneton's demo.cc), and the aerosol and ozone follow them.
+    const LAMBDA_NM = [680, 550, 440]
+
+    it('has a clear day\'s aerosol: τ 0.12 at 550 nm, Ångström exponent 1.3', () => {
+      // composition.md, "Per-body data": MODIS's global means are 0.13 over
+      // ocean and 0.19 over land (Remer et al. 2008); OPAC's continental
+      // average 0.15, its clean continental 0.06 (Hess et al. 1998).
+      const H = scalar(atm.mieScaleHeight)
+      expect(atm.mieCoeff).toHaveLength(3)
+      const tau = atm.mieCoeff.map((k) => k * H)
+      expect(tau[1]).toBeCloseTo(0.12, 4)
+      for (let c = 0; c < 3; c++) {
+        expect(tau[c]).toBeCloseTo(0.12 * Math.pow(LAMBDA_NM[c] / 550, -1.3), 4)
+      }
+      expect(H).toBe(1200)
+    })
+
+    it('has an aerosol that absorbs a little and scatters forward, as AERONET measures', () => {
+      // Single-scattering albedo 0.93 (OPAC continental average 0.925),
+      // asymmetry 0.7 at 550 nm.
+      expect(atm.mieAlbedo).toBe(0.93)
+      expect(atm.miePolarity).toBe(0.7)
+      expect(atm.miePeakWeight).toBeUndefined()
+    })
+
+    it('has 300 Dobson units of ozone in Bruneton\'s tent, with the Bremen cross-sections', () => {
+      // Peak number density 300 DU / 15 km (demo.cc); cross-sections at
+      // 680 / 550 / 440 nm, 233 K (Serdyuchenko et al. 2014, demo.cc's table).
+      const o = ozoneParams(atm)
+      expect(o.profile.toArray()).toEqual([1e4, 2.5e4, 4e4])
+      const DOBSON = 2.687e20 // molecules per m²
+      const n = 300 * DOBSON / 15000
+      const SIGMA = [1.209e-25, 3.5e-25, 1.582e-26]
+      for (let c = 0; c < 3; c++) {
+        expect(atm.ozone.absorption[c] / (n * SIGMA[c])).toBeCloseTo(1, 3)
+      }
+      // The column: the tent's integral is 15 km, so 300 DU.
+      expect(o.column.y / SIGMA[1] / DOBSON).toBeCloseTo(300, 0)
+      // Chappuis: green and red absorbed, blue nearly not; τ(550) ≈ 0.03.
+      expect(o.column.y).toBeCloseTo(0.0282, 3)
+      expect(o.column.z).toBeLessThan(o.column.x / 5)
+    })
   })
 
   describe('mars', () => {
@@ -197,9 +242,10 @@ describe('atmosphere JSON data', () => {
       expect(means[1]).toBeGreaterThan(means[0])
     })
 
-    it('has higher Mie coefficient than Earth (more dust)', () => {
+    it('has a thicker aerosol column than Earth (more dust)', () => {
       const earth = loadPlanet('earth').atmosphere
-      expect(atm.mieCoeff).toBeGreaterThan(earth.mieCoeff)
+      expect(atm.mieCoeff * scalar(atm.mieScaleHeight))
+          .toBeGreaterThan(Math.max(...earth.mieCoeff) * scalar(earth.mieScaleHeight))
     })
 
     it('miePolarity is in valid Henyey-Greenstein range (-1, 1), per channel', () => {
@@ -237,24 +283,20 @@ describe('the sky gain', () => {
     }
   })
 
-  it('is the physical gain for every body but Earth, whose data stands in for its aerosols', () => {
+  it('is the physical gain for every body, Earth included', () => {
     // #55's gains fell with distance (Jupiter 6, Saturn 4, Uranus 2.8,
     // Neptune 2.2, Titan 1.0, Pluto 0.7, Triton 0.6), from when the gain was
     // the Sun's light at the body; since the sky took the body's irradiance
-    // (#86's PR A) they counted the falloff twice.  Only a documented
-    // reason may set a body's gain (composition.md, "Per-body data").
+    // (#86's PR A) they counted the falloff twice.  Earth's 21 stood in for
+    // the aerosols its tables didn't hold, until they held a clear day's
+    // (composition.md, "Per-body data").
     expect(bodies.length).toBeGreaterThan(8)
+    expect(bodies.some((b) => b.name === 'earth')).toBe(true)
     for (const body of bodies) {
-      if (body.name === 'earth') {
-        continue
-      }
       expect({name: body.name, gain: skyGain(body.atmosphere)})
           .toEqual({name: body.name, gain: PHYSICAL_SKY_GAIN})
+      expect(body.atmosphere.sunIntensity).toBeUndefined()
     }
-    // Earth's: 4.5 times physical, matched to Cesium's Earth over the same
-    // imagery and re-fitted when multiple scattering went in (Planet.md).
-    const earth = bodies.find((b) => b.name === 'earth')
-    expect(earth.atmosphere.sunIntensity).toBe(21)
   })
 
   it('leaves Titan\'s haze to absorb, most in the blue, where its gain of 1 stood in for it', () => {
@@ -270,6 +312,83 @@ describe('the sky gain', () => {
       expect(w).toBeGreaterThan(0.7)
       expect(w).toBeLessThan(1)
     }
+  })
+})
+
+
+describe('the other bodies\' air, unchanged by Earth\'s aerosol and ozone', () => {
+  const others = Object.keys(BODY_DIRS).map(loadPlanet).filter((b) => b.atmosphere && b.name !== 'earth')
+
+  it('gives a grey aerosol its one coefficient in every channel, red\'s Mie as before, and no ozone', () => {
+    // The shaders then compute what they did with a float uMieCoeff: the
+    // same extinction in each channel, the tables' Mie taken as grey
+    // (mieColour with uMieChroma 0), and an ozone term of zero.
+    expect(others.length).toBeGreaterThan(8)
+    for (const {name, atmosphere: atm} of others) {
+      const mie = mieParams(atm)
+      expect({name, mie: mie.extinction.toArray(), chroma: mie.chroma})
+          .toEqual({name, mie: [atm.mieCoeff, atm.mieCoeff, atm.mieCoeff], chroma: 0})
+      expect({name, ozone: ozoneParams(atm).absorption.toArray()}).toEqual({name, ozone: [0, 0, 0]})
+    }
+  })
+
+  it('has the pass take the tables\' Mie as grey without a chromatic aerosol', () => {
+    const source = readFileSync('./js/scene/atmos/Atmosphere.js', 'utf8')
+    expect(source).toContain('if (uMieChroma < 0.5) return vec3(inS.a);')
+  })
+})
+
+
+describe('Earth\'s air by its optical depths (a CPU integral, as the transmittance table)', () => {
+  const atm = loadPlanet('earth').atmosphere
+  const R = 6.371e6
+  const top = scalar(atm.height)
+  const hR = scalar(atm.rayleighScaleHeight)
+  const hM = scalar(atm.mieScaleHeight)
+  const oz = ozoneParams(atm)
+  const tent = (h) => Math.max(1 - (Math.abs(h - oz.profile.y) /
+      (h < oz.profile.y ? oz.profile.y - oz.profile.x : oz.profile.z - oz.profile.y)), 0)
+
+  /**
+   * @param {number} h0 start height (m)
+   * @param {number} mu the ray's zenith cosine there
+   * @param {boolean} [withOzone]
+   * @returns {Array<number>} optical depth to the top, per channel
+   */
+  function depth(h0, mu, withOzone = true) {
+    const r0 = R + h0
+    const b = r0 * mu
+    const tMax = -b + Math.sqrt((b * b) - (r0 * r0) + ((R + top) ** 2))
+    const n = 20000
+    const dt = tMax / n
+    const tau = [0, 0, 0]
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) * dt
+      const h = Math.sqrt((r0 * r0) + (t * t) + (2 * b * t)) - R
+      for (let c = 0; c < 3; c++) {
+        tau[c] += ((atm.rayleigh[c] * Math.exp(-h / hR)) + (atm.mieCoeff[c] * Math.exp(-h / hM)) +
+          (withOzone ? oz.absorption.getComponent(c) * tent(h) : 0)) * dt
+      }
+    }
+    return tau
+  }
+
+  it('has a vertical optical depth of 0.25 at 550 nm, 78% transmitted at the zenith in the green', () => {
+    // Rayleigh 0.0973 (Bucholtz's standard column), aerosol 0.12, ozone 0.028.
+    const tau = depth(0, 1)
+    expect(tau[1]).toBeCloseTo(0.0973 + 0.12 + 0.0282, 2)
+    expect(Math.exp(-tau[1])).toBeCloseTo(0.782, 2)
+  })
+
+  it('leaves the limb blue where the ozone is: green and red absorbed along the tangent', () => {
+    // A tangent path at 25 km, the layer's peak, is twice the path from the
+    // tangent point out: about 1.1 of ozone's optical depth in the green,
+    // 0.05 in the blue.  Over the path without ozone, the light keeps a
+    // third of its green and nearly all its blue.
+    const ratio = [0, 1, 2].map((c) => Math.exp(-2 * (depth(25e3, 0)[c] - depth(25e3, 0, false)[c])))
+    expect(ratio[1]).toBeLessThan(0.4)
+    expect(ratio[0]).toBeLessThan(0.75)
+    expect(ratio[2]).toBeGreaterThan(0.94)
   })
 })
 
@@ -294,13 +413,13 @@ describe('mieParams', () => {
 describe('the blocked Sun', () => {
   // The "Sun behind the planet" sentinel is a density-weighted path in
   // metres; it must drive exp(-k·path) to nothing for the smallest
-  // coefficient, Earth's Rayleigh red (5.8e-6 /m).  At 1e6 m, 0.3% of the
+  // coefficient, Earth's Rayleigh red (5.12e-6 /m).  At 1e6 m, 0.3% of the
   // Sun came through every blocked step and the metered exposure showed a
   // red sky with the Sun 35° under the horizon (HDR.md).
   for (const file of ['AtmospherePrecompute.js', 'Atmosphere.js']) {
     it(`${file} blocks the Sun for any coefficient over 1e-8 /m`, () => {
       const source = readFileSync(`./js/scene/atmos/${file}`, 'utf8')
-      const sentinels = [...source.matchAll(/jOd = vec2\(([0-9.e]+)/g)].map((m) => Number(m[1]))
+      const sentinels = [...source.matchAll(/jOd = vec[23]\(([0-9.e]+)/g)].map((m) => Number(m[1]))
       expect(sentinels.length).toBeGreaterThan(0)
       for (const path of sentinels) {
         expect(Math.exp(-1e-8 * path)).toBeLessThan(1e-40)
