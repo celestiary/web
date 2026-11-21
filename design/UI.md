@@ -270,7 +270,10 @@ ground, quiet, and the place you go when the view is confusing.
 2. **The label and its menu** (done, #361's second PR):
    `ui/CameraModeControl.jsx` over `Scene.cameraMode` and
    `setCameraMode`, in the controls and the dock's More panel; `y`; `Y`.
-   Left: the readout still says "Following on/off" for `f`.
+   Left: the readout still says "Following on/off" for `f`.  From the ground (*Standing on Earth*) each
+   choice takes off that way, where the camera is (the review of step 3:
+   greyed, the menu read as broken); `f` still keeps a landed camera
+   pinned, so its key isn't shown there.
 3. **The compass** (done, #361's third PR): `js/compass.js` (heading,
    pitch, the orientation for them), `Scene.cameraHeading`, `turnCamera`
    and `compassTap`, `ui/CompassControl.jsx`: an inline SVG dial turned

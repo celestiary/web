@@ -1679,6 +1679,44 @@ describe('Scene following', () => {
       expect(s.cameraMode().auto).toBe(true)
     })
 
+    /** @returns {object} Arrived at Jupiter and landed on it, 2 m up */
+    function landed() {
+      const sys = arrivedAtJupiter()
+      sys.s.land('jupiter', 10, 20, 2, {instant: true})
+      sys.scene.updateMatrixWorld()
+      sys.s.syncFollow()
+      return sys
+    }
+
+    it('takes off from the ground in the way chosen, where the camera is', () => {
+      const ride = landed()
+      expect(ride.s.cameraMode().mode).toBe('standing')
+      const where = ride.camera.getWorldPosition(new Vector3)
+      ride.s.setCameraMode('orbit')
+      ride.scene.updateMatrixWorld()
+      expect(Shared.targets.landed).toBe(false)
+      expect(ride.camera.platform.parent).toBe(ride.jupiter.orbitPosition)
+      expect(ride.s.cameraMode()).toEqual({mode: 'orbit', auto: false, body: 'jupiter'})
+      expect(ride.camera.getWorldPosition(new Vector3).distanceTo(where)).toBeLessThan(MM)
+      const turn = landed()
+      turn.s.setCameraMode('turning')
+      expect(Shared.targets.landed).toBe(false)
+      expect(turn.camera.platform.parent).toBe(turn.jupiter)
+      expect(turn.s.cameraMode()).toEqual({mode: 'turning', auto: false, body: 'jupiter'})
+      const auto = landed()
+      auto.s.setCameraMode('auto')
+      expect(auto.s.cameraMode()).toEqual({mode: 'turning', auto: true, body: 'jupiter'})
+    })
+
+    it('leaves the body for the frame above from the ground, as fixed in space', () => {
+      const {s, sun} = landed()
+      s.setCameraMode('fixed')
+      expect(Shared.targets.landed).toBe(false)
+      expect(Shared.targets.follow).toBe(null)
+      expect(Shared.targets.cur).toBe(sun)
+      expect(s.cameraMode().mode).toBe('fixed')
+    })
+
     it('tells the control when the state changes, once each time', () => {
       const {s, camera, scene} = at(SPIN_OUT_M * 2)
       const heard = []

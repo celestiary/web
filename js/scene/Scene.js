@@ -3160,15 +3160,17 @@ export default class Scene {
    * off), `orbit` and `turning` ride it (as `f` on) and hold riding its
    * orbit or turning with it at any height, `auto` lets the height choose
    * again.  `standing` isn't set here: it needs a place (land).  Landed,
-   * nothing changes but `auto`: the camera is pinned to the ground until a
-   * go leaves it.
+   * each takes off that way, from where the camera is (_leaveGround): the
+   * camera control's choices work from the ground too, where `f` still
+   * keeps a landed camera pinned.
    *
    * @param {string} mode 'fixed', 'orbit', 'turning' or 'auto'
    */
   setCameraMode(mode) {
-    if (Shared.targets.landed) {
+    if (!['fixed', 'orbit', 'turning', 'auto'].includes(mode)) {
       return
     }
+    this._leaveGround()
     if (mode === 'fixed') {
       if (Shared.targets.follow) {
         this.setFollowing(false)
@@ -3181,6 +3183,29 @@ export default class Scene {
       this.syncFollow()
     }
     this.onSettingsChange?.()
+  }
+
+
+  /**
+   * A landed camera no longer landed, where it is: it rides the body it stood
+   * on, turning with it (the platform stays on its spinning node, now as
+   * `_spinBody`), and leaves its seat if it had one (the Rubin
+   * Observatory's).  The drag mode stays the user's.
+   */
+  _leaveGround() {
+    if (!Shared.targets.landed) {
+      return
+    }
+    const body = Shared.targets.cur
+    this.leaveSeat()
+    Shared.targets.landed = false
+    this.ui.useStore?.getState?.()?.setLanded?.(false)
+    if (body && this.ui.camera.platform.parent === body) {
+      this._spinBody = body
+    }
+    if (!Shared.targets.follow && body?.orbitPosition) {
+      Shared.targets.follow = body.orbitPosition
+    }
   }
 
 
