@@ -895,7 +895,14 @@ export default class ThreeUi {
         this._stats = stats
         this._renderPanel = panel
         this._showPerfPanel()
-      }).catch((err) => console.warn('Performance panel failed to load:', err))
+      }).catch((err) => {
+        // Let the next press try again (a preview mid-deploy answered 503).
+        // A browser may keep the failed import for the page's life: then a
+        // reload does.
+        this._perfPanelLoading = null
+        this._perfVisible = false
+        console.warn('Performance panel failed to load (press ` to retry, or reload):', err)
+      })
     }
     this._showPerfPanel()
     return this._perfVisible
