@@ -1,6 +1,27 @@
 {
   "entries": [
     {
+      "id": "2026-11-21-colours-as-they-really-are-pictures-decoded-the",
+      "date": "2026-11-21",
+      "headline": "Colours as they really are: pictures decoded, the screen encoded",
+      "text": "Surfaces are now lit in linear light and the frame is encoded for the screen, as a camera's would be: the planets come out at their measured albedos (Mercury and Mars no longer a magnitude and half a magnitude too bright), their colours no longer over-saturated, and labels and lines show their true colours.  The naked-eye star field is calibrated as before.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 374,
+          "url": "https://github.com/celestiary/web/pull/374"
+        }
+      ],
+      "epic": {
+        "number": 109,
+        "title": "Physically based light and exposure",
+        "url": "https://github.com/celestiary/web/issues/109"
+      },
+      "permalink": "#saturn",
+      "image": null,
+      "kind": "fix"
+    },
+    {
       "id": "2026-11-20-the-sun-as-soho-and-sdo-show-it-flares",
       "date": "2026-11-20",
       "headline": "The Sun as SOHO and SDO show it: flares, eruptions and the corona",

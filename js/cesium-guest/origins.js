@@ -109,9 +109,11 @@ export const DEFAULT_GUEST_PAGE = (typeof __CESIUM_GUEST_PAGE__ === 'string' && 
  * 1, #309 and #310, Earth only; 2, the night lights' part, New York and
  * the landing height (design/CesiumGuest.md, phase 4); 3, the lights part
  * named 'emission' (was 'lights'; the host takes both) and the frame-end's
- * screen targets, view and projection, for the host's reprojection.
+ * screen targets, view and projection, for the host's reprojection; 4, a
+ * globe's frames sRGB-encoded linear light, its imagery decoded before it is
+ * lit (HDR.md, "Colour spaces"), where they were stored values, unencoded.
  */
-export const GUEST_VERSION = 3
+export const GUEST_VERSION = 4
 
 
 /**

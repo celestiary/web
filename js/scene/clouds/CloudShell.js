@@ -11,7 +11,7 @@ import {
 } from 'three'
 import {irradianceAt} from '../exposure.js'
 import {CLOUD_LAYER} from '../../shared.js'
-import {CLOUD_WHITE} from './cloudSource.js'
+import {CLOUD_ALBEDO} from './cloudSource.js'
 import {creditGibs} from '../gibs.js'
 import {followCredit} from '../../credits.js'
 
@@ -222,8 +222,9 @@ export function newCloudShell(groundRadius, cloudMap, {ready = () => true, volum
     const sunDistance = sun.length()
     u.uSun.value.copy(sun).normalize()
     // A white cloud's radiance in three's units (Lambert: E·albedo/π), for
-    // the renderer's exposure to scale as it does the lit surface.
-    u.uRadiance.value = sunDistance > 0 ? CLOUD_WHITE * irradianceAt(sunDistance) / Math.PI : 0
+    // the renderer's exposure to scale as it does the lit surface: its
+    // albedo in linear light, as the ground under it (cloudSource.js).
+    u.uRadiance.value = sunDistance > 0 ? CLOUD_ALBEDO * irradianceAt(sunDistance) / Math.PI : 0
     const readiness = volume ? volume.readiness() : 0
     u.uOpacity.value = shellOpacity(eye.length() - groundRadius, readiness) * cloudMap.gain()
     if (cloudMap.fromGibs && !gibsDrawn) {

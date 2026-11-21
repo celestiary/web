@@ -1,6 +1,7 @@
 import {
   BufferGeometry,
   CanvasTexture,
+  SRGBColorSpace,
   Color,
   Float32BufferAttribute,
   Group,
@@ -238,6 +239,7 @@ uniform vec3  uColor;
 uniform float uOpacity;
 void main() {
   gl_FragColor = vec4(uColor, uOpacity);
+  #include <colorspace_fragment>
 }
 `
 
@@ -804,6 +806,8 @@ function buildLabelsPoints(items, color) {
   geom.setAttribute('aVisible', new Float32BufferAttribute(visibles, 1))
 
   const tex = new CanvasTexture(canvas)
+  // CSS colours, sRGB: decoded on sampling (HDR.md, "Colour spaces").
+  tex.colorSpace = SRGBColorSpace
   tex.minFilter = LinearFilter
   tex.magFilter = LinearFilter
   tex.needsUpdate = true
@@ -863,5 +867,6 @@ void main() {
     vSpriteCoord.x + vSpriteCoord.z * gl_PointCoord.x,
     vSpriteCoord.y + vSpriteCoord.w * (1.0 - gl_PointCoord.y));
   gl_FragColor = texture2D(map, uv);
+  #include <colorspace_fragment>
 }
 `

@@ -20,6 +20,17 @@ describe('Cesium patches', () => {
     expect(read('Source/Scene/Globe.js')).toContain('this.dayNightLambertDiffuseMultiplier = 5.0')
   })
 
+  it('decodes a globe\'s sRGB imagery before lighting it, and encodes the lit colour (celestiary/globe-imagery-srgb)', () => {
+    const fs = read('Source/Shaders/GlobeFS.js')
+    expect(fs).toContain('uniform float u_imagerySrgb;')
+    expect(fs).toContain('color = mix(color, imagerySrgbToLinear(color), u_imagerySrgb);')
+    expect(fs).toContain('finalColor.rgb = mix(finalColor.rgb, imageryLinearToSrgb(finalColor.rgb), u_imagerySrgb);')
+    // sRGB's own curves, not Cesium's 2.2 power.
+    expect(fs).toContain('step(0.04045, c)')
+    expect(read('Source/Scene/Globe.js')).toContain('this.imagerySrgb = false')
+    expect(read('Source/Scene/GlobeSurfaceTileProvider.js')).toContain('u_imagerySrgb: function ()')
+  })
+
   it('has the external render pass (celestiary/external-render-pass)', () => {
     const scene = read('Source/Scene/Scene.js')
     expect(scene).toContain('this._externalRenderers = new ExternalRendererCollection()')

@@ -4,6 +4,7 @@ import {
   LinearSRGBColorSpace,
   MeshPhongMaterial,
   Object3D,
+  SRGBColorSpace,
   Texture,
   Vector3,
 } from 'three'
@@ -351,12 +352,13 @@ export default class Planet extends Object {
     if (!mean) {
       return
     }
-    // The brighter of the colour map's mean and the body's albedo: where a
-    // map's stretch is brighter than the body (Mars's 0.39 against 0.15),
-    // the disc drawn is the map's; where the disc has light the map hasn't
-    // (Earth's sky over its 0.16 ground), its albedo (0.37) is nearer.
+    // The brighter of the colour map's mean (linear, times its gain) and the
+    // body's albedo: where the map is brighter than the descriptor's albedo
+    // (Mars's 0.26 against 0.15), the disc drawn is the map's; where the disc
+    // has light the map hasn't (Earth's sky over its 0.09 ground), its
+    // albedo (0.37) is nearer.
     const mapLuma = ((0.2126 * mean[0]) + (0.7152 * mean[1]) + (0.0722 * mean[2])) * (this.props.texture_gain ?? 1)
-    const storedLuma = Math.max(mapLuma, this.props.albedo ?? 0)
+    const meanAlbedo = Math.max(mapLuma, this.props.albedo ?? 0)
     const radius = this.props.radius.scalar
     const marker = isMoon ? MOON_POINT_LEVEL : 1
     const size = farPoint.material.size
@@ -387,7 +389,7 @@ export default class Planet extends Object {
       const level = farPointLevel({
         marker,
         radiusPx,
-        value: discMeanValue(storedLuma, renderer.toneMappingExposure / exposureAt(fromSun), phase),
+        value: discMeanValue(meanAlbedo, renderer.toneMappingExposure / exposureAt(fromSun), phase),
         ratio: handoffRatio(distance, radius, camera),
         pointPx: size * pixelRatio,
       })
@@ -452,15 +454,20 @@ export default class Planet extends Object {
     // body's many maps (terrain, hydro, atmos, night…) organized.
     const texDir = this.props.texture_dir || ''
     const monthly = this.props.texture_monthly
+    // The colour map's encoding (HDR.md, "Colour spaces"): a picture's sRGB,
+    // decoded by the GPU on each sample, or the Moon's linear stretch of I/F.
+    const colorSpace = Material.colorMapSpace(this.props)
     const surfaceMaterial = Material.cacheMaterial(
-        this.name, undefined, texDir, monthly ? this.monthlyMap(monthly) : undefined)
+        this.name, undefined, texDir, monthly ? this.monthlyMap(monthly) : undefined, colorSpace)
     // Rock and cloud aren't metallic, and metalness takes from the diffuse
     // light that exposure.js calibrates against.  Oceans' shine comes from
     // the hydrosphere metalness map, which scales this.
     surfaceMaterial.metalness = this.props.texture_hydrosphere ? 0.2 : 0
     surfaceMaterial.roughness = 0.8
-    // The colour map's stored values to the body's albedo (Planet.md): the
-    // Moon's, a linear stretch of I/F, to its normal albedo.
+    // The colour map's linear values to the body's albedo (Planet.md,
+    // "Albedo"): a picture's level is its maker's choice, so the gain puts
+    // the decoded map's mean at the body's measured geometric albedo; the
+    // Moon's, a linear stretch of I/F, at its normal albedo.
     surfaceMaterial.color.setScalar(this.props.texture_gain ?? 1)
     const lunar = this.props.photometry === 'lunar'
     if (lunar) {
@@ -523,7 +530,10 @@ export default class Planet extends Object {
       // public/textures/<name>_night.jpg — public domain at
       // https://earthobservatory.nasa.gov/features/NightLights.  Without
       // the file the load fails silently and the night-side stays dark.
-      const nightTex = Material.pathTexture(`${texDir}${this.name}_night`)
+      // A picture, sRGB-encoded like the day side's (Planet.md, "Brightness"):
+      // decoded, so its full white is NIGHT_LIGHT_RADIANCE and its dimmer
+      // texels are their linear share of it.
+      const nightTex = Material.pathTexture(`${texDir}${this.name}_night`, undefined, SRGBColorSpace)
       // Shared uniform: written by the surface mesh's onBeforeRender each
       // frame, read by the patched fragment shader.  Same Vector3 ref so
       // the GLSL sees live values without re-binding.
@@ -580,7 +590,8 @@ export default class Planet extends Object {
     // is drawn from the first frame it's wanted, as bright as it will be,
     // on the way there and on arriving; the real maps take their place as
     // they come in.
-    const swapInMaps = standInMaps(surfaceMaterial, {map: textureMean(this.name), normalMap: FLAT_NORMAL})
+    const swapInMaps = standInMaps(surfaceMaterial, {map: textureMean(this.name), normalMap: FLAT_NORMAL},
+        {map: colorSpace})
     // Last: a disc a few pixels across, antialiased and shaded as the
     // sphere (smallDisc.js; Planet.md, "Small discs"), its coverage over
     // whatever the mods above added.

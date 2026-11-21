@@ -3,7 +3,6 @@ import {
   Color,
   DoubleSide,
   Group,
-  LinearSRGBColorSpace,
   Mesh,
   Matrix4,
   Quaternion,
@@ -274,7 +273,7 @@ export default class OrbitDiagram extends Group {
         material: p.xray ? {depthTest: false} : {},
       })
       if (screen) {
-        strip.material.uniforms.uOverride.value.set(...new Color().setHex(p.color, LinearSRGBColorSpace).toArray(), 1)
+        strip.material.uniforms.uOverride.value.set(...new Color(p.color).toArray(), 1)
       }
       this.parts[name] = strip
       this.add(strip)

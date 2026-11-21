@@ -37,6 +37,7 @@ import {clampEv, renderExposure} from './scene/evCompensation.js'
 import {clampStarMag} from './scene/starMagnitude.js'
 import {NAKED_EYE, clampField, instrumentFieldRange, instrumentStarGain} from './scene/observer/instrument.js'
 import {extendedGain, s10Value} from './scene/eye.js'
+import {SCREEN_STEP, sceneOfScreen} from './scene/screen.js'
 import {STORE_SCALE} from './scene/galaxyModel.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
 import {AIRGLOW_COLOR, ZODIACAL_STORE, airglowOf, zodiacalBrightest} from './scene/nightSky.js'
@@ -70,14 +71,14 @@ const AIRGLOW_MAX_RADII = 20
 // bulge face-on from outside is 6e-8, the band from inside 2e-8; with room
 // (_updateNightSkyShown).
 const GALAXY_BRIGHTEST = 1e-6
-// Half a display step through the tone map's toe, in exposure units: under
-// it the night sky's light isn't drawn (_updateNightSkyShown).
-const NIGHT_SKY_SKIP_VALUE = Math.sqrt(0.5 / 255 / 6.25)
+// Half a step of the screen, in exposure units (through the tone map and
+// sRGB's encoding: 0.0049; 0.018 through the tone map alone, before the
+// screen was encoded): under it the night sky's light isn't drawn
+// (_updateNightSkyShown).
+const NIGHT_SKY_SKIP_VALUE = sceneOfScreen(0.5 * SCREEN_STEP)
 // Under a frame cap, a frame this early is still drawn, ms: the display's
 // intervals jitter, and a 60 Hz frame at 33.2 ms shouldn't wait for 50.
 const FRAME_CAP_SLACK_MS = 2
-/** While the colour textures are decoded (setTextureDecode), how often maps loaded since are, in frames. */
-const DECODE_EVERY_FRAMES = 30
 // A hidden canvas's opacity: under a display step (0.001 of 255 rounds to
 // 0), but not 0, which a compositor may take as not drawn at all, and then
 // the exposure meter's reads, fenced on the GPU, may not finish until it
@@ -148,16 +149,10 @@ export default class ThreeUi {
     if (toneMapParam && toneMapParam !== 'neutral') {
       this.setToneMap(toneMapParam)
     }
-    // And the output colour space: stored values, or `?colorspace=srgb`.
-    if (params.get('colorspace') === 'srgb') {
-      this.setOutputColorSpace(SRGBColorSpace)
-    }
-    // And the colour textures decoded from sRGB, `?decode=1` (perf/textureDecode.js).
-    this.textureDecode = false
-    this._textureDecoder = null
-    this._decodeFrames = 0
-    if (params.get('decode') === '1') {
-      this.setTextureDecode(true)
+    // And the output colour space: sRGB, or `?colorspace=linear` to see the
+    // frame unencoded, for diagnosis.
+    if (params.get('colorspace') === 'linear') {
+      this.setOutputColorSpace(LinearSRGBColorSpace)
     }
     // And a sky gain in place of the body's (`?skygain=4.71`, the physical;
     // the performance panel's; composition.md, "Per-body data").
@@ -450,7 +445,10 @@ export default class ThreeUi {
     // As for a body 1 AU from the Sun until one is targeted; see
     // _updateExposure.
     renderer.toneMappingExposure = exposureAt(ASTRO_UNIT_METER)
-    renderer.outputColorSpace = LinearSRGBColorSpace
+    // sRGB to the screen (HDR.md, "Colour spaces"): the atmosphere pass
+    // encodes the frame itself (its encodeOut), and three's materials drawn
+    // to the screen after it (the overlay pass) by three's colorspace_fragment.
+    renderer.outputColorSpace = SRGBColorSpace
     this.width = this.container.offsetWidth
     this.height = this.container.offsetHeight
     renderer.setClearColor(backgroundColor, 1)
@@ -762,10 +760,6 @@ export default class ThreeUi {
     }
     perf.frameEnd()
     this._frameStats?.end()
-    if (this.textureDecode && this._textureDecoder && (++this._decodeFrames % DECODE_EVERY_FRAMES) === 0) {
-      this._textureDecoder.setTextureDecode(this.scene, true)
-      this._textureDecoder.setCesiumDecode(this.layers, true)
-    }
     this._frameRenderPanel?.frameEnd()
   }
 
@@ -895,12 +889,12 @@ export default class ThreeUi {
 
 
   /**
-   * Set the output colour space, for diagnosis.  The app's is
-   * LinearSRGBColorSpace: stored values go to the screen as they are
-   * (HDR.md, "Colour spaces").  SRGBColorSpace encodes them to sRGB: the
-   * atmosphere pass in its screenOut, and three's materials drawn to the
-   * screen (the overlay pass) by three's own colorspace_fragment.  Textures
-   * are still not decoded, so this alone brightens and flattens the frame.
+   * Set the output colour space.  The app's is SRGBColorSpace (HDR.md,
+   * "Colour spaces"): the atmosphere pass encodes the tone map's linear
+   * values (its encodeOut), and three's materials drawn to the screen (the
+   * overlay pass) are encoded by three's colorspace_fragment.
+   * LinearSRGBColorSpace, for diagnosis, writes them unencoded: darker and
+   * more contrasty, as the frame was before the pipeline was colour-managed.
    *
    * @param {string} space SRGBColorSpace or LinearSRGBColorSpace; another is ignored
    * @returns {string} The output colour space now
@@ -911,27 +905,6 @@ export default class ThreeUi {
       this._atmMesh.material.uniforms.uSrgbOut.value = space === SRGBColorSpace ? 1 : 0
     }
     return this.renderer.outputColorSpace
-  }
-
-
-  /**
-   * Decode the bodies' colour textures from sRGB, or stop, for diagnosis
-   * (perf/textureDecode.js, loaded with the first ask): celestiary's own
-   * colour maps by their colour space, Cesium's imagery by its gamma.  While on, renderLoop
-   * applies it again every DECODE_EVERY_FRAMES, for maps that load later.
-   *
-   * @param {boolean} on
-   * @returns {Promise<boolean>} Whether decoding is on, once applied
-   */
-  async setTextureDecode(on) {
-    this.textureDecode = on
-    if (!on && !this._textureDecoder) {
-      return false
-    }
-    this._textureDecoder ??= await import('./perf/textureDecode.js')
-    this._textureDecoder.setTextureDecode(this.scene, this.textureDecode)
-    this._textureDecoder.setCesiumDecode(this.layers, this.textureDecode)
-    return this.textureDecode
   }
 
 
@@ -970,8 +943,6 @@ export default class ThreeUi {
           doc: document, renderer: this.renderer, hdr: this.hdr, toneMap: this.toneMap,
           onToneMap: (key) => this.setToneMap(key),
           onColorSpace: (space) => this.setOutputColorSpace(space),
-          decode: this.textureDecode,
-          onDecode: (on) => this.setTextureDecode(on),
           skyGain: this.skyGainOverride,
           onSkyGain: (gain) => this.setSkyGain(gain),
         })
@@ -1571,8 +1542,9 @@ export default class ThreeUi {
    * Whether the night sky's light can show in this frame (HDR.md, "Cost:
    * by day, and with time running"): its brightest, the galaxy's bulge, the
    * zodiacal light by the Sun and airglow at the horizon, at this exposure
-   * and the eye's response to it, against half a display step.  By day it
-   * is 14 times under, and it stays under through most of civil twilight,
+   * and the eye's response to it, against half a step of the screen.  By
+   * day it is 4 times under (14 before the screen was encoded), and it
+   * stays under to a gain of about 4, early in civil twilight,
    * so the galaxy's march and the zodiacal light's cache aren't run and the
    * pass draws none of it (the user's 18 FPS looking at the Sun from the
    * ground with time running: the sky turned, so the march ran every frame

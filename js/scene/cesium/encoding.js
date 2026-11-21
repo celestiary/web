@@ -3,7 +3,8 @@
  * 8-bit buffers (CESIUM.md, "Precision: a log encoding, and the Moon's
  * earthshine").
  *
- * A body's frame is its imagery's stored value × its light, 0 to 1, and
+ * A body's frame is its imagery's albedo (Mars's decoded from sRGB, the
+ * Moon's linear map as stored) × its light, 0 to 1, and
  * Cesium writes it to an 8-bit buffer (UNSIGNED_BYTE: its globe-depth
  * framebuffer with highDynamicRange off).  Linear, the dark side and the
  * terminator's last degrees of Sun got a few codes: the Moon's night side at

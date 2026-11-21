@@ -103,7 +103,11 @@ export const STATIC_BUDGET = {
   // (ui/Palette.jsx), not in Style.jsx (the page's entry): importing the
   // theme from either had split it into a file of its own.  Folding the
   // off-palette colours into the palette will take some of it back.
-  totalMinifiedKB: 2483,
+  // 2,484 with the screen's calibration (js/scene/screen.js; HDR.md,
+  // "Calibrated on the screen"): the dark gain, the night sky's gain and
+  // its skip derived from their screen values through the tone map and
+  // sRGB's encoding, 0.5 KB.
+  totalMinifiedKB: 2484,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,

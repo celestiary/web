@@ -250,18 +250,19 @@ export function lambertPhase(phaseAngle) {
 
 /**
  * A sunlit body's mean value over its disc, in exposure units: its colour
- * map's mean stored value lit as a Lambert sphere (2/3 of the subsolar
+ * map's mean albedo (its mean in linear light, textureMeans.json, times its
+ * texture_gain) lit as a Lambert sphere (2/3 of the subsolar
  * value at full phase, times lambertPhase), at the exposure the frame
  * renders with over the body's own keyed one.
  *
- * @param {number} storedLuma Its colour map's mean, luma, times texture_gain
+ * @param {number} meanAlbedo Its colour map's mean, linear luma, times texture_gain
  * @param {number} exposureOverKeyed toneMappingExposure over exposureAt the
  *   body's distance from the Sun
  * @param {number} phaseAngle Radians
  * @returns {number}
  */
-export function discMeanValue(storedLuma, exposureOverKeyed, phaseAngle) {
-  return storedLuma * DISPLAY_GAIN * exposureOverKeyed * (2 / 3) * lambertPhase(phaseAngle)
+export function discMeanValue(meanAlbedo, exposureOverKeyed, phaseAngle) {
+  return meanAlbedo * DISPLAY_GAIN * exposureOverKeyed * (2 / 3) * lambertPhase(phaseAngle)
 }
 
 

@@ -38,18 +38,26 @@ const RING_PHASE_NORM = 2 / ((Math.PI ** 3) - (6 * Math.PI))
 
 /**
  * The single-scattering albedo ϖ of a ring texel per unit of its colour
- * map's stored value.  Calibrated against the rings' integrated light:
- * Mallama & Hilton's (2018, Astronomy and Computing 25, 10) magnitude law
- * for Saturn, the one JPL Horizons uses, adds −1.825·sin B mag for the
- * rings at ring opening B, away from opposition (its opposition-surge term,
- * −0.378·sin B·e^(−2.25α), isn't modelled here).  Fitted at B = 26.6°
- * (2017 June 15, opposition), where the rings add 1.046 times the globe's
- * light; at B = 7.4° (2026 October 6) the render's rings then add 0.229 mag
- * against the law's 0.189 (0.211 with the surge).  The B ring's band of the
- * map (median stored value 0.55) comes out at ϖ ≈ 0.5, inside Cuzzi et
- * al.'s 0.4-0.6 for B ring particles (rings.md, "Lighting").
+ * map's linear value (the picture's sRGB decoded: HDR.md, "Colour spaces"),
+ * held to ϖ ≤ 1 (rings-frag.js).  Calibrated against the rings' integrated
+ * light: Mallama & Hilton's (2018, Astronomy and Computing 25, 10)
+ * magnitude law for Saturn, the one JPL Horizons uses, adds −1.825·sin B
+ * mag for the rings at ring opening B, away from opposition (its
+ * opposition-surge term, −0.378·sin B·e^(−2.25α), isn't modelled here).
+ * Fitted at B = 26.6° (2017 June 15, opposition), where the rings add 1.046
+ * times the globe's light: 0.914 on the map's stored values, as rendered
+ * then.  On its decoded values the same integrated light takes 1.58 (the
+ * map's luma summed over the rings at that view, each radius weighted by
+ * its slab factor and its area, equal to within 0.01%; rings.md,
+ * "Lighting"), and 24% of the map's radii then reach the cap, its bright
+ * band at the C ring's radii (rings.md, "Known limits").  At B = 7.4° (2026
+ * October 6) the same sum is 0.986 of the stored values', so the rings'
+ * 0.229 mag there becomes 0.226, against the law's 0.189 (0.211 with the
+ * surge).  The B ring's band of the map (median 0.55 stored, 0.267 decoded)
+ * comes out at ϖ ≈ 0.42, inside Cuzzi et al.'s 0.4-0.6 for B ring
+ * particles.
  */
-export const RING_ALBEDO_SCALE = 0.914
+export const RING_ALBEDO_SCALE = 1.58
 
 
 /**

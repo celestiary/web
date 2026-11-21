@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""Each planet's and moon's colour map's mean stored value, for the colour a
-surface shows while its map loads (js/scene/textureMeans.json; Planet.js
-nearShape; js/scene/Planet.md, "While the map loads").
+"""Each planet's and moon's colour map's mean, in linear light, for the colour
+a surface shows while its map loads (js/scene/textureMeans.json; Planet.js
+nearShape; js/scene/Planet.md, "While the maps load"), and for the far
+point's hand-off and the albedo calibration (Planet.md, "Albedo").
 
-The mean is over the sphere, each texel weighted by its area (cos lat), in
-stored values (the 8-bit value over 255, which celestiary lights as linear:
-js/scene/HDR.md, "Colour spaces"), per channel.  So a surface drawn in it
-is lit to the light the textured one gives, on average.
+The mean is over the sphere, each texel weighted by its area (cos lat), per
+channel, of the values a shader samples (js/scene/HDR.md, "Colour spaces"):
+for a picture, sRGB-encoded, each texel decoded first (the mean of the
+decoded values, which isn't the decode of the mean); for a map whose
+descriptor says `texture_encoding: "linear"` (the Moon's linear stretch of
+I/F), the stored value over 255.  So a surface drawn in it is lit to the
+light the textured one gives, on average.
 
 Usage: tools/textureMeans.py > js/scene/textureMeans.json
 Run from the repository root.  Needs Pillow and NumPy.  A body whose map
@@ -28,8 +32,15 @@ def texture_path(props):
     return f'public/textures/{props.get("texture_dir", "")}{name}.jpg'
 
 
-def mean_rgb(path):
+def srgb_decode(v):
+    """IEC 61966-2-1's decode, as the GPU's SRGB8_ALPHA8 sampling does."""
+    return np.where(v <= 0.04045, v / 12.92, ((v + 0.055) / 1.055) ** 2.4)
+
+
+def mean_rgb(path, encoding='srgb'):
     im = np.asarray(Image.open(path).convert('RGB')).astype(float) / 255
+    if encoding != 'linear':
+        im = srgb_decode(im)
     h = im.shape[0]
     lat = np.radians(90 - ((np.arange(h) + 0.5) / h * 180))
     weight = np.cos(lat)[:, None]
@@ -51,7 +62,7 @@ def main():
             continue
         tex = texture_path(props)
         if os.path.exists(tex) and props['name'] not in means:
-            means[props['name']] = mean_rgb(tex)
+            means[props['name']] = mean_rgb(tex, props.get('texture_encoding', 'srgb'))
     json.dump(dict(sorted(means.items())), sys.stdout, indent=2)
     sys.stdout.write('\n')
 

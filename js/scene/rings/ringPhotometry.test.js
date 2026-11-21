@@ -7,6 +7,7 @@ import {
   ringSlabFactor,
   ringTau,
 } from './ringPhotometry.js'
+import {srgbDecode} from '../srgb.js'
 import {FRAG} from './rings-frag.js'
 
 
@@ -63,13 +64,20 @@ describe('the slab', () => {
   })
 
   it('takes albedos within the ring particles\' measured range from its colour map', () => {
-    // The map's stored values reach 1; the B ring's band has a median of
-    // 0.55 (rings.md), so its particles' albedo is about 0.5, Cuzzi et al.'s
-    // 0.4-0.6 for the B ring.
-    expect(RING_ALBEDO_SCALE).toBeGreaterThan(0.4)
-    expect(RING_ALBEDO_SCALE).toBeLessThan(1)
-    expect(RING_ALBEDO_SCALE * 0.55).toBeGreaterThan(0.4)
-    expect(RING_ALBEDO_SCALE * 0.55).toBeLessThan(0.6)
+    // The map is a picture, decoded from sRGB: the B ring's band has a
+    // median of 0.55 stored, 0.267 decoded (rings.md), so its particles'
+    // albedo is about 0.42, inside Cuzzi et al.'s 0.4-0.6 for the B ring.
+    expect(srgbDecode(0.55)).toBeCloseTo(0.263, 3)
+    expect(RING_ALBEDO_SCALE * 0.267).toBeGreaterThan(0.4)
+    expect(RING_ALBEDO_SCALE * 0.267).toBeLessThan(0.6)
+    // The stored-value fit, 0.914, scaled by the map's stored over decoded
+    // light at the fit's view (1.66), and a little more for the cap.
+    expect(RING_ALBEDO_SCALE).toBeGreaterThan(0.914 * 1.66)
+    expect(RING_ALBEDO_SCALE).toBeLessThan(0.914 * 1.8)
+  })
+
+  it('holds the particles\' albedo to 1, and decodes its colour map', () => {
+    expect(FRAG).toContain('min(uAlbedoScale * texture2D(uColorMap, vUv).rgb, vec3(1.0))')
   })
 })
 

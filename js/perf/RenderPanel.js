@@ -34,8 +34,8 @@ export const TONE_MAPS = [
 
 /** The output colour spaces the panel offers: three's values. */
 export const OUTPUT_COLOR_SPACES = [
-  {value: 'srgb-linear', label: 'LinearSRGBColorSpace (default)', title: 'Stored values to the screen as they are'},
-  {value: 'srgb', label: 'SRGBColorSpace', title: 'Encoded to sRGB on the way to the screen'},
+  {value: 'srgb', label: 'SRGBColorSpace (default)', title: 'Encoded to sRGB on the way to the screen'},
+  {value: 'srgb-linear', label: 'LinearSRGBColorSpace', title: 'Linear values to the screen unencoded: darker, for diagnosis'},
 ]
 
 
@@ -149,15 +149,13 @@ export default class RenderPanel {
    * @param {string} p.toneMap The final tone map's key to start with
    * @param {function(string): void} p.onToneMap Called with a key on a change
    * @param {function(string): void} [p.onColorSpace] Called with 'srgb' or 'srgb-linear' on a change
-   * @param {boolean} [p.decode] Whether the colour textures are decoded to start with
-   * @param {function(boolean): void} [p.onDecode] Called on a change
    * @param {number|null} [p.skyGain] The sky gain in place of the body's, or null
    * @param {function(string): void} [p.onSkyGain] Called with the field's text on a change ('' for the body's)
    * @param {function(): number} [p.now] Milliseconds
    */
   constructor({
-    doc, renderer, hdr, toneMap, onToneMap, onColorSpace = () => undefined, decode = false,
-    onDecode = () => undefined, skyGain = null, onSkyGain = () => undefined, now = () => performance.now(),
+    doc, renderer, hdr, toneMap, onToneMap, onColorSpace = () => undefined,
+    skyGain = null, onSkyGain = () => undefined, now = () => performance.now(),
   }) {
     this.doc = doc
     this.renderer = renderer
@@ -194,9 +192,9 @@ export default class RenderPanel {
     })
     const spaceRow = this._select({
       text: 'Output', testId: 'render-info-colorspace', value: renderer.outputColorSpace,
-      title: 'The renderer\'s output colour space.  Linear (the app\'s): stored values to the screen as they ' +
-        'are.  sRGB: the atmosphere pass and three\'s materials drawn to the screen encode to sRGB; textures ' +
-        'are still not decoded (HDR.md, "Colour spaces")',
+      title: 'The renderer\'s output colour space.  sRGB (the app\'s): the atmosphere pass and three\'s ' +
+        'materials drawn to the screen encode to sRGB, as the colour maps are decoded from it.  Linear, for ' +
+        'diagnosis: the frame unencoded (HDR.md, "Colour spaces")',
       options: OUTPUT_COLOR_SPACES,
       onChange: (space) => onColorSpace(space),
     })
@@ -204,18 +202,6 @@ export default class RenderPanel {
     const caps = el('details')
     caps.append(el('summary', {textContent: 'Capabilities'}, {color: '#8ac', cursor: 'pointer'}))
     caps.append(this._table(capabilityRows(renderer.capabilities)))
-    const decodeRow = el('label', {
-      title: 'Decode the bodies\' colour maps from sRGB (texture.colorSpace = SRGBColorSpace), so surfaces are lit ' +
-        'in linear light, and Cesium\'s imagery by gamma 1/2.2; with Output at sRGB, the colour-managed ' +
-        'pipeline (js/perf/textureDecode.js)',
-    }, {display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '4px', cursor: 'pointer'})
-    const decodeBox = el('input', {type: 'checkbox', checked: decode}, {margin: '0'})
-    decodeBox.setAttribute('data-testid', 'render-info-decode')
-    decodeBox.addEventListener('change', () => {
-      onDecode(decodeBox.checked)
-      decodeBox.blur()
-    })
-    decodeRow.append(decodeBox, el('span', {textContent: 'decode colour textures (sRGB)'}))
     const gainRow = el('label', {
       title: 'The sky\'s gain in place of its body\'s data (Earth\'s 21, about 4.5 times the physical 4.71, ' +
         'standing in for aerosols; js/scene/atmos/composition.md, "Per-body data").  Empty: the body\'s.',
@@ -238,7 +224,7 @@ export default class RenderPanel {
       reset.blur()
     })
     gainRow.append(el('span', {textContent: 'Sky gain'}, {color: '#8ac', width: '4.5em'}), gainBox, physical, reset)
-    this.root.append(toneMapRow, spaceRow, decodeRow, gainRow, this.info, caps)
+    this.root.append(toneMapRow, spaceRow, gainRow, this.info, caps)
   }
 
 

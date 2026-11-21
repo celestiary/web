@@ -657,21 +657,22 @@ export const GALAXY_GAIN_MAX = 1e10
 export const METER_KEY = 0.3
 /**
  * The most the metered exposure rises over the target-keyed one: the
- * dark-adapted eye's gain (observer/instrument.js EYE_DARK_GAIN), 4e6
+ * dark-adapted eye's gain (observer/instrument.js EYE_DARK_GAIN), 1.13e6
  * over Earth's keyed exposure wherever the camera is (meteredGain).
  */
 export const METER_GAIN_MAX = EYE_DARK_GAIN
 /**
  * Pixels darker than this, in exposure units, count as this: METER_KEY
- * over the dark-adapted gain, 7.5e-8, so black asks for that gain and not
- * infinity.  It shows a scene of 8e-3 cd/m² (a sunlit white is 3e4) as a
+ * over the dark-adapted gain, 2.7e-7, so black asks for that gain and not
+ * infinity.  It shows a scene of 2.8e-2 cd/m² (a sunlit white is 3e4) as a
  * sunlit one.  The eye adapts to 1e-6 cd/m², so this is well within its
  * range; the gain is set so that a star of magnitude 6.5, 2.9e-8 of a
- * sunlit white over the eye's patch, just shows, 0.12 in exposure units,
- * 12 of 255 through Neutral's toe (HDR.md, "Physical stars": the
- * naked-eye limit at a dark site).  At 1e-7, 3e6, the limit was magnitude
- * 6; at 3e-8, 1e7, magnitude 7.5: the toe makes the faint end steeper
- * than the light.
+ * sunlit white over the eye's patch, just shows, 0.034 in exposure units,
+ * 20 of 255 on the screen (observer/instrument.js LIMIT_SCREEN; HDR.md,
+ * "Physical stars": the naked-eye limit at a dark site).  Before the
+ * screen was encoded the gain was 4e6 and the floor 7.5e-8; at 1e-7, 3e6,
+ * the limit was magnitude 6; at 3e-8, 1e7, magnitude 7.5: the toe makes
+ * the faint end steeper than the light.
  */
 export const METER_FLOOR = METER_KEY / METER_GAIN_MAX
 /** The share of the frame whose luminance the highlight cap looks at. */
@@ -869,14 +870,14 @@ export function eyePatchRad(fovDegrees) {
 /**
  * The limiting magnitude at an exposure: the magnitude whose star shows
  * LIMIT_VALUE at this gain over Earth's keyed exposure (exposureRelative)
- * times the user's star gain.  6.5 at the dark-adapted gain; −10 at the
+ * times the user's star gain.  6.5 at the dark-adapted gain; −8.6 at the
  * keyed exposure by day, where only the Sun, the Moon and Venus pass.
  * Through a telescope's field the star's light lands in the eye's patch
  * over the magnification (eyePatchRad), or a pixel where a pixel is
  * coarser (pointSolidAngle), so the limit is deeper by 5·log10 of the
  * patch's shrinking: 10.2 magnitudes at #198's 0.44° view of HIP 46635,
  * where without the field (the default, 45°) it read −7.1 for a limit of
- * 3.1.
+ * 3.1 (4.5 since the screen is encoded and the dark gain lower).
  *
  * @param {number} gainOverKeyed The exposure over Earth's keyed one (exposureRelative)
  * @param {number} starGain
@@ -1089,7 +1090,12 @@ export const STAR_SIGMA_PER_PATCH = 0.25
 export const STAR_SIGMA_MIN_PX = 0.6
 /** A star's peak over its radiance on a screen whose patch is 3 px or more. */
 export const STAR_PEAK_OVER_RADIANCE = 1 / (2 * Math.PI * STAR_SIGMA_PER_PATCH * STAR_SIGMA_PER_PATCH)
-/** The quad holds the core out to where it falls under this, exposure units: a display step. */
+/**
+ * The quad holds the core out to where it falls under this, exposure
+ * units: a scene value under which nothing shows, a third of a screen step
+ * (screen.js screenOf: 0.33 of 255; a fortieth before the screen was
+ * encoded), so it rounds to black.
+ */
 export const STAR_VISIBLE_VALUE = 0.004
 /**
  * The quad's largest side, pixels (starsMaterial.js uMaxStarSizePx; held
@@ -1114,9 +1120,12 @@ export const STAR_POOL_RADIUS_DEG = EYE_POOL_RADIUS_DEG
  */
 export const STAR_CORE_SHARE = EYE_CORE_SHARE
 /**
- * The wing is drawn out to where it falls under this, exposure units: 2.5
- * of 255 on screen, and about the dark-adapted eye's own threshold for a
- * feature of 20-60′ over a dark sky (eye.js thresholdContrast, 0.3-0.5 of
- * the sky's 0.026 at the dark gain).  The core's floor is STAR_VISIBLE_VALUE.
+ * The wing is drawn out to where it falls under this, exposure units: about
+ * the dark-adapted eye's own threshold for a feature of 20-60′ over a dark
+ * sky (eye.js thresholdContrast, 0.3-0.5 of the sky's 0.0072 at the dark
+ * gain: 0.39 of it, a test holds), a threshold in the scene, so it moves
+ * with the dark gain: 0.01 at 4e6, before the screen was encoded.  On the
+ * screen alone 0.17 of 255 (screen.js screenOf), as 0.01 showed then.  The
+ * core's floor is STAR_VISIBLE_VALUE.
  */
-export const STAR_WING_FLOOR = 0.01
+export const STAR_WING_FLOOR = 0.0028

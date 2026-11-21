@@ -3,6 +3,7 @@ import {LIGHTYEAR_METER, overlay} from '../shared.js'
 import {pulseCycle} from './Colonization.js'
 import {ALWAYS, disposeWideLines, newWideLines} from './wideLines.js'
 import {sceneColors} from '../theme.js'
+import {decodeRgb} from './srgb.js'
 
 
 // Bright-to-dark along blue.  The first hop (e.g. Alpha Centauri) is near
@@ -35,7 +36,7 @@ const PATH_RENDER_ORDER = 10
 /**
  * @param {number} hop 1-based hop number
  * @param {number} maxHop Longest path in hops
- * @returns {Array<number>} rgb display values, one step per hop
+ * @returns {Array<number>} rgb sRGB values (as CSS takes them; decoded for the lines), one step per hop
  */
 export function hopColor(hop, maxHop) {
   const t = maxHop > 1 ? (hop - 1) / (maxHop - 1) : 0
@@ -101,7 +102,7 @@ export default class ColonizationLines extends Object3D {
       from[k] = spread.parent[i]
       to[k] = i
       hop[k] = spread.hop[i]
-      color.set(hopColor(spread.hop[i], spread.maxHop), 3 * k)
+      color.set(decodeRgb(hopColor(spread.hop[i], spread.maxHop)), 3 * k)
       times[2 * k] = spread.departYears[i]
       times[(2 * k) + 1] = spread.arriveYears[i]
     }
@@ -137,7 +138,7 @@ export default class ColonizationLines extends Object3D {
     const n = path.length - 1
     const color = new Float32Array(n * 3)
     for (let k = 0; k < n; k++) {
-      color.set(PATH_COLOR, 3 * k)
+      color.set(decodeRgb(PATH_COLOR), 3 * k)
     }
     const mesh = newWideLines({
       ...endpoints(Int32Array.from(path.slice(0, -1)), Int32Array.from(path.slice(1)), pos),

@@ -82,16 +82,30 @@ a scale calibrated by eye, `NIGHT_LIGHT_RADIANCE` in `exposure.js`: 3e-5 of
 a sunlit white (1 cd/m², a city core seen from above, against ~3e4 cd/m² for
 the white), so 4.5e-5 of the buffer at the keyed exposure, invisible beside
 a day side, and under the night side's metered gain (up to 4e6) the cities
-bright and the unlit ocean a dark blue.  The texel is used as stored, linearly
-(no sRGB decode, as every surface texture here is read).
+bright and the unlit ocean a dark blue.  The texel is decoded from sRGB, as
+the picture it is (`SRGBColorSpace`; HDR.md, [colour
+spaces](HDR.md#colour-spaces)), so the scale is the radiance of the
+brightest cities, whose full white decodes to 1 as it was stored, and a
+dimmer texel is its linear share of that: a suburb stored at 0.3 is 0.073
+of a core, where it was 0.3, a rural glow at 0.1 is 0.010.  That is the
+direction the real range goes (the day-night band's radiance falls two to
+three decades from a city's core to its countryside, where the picture's
+stretch compresses it into one), so `NIGHT_LIGHT_RADIANCE` keeps its
+calibration at the cores and was not changed; the faint land's floor of
+moonlit snow and airglow goes from 0.16-0.31 of the scale (Greenland's 42,
+48, 80 of 255) to 0.02-0.08.  Not re-checked by eye since: at night's gain
+the cities are as bright as they were, their outskirts and the floor
+darker.
 
-Both sides of the Cesium swap use the scale and the form.  Celestiary's
+Both sides of the Cesium swap use the scale, the decode and the form.  Celestiary's
 surface shader adds `texel × smoothstep(−0.05, 0.05, −N·L) × radiance`
 before the exposure multiply; Cesium's Earth adds the GIBS texel by the same
 band, the same radiance and the renderer's exposure, in a pass of its own
 (`CesiumLayers._drawNightLights`).  Over Europe at night from 4,000 km the
-two renders agree to 0.4% in the median pixel (R, G and B alike 1.00) and
-within 3% in the mean (`earth-night-europe`).
+two renders agreed to 0.4% in the median pixel (R, G and B alike 1.00) and
+within 3% in the mean (`earth-night-europe`), with both sides reading the
+texel as stored; both decode it now, the same way, which parity has yet
+to re-measure (CESIUM.md, [colour](../../CESIUM.md#colour-the-imagery-decoded)).
 
 ### City light per cell
 
@@ -117,9 +131,12 @@ js/scene/nightLights.json` from the repository root; 6 KB).
   China plain.  Summed down each 5° column, the Pacific from 155° E to
   130° W is nearly dark (Hawaii a few units), which is why the tour's
   fallback exists.
-- It is the texture's picture brightness, not radiance (above), so it ranks
-  places, which is all the tour asks of it.  Rebuild it if the texture
-  changes.
+- It is the texture's picture brightness in stored values, not radiance
+  (above), and stays so now that the surface decodes the texture: it ranks
+  places, which is all the tour asks of it, and its floor test is the
+  picture's.  Summed in decoded values the bright cores would weigh more
+  against their outskirts; rebuild it so if the tour should follow the
+  lights' radiance.  Rebuild it if the texture changes.
 
 ### Shader injection
 
@@ -239,10 +256,22 @@ month's Blue Marble, clear ocean unmixes to 0.05-0.15 (the mosaics' ocean is
 hazier than the Blue Marble's), clear land to about 0, and thick cloud to
 0.9-1.0.
 
-Because the clouds are unmixed against the very ground they are drawn over,
-cloud over ground in the scene buffer (`c × the lit cloud + (1 − c) × the lit
-ground`, both stored × Lambert) gives back the mosaic, in the same stored
-values as every surface (HDR.md, "Colour spaces").
+**The unmixing is a classification, in the pictures' stored values**, and
+stays there while the surfaces are lit in linear light (HDR.md, [colour
+spaces](HDR.md#colour-spaces)): it decides where cloud is and how much, and
+its thresholds were read off real days in stored values.  What is drawn is
+linear: the cloud shell lights a cloud top at `CLOUD_ALBEDO`, `CLOUD_WHITE`
+decoded, 0.83 (thick cloud tops measure 0.8-0.9), over the decoded ground.
+So a fully covered pixel shows the mosaic's thick cloud, and clear ground
+the Blue Marble, in the light they were photographed in.  Partial cover,
+`c × the lit cloud + (1 − c) × the lit ground` in linear light, is brighter
+than the mosaic's pixel decoded (light mixes linearly, the stored values
+don't), so thin cloud shows a little brighter than in the picture; the
+physically right unmix is in linear light, `c = (dec(O) − dec(G)) /
+(dec(W) − dec(G))`, which gives thin cloud less cover and would need
+`COVERAGE_CLEAR` and `COVERAGE_FULL` read again off the same two days (not
+done).  When the shell was lit at `CLOUD_WHITE` over the stored ground,
+cloud over ground gave back the mosaic exactly, in stored values.
 
 - **No data** is black (every channel 3 or under, of 255), and so are the
   two pixels round it (JPEG darkens a gap's edges, which would unmix as
@@ -566,8 +595,8 @@ at its albedo — a surface facing the Sun shows its texture's colour
 travel](HDR.md#travel)).  Over that keyed exposure a metered gain adapts to the frame
 ([HDR.md, metered exposure](HDR.md#metered-exposure)): 1 wherever a
 sunlit surface is in view, more at a low Sun, at twilight, at night and in
-deep space, less for the Sun's disc.  A body's `texture_gain` (e.g. the Moon's) scales its texture for
-both, where the source mosaic's stretch is darker than its albedo.  Looking at a far
+deep space, less for the Sun's disc.  A body's `texture_gain` scales its
+decoded colour map to its albedo, for both ([albedo](#albedo), below).  Looking at a far
 planet (targeting it) makes it the exposure target; the Sun and stars keep
 the last body's.  Surfaces are non-metallic (metalness 0) except where an
 ocean map adds shine.
@@ -640,8 +669,10 @@ background, over the exposure, in V by the Sun's irradiance at 1 AU in the
 same units (V −26.74), which is how the stars are scaled: a planet's
 magnitude against the star field.  Horizons is taken to the camera's
 distance (≤ 2e-4 mag; for the Moon, its phase law at the camera's phase).
-Luma is Rec. 709's of the stored values, lit as linear (HDR.md, [colour
-spaces](HDR.md#colour-spaces-stored-values)).
+Luma is Rec. 709's of the stored values, lit as linear: the table was
+measured before the colour maps were decoded (HDR.md, [colour
+spaces](HDR.md#colour-spaces)), and its renders are not re-measured;
+[albedo](#albedo), below, is what decoding and the gains do to it.
 
 | Body | r, AU | Phase | Horizons V | Before | After | After − Horizons | Lambert sphere at the texture's mean | Its albedo against the real one, mag | Lambert's phase law against the real one, mag |
 |---|---|---|---|---|---|---|---|---|---|
@@ -663,14 +694,14 @@ spaces](HDR.md#colour-spaces-stored-values)).
   few hundredths, Uranus +5.82, Neptune +8.04), so what's left against
   Horizons is each body's own photometry, not the light: before, the giants
   were 1.7 to 3.3 mag bright, now 0.04 to 0.32 faint.
-- **The texture's albedo**: a body's stored values are its albedo
+- **The texture's albedo** (then): a body's stored values were its albedo
   (Lambert's, so its geometric albedo is 2/3 of their mean), and the
   textures are pictures, stretched: Mercury's mean is 0.49, a geometric
   albedo of 0.33 where Mercury's is 0.13 (Mallama & Hilton 2018's V(1,0),
   as recalled, over its radius), so it is 1 mag bright; Mars 0.44 bright,
-  Neptune 0.38 dark, Jupiter 0.21.  The giants are within the ±0.3 the
-  textures' stretch allows.  The Moon has a `texture_gain` to its normal
-  albedo (below); the same for the others is a follow-up.
+  Neptune 0.38 dark, Jupiter 0.21.  Now each planet's decoded map has a
+  `texture_gain` to its geometric albedo ([albedo](#albedo)), so this column
+  is 0 by construction.
 - **The phase law**: Lambert's sphere loses 0.64 mag at Mercury's 65°
   where Mercury's regolith loses 2.07 (shadow-hiding, as the Moon's), and
   3.87 at Venus's 143° crescent where Venus's clouds, scattering forward,
@@ -695,6 +726,68 @@ spaces](HDR.md#colour-spaces-stored-values)).
   `sunIntensity`), out of reach of the falloff and the exposure.  They are
   lit in exposure units now, calibrated to the same law at B = 26.6°, and
   add 0.229 mag at this view ([rings.md](rings/rings.md#lighting-the-rings-in-exposure-units)).
+
+### Albedo
+
+The colour maps are pictures, and a picture's level is its maker's choice:
+decoded from sRGB (HDR.md, [colour spaces](HDR.md#colour-spaces)) a map has
+its body's colours and contrasts in linear light, but not its albedo.  A
+planet's `texture_gain` (its descriptor, `public/data/<dir>/index.json`)
+sets that: the gain that makes the decoded map's mean, lit as a Lambert
+sphere, the planet's measured geometric albedo, p = 2/3 × mean luma ×
+gain, the measured p the table's above (Mallama & Hilton 2018's V(1, 0)
+over the radius).  `standInMaps.test.js` checks each to 1%.
+
+| Body | Mean luma, stored | Decoded | p, decoded, no gain | Measured p | `texture_gain` | Before: the render's albedo against the real, mag | Predicted after − Horizons, at the table's view |
+|---|---|---|---|---|---|---|---|
+| Mercury | 0.493 | 0.262 | 0.175 | 0.13 | 0.745 | −0.98 | −1.43 |
+| Venus | 0.753 | 0.538 | 0.359 | 0.70 | 1.951 | +0.36 | +0.68 |
+| Mars | 0.386 | 0.135 | 0.090 | 0.17 | 1.887 | −0.44 | −0.51 |
+| Jupiter | 0.655 | 0.412 | 0.275 | 0.53 | 1.930 | +0.21 | −0.08 |
+| Saturn's globe | 0.756 | 0.544 | 0.362 | 0.51 | 1.407 | 0.00 | +0.04 |
+| Uranus | 0.683 | 0.428 | 0.285 | 0.49 | 1.719 | +0.08 | +0.07 |
+| Neptune | 0.498 | 0.229 | 0.153 | 0.47 | 3.077 | +0.38 | −0.06 |
+
+- **What was measured and what computed.**  The means are measured, over
+  each map's texels by area (`tools/textureMeans.py`, decoded as the GPU
+  decodes them); the gains are computed from them.  The last column is
+  predicted, not rendered: the table's "After − Horizons" less its albedo
+  column, since the albedo is now right by construction; what's left is
+  each planet's phase law against Lambert's (Mercury's and Venus's want
+  photometric functions of their own, above) and the specular lobe.  To
+  re-measure, the table's views, summed in the linear composite (above).
+- **Decoding alone** darkened every map, by 0.36 mag (Venus, Saturn) to
+  0.84 (Neptune) and 1.14 (Mars): the decode of a mean is more than the
+  mean of the decoded values, the more so the more contrast the map has.
+  With the gains, Mercury renders 0.98 mag fainter than it did, Mars 0.44,
+  and the giants within 0.4 of before.
+- **More than 1.**  A Lambert sphere's p is at most 2/3, so a planet whose
+  p is over that (Venus) or near it, at its brighter texels, takes albedos
+  over 1: Venus's mean is 1.05 (its red 1.32), Jupiter's bright zones and
+  Neptune's blue (2.2) over 1 too.  Neither is a Lambert surface (their
+  clouds scatter back, as the Moon's regolith does); the gain gets the disc
+  at full right, and the phase law is a photometric function's to fix.
+- **Neptune's colour.**  The map's linear blue is 6 times its red, a
+  stretched picture's; Neptune's is nearer 1.5 times.  The luma is right;
+  the hue is the picture's.
+- **The Moon** keeps its gain, 0.4448, and its map isn't decoded ([the
+  Moon's photometry](#the-moons-photometry)).
+- **Earth** has no gain: its decoded Blue Marble is near measured surface
+  reflectances (the Sahara's red 0.56, Antarctica 0.83, the Amazon's green
+  0.03, which as stored were 0.78, 0.92 and 0.18), and its disc's light is
+  mostly its clouds' and its sky's, fitted on their own (the clouds' 0.83,
+  above; its atmosphere's `sunIntensity` 21, against Cesium's side, which
+  decodes the same imagery).  Its ground's mean luma went from 0.163 to
+  0.094; the whole disc's light against Earth's geometric albedo (0.367)
+  wants a re-measure.
+- **The moons** have no gains yet: decoded, each is 0.4 to 1.6 mag darker
+  than it rendered, and the descriptors' `albedo`s are a mix of kinds (and
+  some wrong: Phobos's 1.0 for about 0.07).  Their decoded p with no gain:
+  Io 0.147, Europa 0.244, Ganymede 0.108, Callisto 0.115, Titan 0.193, Rhea
+  0.317, Dione 0.323, Tethys 0.308, Iapetus 0.131, Hyperion 0.268, Janus
+  0.174, Titania 0.052, Oberon 0.052, Triton 0.356, Proteus 0.193, Phobos
+  0.039, Deimos 0.079, Pluto 0.283, Charon 0.134, 2026 ED138 0.097.  A gain
+  each, to a measured V geometric albedo with its source, is the follow-up.
 
 **#192's occultation view, re-measured** (the user's link at 1000×597,
 4.55″ a pixel, ev=10, without ion; airless, the composite over the air's
@@ -764,7 +857,7 @@ shaders), for `photometry: 'lunar'` in earth/moons/moon/index.json and bodies.js
 - **The albedo**: the colour map's stored values are a linear stretch of
   I/F (the WAC mosaic's maria are 0.17 and its highlands 0.37, a ratio of
   2.1, as the Moon's measured albedos are; sRGB-decoded the ratio would be
-  4.5, so they aren't decoded), scaled by `texture_gain` 0.4448 so the near
+  4.5, so they aren't decoded: `texture_encoding: "linear"`), scaled by `texture_gain` 0.4448 so the near
   side's disc at full is the geometric albedo for V(1, 0) = 0.23, 0.121
   (`MOON_TEXTURE_GAIN`: 0.121 over the map's near-side mean, 0.2716, from
   `tools/moon/textureMean.py`).  It was 1.3, on Lambert's law.
@@ -851,10 +944,16 @@ image hasn't loaded holds a one-texel stand-in, swapped for the real map
 from the animation loop (the surface group's `preAnimCb`) when its image
 arrives.  The same slot, so the same shader program.
 
-- **The colour map's** is its mean stored value over the sphere, each
-  texel weighted by its area (cos lat), per channel
-  (`js/scene/textureMeans.json`; Mars 0.47, 0.36, 0.36; Earth's from
-  January's Blue Marble).  So the disc has the light the textured one
+- **The colour map's** is its mean over the sphere in linear light, each
+  texel decoded from sRGB (the Moon's read as stored: it is linear) and
+  weighted by its area (cos lat), per channel
+  (`js/scene/textureMeans.json`; Mars 0.198, 0.119, 0.114, which as stored
+  were 0.47, 0.36, 0.36; Earth's from January's Blue Marble).  The mean of
+  the decoded values, not the decode of the mean stored value (Mars's would
+  be 0.186, 0.110, 0.105, Earth's a quarter of its mean), or the disc would
+  step when the map comes in.  The stand-in's texel holds it sRGB-encoded,
+  in the map's colour space, which the GPU decodes back (to within 1% at
+  Earth's dark mean, where a linear byte rounds by 4%).  So the disc has the light the textured one
   will have on average, through every path a lit surface takes (the small
   disc, the exposure, the meter's anchor), and the map only adds detail
   when it comes.
@@ -881,13 +980,26 @@ point](../../DESIGN.md#the-far-point)).
 
 ## Surface texture sources
 
+**Encodings.**  Every body's colour map is a picture, sRGB-encoded, and is
+decoded on each sample (`material.js` `colorMapSpace`: `SRGBColorSpace`):
+Mercury's, Venus's, Earth's Blue Marble, Mars's Viking mosaic, the giants'
+and every moon's but ours, and Earth's night lights.  The Moon's is the
+exception, a linear stretch of I/F (below): its descriptor's
+`texture_encoding: "linear"` keeps it as stored.  The maps that are data
+have no colour space and are read as stored: `_terrain` (bump), `_normal`,
+`_hydro` (the ocean's metalness and roughness), the rings' opacity, the
+cloud coverage and the bundled cloud picture it is read from.  The rings'
+colour (`ringcolor.png`) is a picture, decoded ([rings.md](rings/rings.md)).
+
 - **Mars** (`mars.jpg`, 4096×2048): the USGS Viking MDIM2.1 colourized
   global mosaic (NASA/USGS, public domain), the imagery of Cesium's Mars,
   so the two match across the layer swap.  Equirectangular, −180° at the
   left edge.  Rebuilt from NASA Trek's WMTS tiles at level 3 (16×8 tiles of
   256 px):
   `https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/3/{row}/{col}.jpg`,
-  stitched and saved as JPEG at quality 0.85.
+  stitched and saved as JPEG at quality 0.85.  A picture: decoded, and
+  scaled to Mars's geometric albedo by `texture_gain` 1.887 ([albedo](#albedo)),
+  as Cesium's Mars is (`textureGain`).
 - **Earth** (`earth/blue-marble/2004-MM.jpg`, 4096×2048, one per month):
   NASA's Blue Marble Next Generation (NASA Earth Observatory, public
   domain), the cloud-free mosaic for each month of 2004, from
@@ -939,7 +1051,8 @@ example asked for `2004-10.jpg` three times, and asks once.
   Arizona State University, via the USGS; public domain), the imagery of
   Cesium's Moon.  Same layout and recipe, from
   `https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/3/{row}/{col}.jpg`.
-  Its stored values are a linear stretch of I/F; `earth/moons/moon/index.json` sets
+  Its stored values are a linear stretch of I/F, so it is not decoded
+  (`texture_encoding: "linear"`); `earth/moons/moon/index.json` sets
   `texture_gain` 0.4448, which makes them the Moon's normal albedo
   ([the Moon's photometry](#the-moons-photometry)), and Cesium's Moon takes
   the same gain (`CESIUM_BODIES.moon.textureGain`), over ion's copy being
