@@ -753,21 +753,22 @@ Earth's data was Rayleigh and a token aerosol (`mieCoeff` 5e-6 /m over
 1.2 km, τ 0.006, a single lobe at 0.8, no absorption) at 4.5 times the
 physical gain.  It is now the measured air, at the physical gain:
 
-- **Rayleigh**: (5.12, 12.16, 30.2)×10⁻⁶ /m over 8 km, the standard
+- **Rayleigh**: 12.16×10⁻⁶ /m at 550 nm over 8 km, the standard
   atmosphere's column (Bucholtz 1995, Appl. Opt. 34, 2765; recalled): τ
-  0.0973 at 550 nm, and λ^−4.08 (λ⁻⁴ with the air's depolarisation and
-  dispersion) to 680 and 440 nm.  It was (5.8, 13.5, 33.1)×10⁻⁶, Bruneton's
-  and Hillaire's λ⁻⁴ from 1.24062e-6 /m at 1 µm (Bruneton's `demo.cc`),
-  11% over the standard column.  680, 550 and 440 nm are the channels'
-  wavelengths for everything below.
+  0.0973 at 550 nm, as λ^−4.08 (λ⁻⁴ with the air's depolarisation and
+  dispersion).  It was (5.8, 13.5, 33.1)×10⁻⁶, Bruneton's and Hillaire's
+  λ⁻⁴ from 1.24062e-6 /m at 1 µm (Bruneton's `demo.cc`), 11% over the
+  standard column.  The channels take each spectrum's average over their
+  response (the channels' coefficients, below): (6.26, 12.36, 29.41)×10⁻⁶.
 - **The aerosol**: a clear day's continental and global mean.  τ 0.12 at
   550 nm: MODIS's multi-year means are 0.13 over the oceans and 0.19 over
   land (Remer et al. 2008, J. Geophys. Res. 113, D14S07), which include
   hazy days; OPAC's continental average is 0.15 and its clean continental
   0.06 (Hess, Koepke and Schult 1998, BAMS 79, 831; recalled).  Ångström's
   exponent 1.3 (Ångström's standard for continental air; recalled), so
-  τ(λ) = 0.12 (λ/550)^−1.3: 0.091 / 0.120 / 0.160, `mieCoeff` (7.59, 10.0,
-  13.37)×10⁻⁵ /m over the 1.2 km scale height (Bruneton's, kept).  Single-
+  τ(λ) = 0.12 (λ/550)^−1.3 over the 1.2 km scale height (Bruneton's,
+  kept); over the channels, `mieCoeff` (8.18, 10.12, 13.30)×10⁻⁵ /m, τ
+  0.098 / 0.121 / 0.160.  Single-
   scattering albedo 0.93 (OPAC's continental average 0.925; AERONET's
   global means 0.93-0.95, recalled), asymmetry 0.7 (OPAC 0.70, AERONET's
   typical value at 550 nm; recalled), one Cornette-Shanks lobe.  Its
@@ -776,41 +777,109 @@ physical gain.  It is now the measured air, at the physical gain:
   0 at 40 km (its integral 15 km), so a peak number density of 300 ×
   2.687e20 / 15000 = 5.374e18 /m³, times the Bremen cross-sections at 233 K
   (Serdyuchenko et al. 2014, `demo.cc`'s `kOzoneCrossSection`, 10 nm bins
-  from 360 nm): 1.209e-25, 3.5e-25, 1.582e-26 m² at 680, 550, 440 nm, so
-  `absorption` (0.650, 1.881, 0.085)×10⁻⁶ /m.  Chappuis's band: green and
-  red absorbed, blue nearly not.
+  from 360 nm), averaged over the channels: `absorption` (2.471, 1.794,
+  0)×10⁻⁶ /m.  Chappuis's band, which peaks at 600 nm: red and green
+  absorbed, blue not.  At 680, 550 and 440 nm alone (1.209e-25, 3.5e-25,
+  1.582e-26 m²) it was (0.650, 1.881, 0.085)×10⁻⁶: red's a quarter of its
+  band's.
+
+### The channels' coefficients
+
+Each channel's coefficient for a species is the species' spectrum averaged
+over that channel's response under sunlight, not its value at one
+wavelength (`tools/atmos/bandAverage.mjs`, `node
+tools/atmos/bandAverage.mjs` prints the tables below; its test
+`bandAverage.test.js`, and `atmosphere.test.js` checks Earth's data
+against it):
+
+- **The responses**: the rows of the XYZ to linear sRGB matrix applied to
+  the CIE 1931 2° colour-matching functions, r̄ = 3.2406 x̄ − 1.5372 ȳ −
+  0.4986 z̄ and so on, times the Sun's spectrum (ASTM G-173's
+  extraterrestrial column; the tables are Bruneton's, `demo.cc` and
+  `constants.h`), at 1 nm from 360 to 830 nm.  They have negative lobes
+  (r̄ from 440 to 545 nm, b̄ over 500 nm, ḡ at both ends), and they are
+  kept: the light through a path, as linear sRGB relative to the Sun's, is
+  ∫ S c̄ T / ∫ S c̄, which is what the pass's white Sun times a per-channel
+  transmittance has to reproduce.
+- **The average**: k_c = ∫ S c̄ k / ∫ S c̄.  It is exact where the path is
+  thin, for the transmittance and for the in-scatter (whose colour is
+  ∫ S c̄ β), so the sky's colour is the spectrum's.  Ozone's blue comes out
+  slightly negative (b̄'s negative lobe sits on the Chappuis band), a
+  colour outside sRGB's gamut, and is clamped to 0.
+- **The alternative**, matching each species' transmittance through its
+  own column at the 20 km tangent (−ln(∫ S c̄ e^(−kN) / ∫ S c̄) / N), was
+  measured too: species by species it doesn't add, and through the limb it
+  misses the spectrum by more (below).
+
+| /m | 680 / 550 / 440 nm | band average (now) | matched at 20 km |
+|---|---|---|---|
+| Rayleigh | 5.12, 12.16, 30.2 ×10⁻⁶ | 6.26, 12.36, 29.41 ×10⁻⁶ | 6.31, 12.68, 29.84 ×10⁻⁶ |
+| aerosol | 7.59, 10.0, 13.37 ×10⁻⁵ | 8.18, 10.12, 13.30 ×10⁻⁵ | 8.18, 10.12, 13.30 ×10⁻⁵ |
+| ozone | 0.650, 1.881, 0.085 ×10⁻⁶ | 2.471, 1.794, 0 ×10⁻⁶ | 2.498, 1.743, 0.061 ×10⁻⁶ |
+
+The Rayleigh and the aerosol are smooth power laws and move little.  The
+ozone's red is 3.8 times its value at 680 nm: the Chappuis band peaks at
+600 nm, inside red's response, and 680 nm sees only its tail.  With red
+under-absorbed through every long path the limb, and the haze over the
+whole disc, came out lavender to magenta from low orbit, where the ISS's
+photographs show a deep blue limb.
+
+The light through the limb (a tangent path through the whole atmosphere,
+linear sRGB relative to the Sun's, R 6371 km), the spectrum's against the
+models':
+
+| tangent height | spectral r / g / b | band average | 680 / 550 / 440 nm |
+|---|---|---|---|
+| 10 km | 0.124 / 0.049 / 0.0077 | 0.109 / 0.056 / 0.0084 | 0.317 / 0.056 / 0.0071 |
+| 15 km | 0.145 / 0.110 / 0.084 | 0.125 / 0.112 / 0.078 | 0.428 / 0.108 / 0.069 |
+| 20 km | 0.154 / 0.174 / 0.260 | 0.141 / 0.168 / 0.254 | 0.508 / 0.160 / 0.231 |
+| 25 km | 0.209 / 0.267 / 0.479 | 0.202 / 0.258 / 0.481 | 0.602 / 0.246 / 0.448 |
+| 30 km | 0.423 / 0.484 / 0.677 | 0.419 / 0.479 / 0.675 | 0.760 / 0.467 / 0.650 |
+| 35 km | 0.725 / 0.749 / 0.813 | 0.724 / 0.748 / 0.811 | 0.896 / 0.742 / 0.798 |
+
+Over 10 to 35 km the rms of ln(model / spectrum) is 0.070 for the band
+average (its chromaticity, ln r/g and b/g, 0.103), 0.087 (0.128) matched
+at 20 km, and 0.565 (0.713) at one wavelength a channel: three times the
+spectrum's red at 15 to 25 km, red over blue at 20 km where the spectrum
+is blue over red.  Straight up from sea level the band average gives the
+spectrum's transmittance to the third digit (0.831 / 0.781 / 0.674 against
+0.831 / 0.780 / 0.674; 0.868 / 0.782 / 0.668 at the three wavelengths).
 
 Vertical optical depth from sea level (CPU integral of the tables' density
 profiles; `atmosphere.test.js`):
 
-| | red, 680 nm | green, 550 nm | blue, 440 nm |
+| | red | green | blue |
 |---|---|---|---|
-| Rayleigh | 0.041 | 0.097 | 0.242 |
-| aerosol | 0.091 | 0.120 | 0.160 |
-| ozone | 0.010 | 0.028 | 0.001 |
-| total | 0.142 | 0.246 | 0.403 |
-| zenith transmittance | 0.868 | 0.782 | 0.668 |
-| before: total, transmittance | 0.052, 0.949 | 0.114, 0.892 | 0.271, 0.763 |
+| Rayleigh | 0.050 | 0.099 | 0.235 |
+| aerosol | 0.098 | 0.121 | 0.160 |
+| ozone | 0.037 | 0.027 | 0 |
+| total | 0.185 | 0.247 | 0.395 |
+| zenith transmittance | 0.831 | 0.781 | 0.674 |
+| at 680 / 550 / 440 nm: total, transmittance | 0.142, 0.868 | 0.246, 0.782 | 0.403, 0.668 |
+| before the measured air: total, transmittance | 0.052, 0.949 | 0.114, 0.892 | 0.271, 0.763 |
 
-Against the textbook: ozone's 0.028 at 550 nm is the 0.03 of 300 DU, and
-the Rayleigh is Bucholtz's 0.097 by construction.
+Against the textbook: ozone's 0.028 at 550 nm is the 0.03 of 300 DU (0.027
+over green's band), and the Rayleigh is Bucholtz's 0.097 at 550 nm by
+construction.
 
-Through the limb (a tangent path, its transmittance; "ozone" is the
-ozone's share alone):
+Through the limb (a tangent path, its transmittance, by the band
+averages; "ozone" is the ozone's share alone; the spectrum's against the
+models' is in the table above):
 
-| tangent height | transmittance r / g / b | ozone's r / g / b | before r / g / b |
-|---|---|---|---|
-| 5 km | 0.10 / 0.0056 / 2.7e-5 | 0.77 / 0.48 / 0.97 | 0.17 / 0.016 / 4.3e-5 |
-| 15 km | 0.40 / 0.096 / 0.053 | 0.67 / 0.31 / 0.95 | 0.60 / 0.31 / 0.056 |
-| 25 km | 0.59 / 0.24 / 0.42 | 0.68 / 0.33 / 0.95 | 0.87 / 0.71 / 0.44 |
-| 35 km | 0.89 / 0.74 / 0.78 | 0.93 / 0.81 / 0.99 | 0.96 / 0.91 / 0.79 |
+| tangent height | transmittance r / g / b | ozone's r / g / b |
+|---|---|---|
+| 5 km | 0.043 / 0.0082 / 8.5e-5 | 0.38 / 0.49 / 1 |
+| 15 km | 0.13 / 0.11 / 0.078 | 0.22 / 0.33 / 1 |
+| 25 km | 0.20 / 0.26 / 0.48 | 0.24 / 0.35 / 1 |
+| 35 km | 0.72 / 0.75 / 0.81 | 0.76 / 0.82 / 1 |
 
-From 15 km up the ozone takes two thirds of the green and a third of the
-red and leaves the blue: at 25 km the light through the limb is bluer than
-green (0.42 against 0.24), where without the ozone it was green-white
-(0.71 against 0.44).  That is the physical reason a limb from orbit stays
-deep blue along the long paths where the tables' Rayleigh alone saturated
-towards cyan.
+From 15 km up the ozone takes two thirds of the green and three quarters
+of the red and leaves the blue: at 25 km the light through the limb is
+blue (0.48 against 0.26 and 0.20), where without the ozone it was
+green-white.  That is the physical reason a limb from orbit stays deep
+blue along the long paths where the tables' Rayleigh alone saturated
+towards cyan.  At one wavelength a channel the ozone took only a third of
+the red (0.68 at 25 km), and the limb went magenta.
 
 **The zenith from sea level**, a CPU mirror of the tables' arithmetic
 (single scattering through the transmittance and Hillaire's isotropic sum,
@@ -827,7 +896,9 @@ T ≈ 3 for τ550 ≈ 0.1):
 
 Now within the CIE's range of turbidity (T about 3.2, a clear day, as the
 aerosol's τ 0.12 is), where the old gain was 2.2-3.5 times over it and a
-third bluer.  Nothing was tuned to it.
+third bluer.  Nothing was tuned to it.  (Measured with the coefficients at 680, 550 and 440 nm,
+before the band averages; the luminance is green's and moves little, the
+B/R lower with red's larger Rayleigh and ozone.  Not re-measured.)
 
 ## Knobs you might want to tune
 
@@ -876,10 +947,16 @@ move only where the haze, now heavier near the ground, covers both sides
 
 ## Known gaps / future work
 
-- **The channels' wavelengths**: 680, 550 and 440 nm stand for the
-  screen's primaries, as Bruneton's do.  A spectral model (his 2017
-  implementation's 40 wavelengths, converted to the primaries) would be
-  the physical next step, for the sky's colour more than its luminance.
+- **The channels' coefficients** are band averages (Earth's air, "The
+  channels' coefficients"), which reproduce the spectrum's limb to about
+  7%, not its exact colour: a transmittance's average over a band isn't
+  the exponential of its coefficient's average, and the error grows with
+  the optical depth (at 10 km, red 0.109 against 0.124).  A spectral model
+  (Bruneton's 2017 implementation's 40 wavelengths, converted to the
+  primaries) is the step after, for the long paths.  The other bodies'
+  coefficients are still at one wavelength a channel; they have no
+  absorber with a band inside a channel, so the error is the small one of
+  the power laws (Earth's Rayleigh red moved 22%).
 - **The grey aerosols' Mie colour.**  Mars's dust and Titan's haze keep
   red's transmittance for their Mie in every channel (`mieColour`, grey);
   Bruneton's reconstruction would colour it by the path, which moves their

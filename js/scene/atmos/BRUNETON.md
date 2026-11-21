@@ -334,9 +334,13 @@ and only Earth has it:
 - with no ozone the absorption is zero, and every table and march is the
   arithmetic it was.
 
-Its Chappuis band absorbs green and red and leaves blue (28 times the
-blue's at 550 nm), which is why a long path through the limb stays blue
-(composition.md, "Earth's air").
+Its Chappuis band absorbs red and green and leaves blue (its cross-section
+at 550 nm is 22 times that at 440 nm), which is why a long path through
+the limb stays blue (composition.md, "Earth's air").  The band peaks at
+600 nm, inside the red channel's response, so the channels take the
+cross-sections averaged over their responses, not at 680, 550 and 440 nm
+alone, where red's was a quarter of its band's and the limb went magenta
+(composition.md, "The channels' coefficients").
 
 With it the 2017 implementation's other step that matters here: an
 aerosol whose extinction is per channel.  The atlas holds red's Mie (its

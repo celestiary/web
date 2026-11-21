@@ -5,6 +5,7 @@ import {descriptorUrl} from '../../bodyBundle.js'
 import {ASTRO_UNIT_METER, DISPLAY_GAIN} from '../../shared.js'
 import {PHYSICAL_SKY_GAIN, exposureAt, skyExposure, skyGain} from '../exposure.js'
 import {mieParams, ozoneParams} from './AtmospherePrecompute.js'
+import {EARTH, channelCoefficients} from '../../../tools/atmos/bandAverage.mjs'
 
 
 /**
@@ -117,22 +118,35 @@ describe('atmosphere JSON data', () => {
       expect(atm.miePolarity).toBeLessThan(1)
     })
 
-    // The channels' wavelengths: the Rayleigh coefficients are Bruneton's
-    // and Hillaire's for 680, 550 and 440 nm (λ⁻⁴ from 1.24062e-6 /m at
-    // 1 µm, Bruneton's demo.cc), and the aerosol and ozone follow them.
-    const LAMBDA_NM = [680, 550, 440]
+    // The channels' coefficients are each species' spectrum averaged over
+    // the linear-sRGB channel's response under sunlight (composition.md,
+    // "The channels' coefficients"; tools/atmos/bandAverage.mjs), not its
+    // value at 680, 550 and 440 nm.
+    const band = channelCoefficients().band
+
+    it('has each channel\'s coefficients from the spectra, averaged over the channel', () => {
+      const ozone = atm.ozone.absorption
+      for (let c = 0; c < 3; c++) {
+        expect(atm.rayleigh[c] / band.rayleigh[c]).toBeCloseTo(1, 3)
+        expect(atm.mieCoeff[c] / band.mie[c]).toBeCloseTo(1, 3)
+        expect(ozone[c]).toBeCloseTo(band.ozone[c], 9)
+      }
+    })
 
     it('has a clear day\'s aerosol: τ 0.12 at 550 nm, Ångström exponent 1.3', () => {
       // composition.md, "Per-body data": MODIS's global means are 0.13 over
       // ocean and 0.19 over land (Remer et al. 2008); OPAC's continental
-      // average 0.15, its clean continental 0.06 (Hess et al. 1998).
+      // average 0.15, its clean continental 0.06 (Hess et al. 1998).  The
+      // spectrum is 1e-4 /m × (λ/550)^−1.3 over the 1.2 km scale height;
+      // the channels' averages move a little from it (green 0.121).
       const H = scalar(atm.mieScaleHeight)
       expect(atm.mieCoeff).toHaveLength(3)
+      expect(EARTH.mie550 * H).toBeCloseTo(0.12, 4)
+      expect(EARTH.angstrom).toBe(1.3)
       const tau = atm.mieCoeff.map((k) => k * H)
-      expect(tau[1]).toBeCloseTo(0.12, 4)
-      for (let c = 0; c < 3; c++) {
-        expect(tau[c]).toBeCloseTo(0.12 * Math.pow(LAMBDA_NM[c] / 550, -1.3), 4)
-      }
+      expect(tau[1]).toBeCloseTo(0.12, 2)
+      expect(tau[0]).toBeLessThan(tau[1])
+      expect(tau[2]).toBeGreaterThan(tau[1])
       expect(H).toBe(1200)
     })
 
@@ -145,23 +159,23 @@ describe('atmosphere JSON data', () => {
     })
 
     it('has 300 Dobson units of ozone in Bruneton\'s tent, with the Bremen cross-sections', () => {
-      // Peak number density 300 DU / 15 km (demo.cc); cross-sections at
-      // 680 / 550 / 440 nm, 233 K (Serdyuchenko et al. 2014, demo.cc's table).
+      // Peak number density 300 DU / 15 km (demo.cc), times the 233 K
+      // cross-sections (Serdyuchenko et al. 2014, demo.cc's table) averaged
+      // over each channel.
       const o = ozoneParams(atm)
       expect(o.profile.toArray()).toEqual([1e4, 2.5e4, 4e4])
       const DOBSON = 2.687e20 // molecules per m²
-      const n = 300 * DOBSON / 15000
-      const SIGMA = [1.209e-25, 3.5e-25, 1.582e-26]
-      for (let c = 0; c < 3; c++) {
-        expect(atm.ozone.absorption[c] / (n * SIGMA[c])).toBeCloseTo(1, 3)
-      }
-      // The column: the tent's integral is 15 km, so 300 DU.
-      expect(o.column.y / SIGMA[1] / DOBSON).toBeCloseTo(300, 0)
-      // Chappuis: green and red absorbed, blue nearly not; τ(550) ≈ 0.03.
-      expect(o.column.y).toBeCloseTo(0.0282, 3)
-      expect(o.column.z).toBeLessThan(o.column.x / 5)
+      expect(EARTH.ozonePeakDensity).toBe(300 * DOBSON / 15000)
+      // The column: the tent's integral is 15 km, so 300 DU, and its
+      // optical depth in the green ≈ 0.027 (0.028 at 550 nm alone).
+      expect(o.column.y).toBeCloseTo(0.0269, 3)
+      // Chappuis: red and green absorbed, blue not; red's response holds
+      // the band's 600 nm peak, so red is absorbed more than green.
+      expect(o.column.x).toBeGreaterThan(o.column.y)
+      expect(o.column.z).toBe(0)
     })
   })
+
 
   describe('mars', () => {
     const {atmosphere: atm} = loadPlanet('mars')
