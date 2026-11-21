@@ -1,6 +1,9 @@
 import {DISPLAY_GAIN, INITIAL_FOV} from '../../shared.js'
 import {sceneOfScreen} from '../screen.js'
-import {EYE_PSF_GLSL, GLARE_GLSL, GLARE_MAX_DEG, eyePsf, eyePsfShare, glareFunction} from '../sun/glare.js'
+import {
+  CAMERA_GLARE_GLSL, EYE_PSF_GLSL, GLARE_GLSL, GLARE_MAX_DEG, GLARE_MODEL_CAMERA, GLARE_MODEL_EYE, cameraGlareFunction,
+  eyePsf, eyePsfShare, glareFunction,
+} from '../sun/glare.js'
 
 
 /**
@@ -145,9 +148,10 @@ export const EYE_CORE_SHARE = eyePsfShare(GLARE_MAX_DEG, (t) => 1 - wingWindow(t
  * @property {number} limitValue What a star at the limit shows, exposure units
  * @property {number} pointPoolRad The detector's pool round a point, radians (the side of a square)
  * @property {{poolRadiusDeg: number, coreShare: number, wing: Function, wingGlsl: string, glare: Function,
- *   glareGlsl: string}} psf poolRadiusDeg where the pooled core hands over to the wing, in the
- *   instrument's own angle; coreShare the PSF's share within it; wing(θ°) the PSF per steradian,
- *   for a point; glare(θ°) the veil per steradian round a disc, over its range (0.1° to 100°)
+ *   glareGlsl: string, glareModel: number}} psf poolRadiusDeg where the pooled core hands over to the
+ *   wing, in the instrument's own angle; coreShare the PSF's share within it; wing(θ°) the PSF per
+ *   steradian, for a point; glare(θ°) the veil per steradian round a disc, over its range (0.1° to
+ *   100°), and glareModel which of the glare pass's functions it is (glare.js GLARE_MODEL_*)
  * @property {{upSeconds: number, downSeconds: number, exposureSeconds: number}} adaptation How fast
  *   its exposure follows the light (ADAPTATION): the metered gain's time constants rising (to the
  *   dark) and falling (to the light), and the exposure's own toward the meter's and the target's
@@ -202,11 +206,40 @@ export const NAKED_EYE = Object.freeze({
     wingGlsl: EYE_PSF_GLSL,
     glare: glareFunction,
     glareGlsl: GLARE_GLSL,
+    glareModel: GLARE_MODEL_EYE,
   }),
   adaptation: ADAPTATION,
   fieldMaxDeg: null,
   pixelScaleArcsec: null,
   resolutionArcsec: null,
+})
+
+
+/**
+ * A camera (Sun.md, "Glare"; HDR.md, "The instrument"): the user's other
+ * observer (the Observer setting, `K` in a link's `s=`), the naked eye's
+ * light and star PSF with a lens's veiling glare round a disc
+ * (glare.js cameraGlareFunction, 10 to 35 times under the eye's), so the
+ * Sun in or near the field veils the frame as in a photograph (from the
+ * ISS, the air over Earth's limb with the Sun 20° off) and not as in the
+ * eye.  The stars' PSF and calibration stay the eye's: the star shaders
+ * carry the eye's PSF as a function and the limit is the dark-adapted
+ * eye's, which a camera's own response (#208) would replace together;
+ * changing the wing alone would change every star's look with no
+ * calibration under it.  An app's instrument (Rubin's) overrides it while
+ * the app runs (ThreeUi.setInstrument), and stopping the app returns to it.
+ *
+ * @type {Instrument}
+ */
+export const CAMERA = Object.freeze({
+  ...NAKED_EYE,
+  name: 'a camera',
+  psf: Object.freeze({
+    ...NAKED_EYE.psf,
+    glare: cameraGlareFunction,
+    glareGlsl: CAMERA_GLARE_GLSL,
+    glareModel: GLARE_MODEL_CAMERA,
+  }),
 })
 
 

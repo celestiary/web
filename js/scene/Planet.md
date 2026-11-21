@@ -776,10 +776,25 @@ over the radius).  `standInMaps.test.js` checks each to 1%.
   reflectances (the Sahara's red 0.56, Antarctica 0.83, the Amazon's green
   0.03, which as stored were 0.78, 0.92 and 0.18), and its disc's light is
   mostly its clouds' and its sky's, fitted on their own (the clouds' 0.83,
-  above; its atmosphere's `sunIntensity` 21, against Cesium's side, which
-  decodes the same imagery).  Its ground's mean luma went from 0.163 to
+  above; its atmosphere's, at the physical gain since its aerosol and
+  ozone are in the data: composition.md, "Earth's air"; before, a
+  `sunIntensity` of 21 fitted against Cesium's side, which decodes the same
+  imagery).  Its ground's mean luma went from 0.163 to
   0.094; the whole disc's light against Earth's geometric albedo (0.367)
-  wants a re-measure.
+  wants a re-measure.  That 0.367 is the disc's, its air and clouds in it,
+  so it isn't the ground's: the atmosphere's tables take the decoded Blue
+  Marble's mean, 0.0976 / 0.0934 / 0.0878 (`textureMeans.json`), as the
+  ground under the air (`atmosphere.groundAlbedo`; composition.md, [the
+  ground under the air](atmos/composition.md#the-ground-under-the-air)).
+  The Blue Marble is MODIS's surface reflectance, corrected for the air,
+  so the pass's haze isn't laid over a haze in the picture: over the Kazakh
+  desert from 400 km the drawn ground is 1.5 × its albedo (0.21 / 0.15 /
+  0.08, warm) × μ_s to the third digit, no tint, ambient or specular in it,
+  and the disc's cool colour there is its air's at an oblique view and a
+  low Sun (composition.md, [the disc from low
+  orbit](atmos/composition.md#the-disc-from-low-orbit)).  The ground is
+  lit by the Sun above the air, with no transmittance on its path and no
+  sky light: a known gap there.
 - **The moons** have no gains yet: decoded, each is 0.4 to 1.6 mag darker
   than it rendered, and the descriptors' `albedo`s are a mix of kinds (and
   some wrong: Phobos's 1.0 for about 0.07).  Their decoded p with no gain:

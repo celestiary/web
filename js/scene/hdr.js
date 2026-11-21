@@ -241,6 +241,9 @@ export const absoluteUniforms = {
   uPoolRadiusDeg: {value: NAKED_EYE.psf.poolRadiusDeg},
   uCoreShare: {value: NAKED_EYE.psf.coreShare},
   uMaxStarSizePx: {value: 160},
+  // Which glare function veils round a disc (the Sun's pass, sun/glare.js
+  // GLARE_MODEL_*): the instrument's, the eye's or a camera's.
+  uGlareModel: {value: NAKED_EYE.psf.glareModel},
   // What the camera sees of the Sun's disc past the bodies in front (an
   // eclipse; sun/SunLayers.js): the Sun's point, the catalogue's origin,
   // dims with it (shaders/stars.vert).  From the ground the stars' depth

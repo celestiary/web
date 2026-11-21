@@ -224,8 +224,15 @@ isn't written.
 A letter is a flip of the toggle's default, not "on": `a`, `l`, `p`, `o`,
 `U`, `G`, `x`, `i` and `v` are on by default, so their letters mean off (`s=loL` is
 star labels off, orbits off, landed; `s=i` is Earth's clouds off, the `I`
-key's, Celestia's `i`), while `e` `c` `g` `C` `S` `I` `D` `L` `T` `F` `A` mean
+key's, Celestia's `i`), while `e` `c` `g` `C` `S` `I` `D` `K` `L` `T` `F` `A` mean
 on (`s=ID` is Iridium and the DSN shown: js/scene/networks/Networks.md).
+
+`K` is the observer: off, the eye (the default); on, a camera, whose veil
+round the Sun is a good lens's, tens of times under the eye's
+([js/scene/Sun.md, "Glare"](../js/scene/Sun.md#glare)).  It is the Settings'
+Observer row, with no key (`C` was taken, by the globular clusters').  It is
+the user's observer: an app that sets its own instrument (Rubin's camera)
+overrides it while it runs, and the link still carries `K` as the user set it.
 
 `G` and `C` are the `e` and `E` keys (Shift+E), Celestia's: the galaxies'
 names and the globular clusters'.  The keys can't be the letters, since `e`

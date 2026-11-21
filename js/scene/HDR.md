@@ -332,9 +332,11 @@ not a bug: PR B's metered exposure raises twilight on its own.
 `sunIntensity`'s physical value is `π·DISPLAY_GAIN` = 4.71; Earth's 30 was 6.4×
 that.  The factor stood in for multiple scattering and aerosols; since the
 precompute integrates multiple scattering (composition.md, "Multiple
-scattering") Earth's gain is 21, 4.5×, re-fitted to hold its sky's luma,
-and the rest is the aerosol load PR B tunes against, once stars are
-physical too.  Mars has the physical value: its sky is its dust's.
+scattering") Earth's gain was 21, 4.5×, re-fitted to hold its sky's luma,
+and the rest was the aerosol load.  Since that load is in the data (τ 0.12
+at 550 nm, and the ozone: composition.md, "Earth's air") Earth has the
+physical value too, as Mars does: its sky is its air's.  (The worked number
+above is the data before, Mie τ 0.006.)
 
 **Every other body has it too** (`exposure.js` `PHYSICAL_SKY_GAIN`, the
 default when a body's data gives no `sunIntensity`).  The factor
@@ -853,7 +855,8 @@ read −7.1 at #198's 0.44° view of HIP 46635, where the limit was 3.1
 What the star field takes from the observer lives in one module,
 `observer/instrument.js` ([#235](https://github.com/celestiary/web/issues/235)),
 whose instances are the naked eye, dark adapted (`NAKED_EYE`), the
-app's observer, and Rubin's camera (`RUBIN`, [#337](https://github.com/celestiary/web/issues/337)),
+app's observer, a camera (`CAMERA`, the user's other observer: the eye's
+star field with a lens's glare round the Sun), and Rubin's camera (`RUBIN`, [#337](https://github.com/celestiary/web/issues/337)),
 which the Rubin app makes the observer while it runs.  The
 seam is there so that binoculars, a telescope or a camera can be another
 instance, with brightness and image size separate by construction: the
@@ -904,8 +907,13 @@ what it needs through
 `absoluteUniforms` whenever it changes (`_setObserverUniforms`: `uEyePointRad`,
 `uPoolRadiusDeg`, `uCoreShare`, and `uMaxStarSizePx`, the quad's largest
 side held to the GPU's point-size range); `setStarMagnitudeOffset` sets
-`uStarGain` from `instrumentStarGain`; the Sun's glare shader takes its
-function from `NAKED_EYE.psf.glareGlsl`.  The field's magnification
+`uStarGain` from `instrumentStarGain`; the Sun's glare shader compiles the
+eye's and a camera's functions (`NAKED_EYE.psf.glareGlsl`,
+`CAMERA.psf.glareGlsl`) and picks the instrument's by `uGlareModel`
+(`psf.glareModel`).  The user's observer, the eye or a camera (`CAMERA`:
+the eye with a lens's veil round a disc, [Sun.md](Sun.md#glare); the
+Settings' Observer row, `K` in `s=`), is `ThreeUi.observer`
+(`setObserver`); an app's instrument overrides it while the app runs.  The field's magnification
 (`instrumentMagnification`: a field narrower than 45° is a telescope's)
 is the camera's, each frame, in the shader.  The field range holds the
 camera's field: `setFov` (so `,` `.` `/`, a link's `fov=` and a flight's
@@ -1634,8 +1642,10 @@ that record: the reading at the keyed exposure is the same at any compensation, 
 is what it was, and there is no loop (a boosted frame doesn't ask for less).  The compensation is
 not in `meteredGain` or the readback, so it merges with changes to either.
 
-Set by `-` and `=` (a third of a stop a press, `[` and `]` being the stars' setting, `sm=`)
-and the link's `ev=` ([permalink.md](../permalink.md)); held to ±10 stops.  Measured
+Set by `-` and `=` (a third of a stop a press, `[` and `]` being the stars' setting, `sm=`),
+the link's `ev=` ([permalink.md](../permalink.md)) and the render panel's EV field (`` ` ``,
+DESIGN.md [performance panel](../../DESIGN.md#performance-panel), with *Auto* for 0 and a
+readout of the exposure, the keyed exposure and the metered gain and its goal); held to ±10 stops.  Measured
 in SwiftShader on the Moon from Bay Village, the exposure's ratio across 3 presses was 2.00 (the
 exposure is a pure multiplier), and the frame's mean luma went 2.5, 4.3, 6.3 at EV 0, +1, +2 and
 1.1 at −2 (the display's toe and shoulder make the pixels follow less than linearly).

@@ -107,7 +107,22 @@ export const STATIC_BUDGET = {
   // "Calibrated on the screen"): the dark gain, the night sky's gain and
   // its skip derived from their screen values through the tone map and
   // sRGB's encoding, 0.5 KB.
-  totalMinifiedKB: 2484,
+  // 2,485 and a fraction, so 2,486, with Earth's physical air
+  // (composition.md, "Per-body data"): the ozone layer's tent in every table
+  // and the pass (ozoneParams, OZONE_GLSL), the aerosol's extinction per
+  // channel and the Mie's colour from it (mieColour), about 2 KB minified,
+  // less the fallback march's ozone, left out.  Shader code the first frame
+  // draws with, so not a chunk of its own.
+  // 2,487, so 2,488, with a camera as the observer (#375; Sun.md, "Glare"):
+  // a lens's glare function beside the eye's in the Sun's glare pass, picked
+  // by a uniform, the CAMERA instrument, ThreeUi's user observer under an
+  // app's instrument, and the Settings' Observer row and its `K` flag, 1.6 KB
+  // minified.  Shader code and settings the first frame reads.
+  // 2,488 and a fraction, so 2,490, with the disc from orbit (#375;
+  // composition.md, "The ground under the air", "The Mie's colour"): the
+  // coloured aerosol's second atlas and the per-channel Mie in the march,
+  // about 0.5 KB, and the backtick key's hooks for the panels.
+  totalMinifiedKB: 2490,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -131,8 +146,10 @@ export const STATIC_BUDGET = {
   // control (#361 step 2, as above).  764, so 765, with the Suntan craft's
   // exposure and link (as above).
   // 769, so 770 (5 KB more), with the Sun's activity view (#358, above).
-  // 770 and a fraction, so 771, with the colour theme (as above).
-  totalGzipKB: 771,
+  // 770 and a fraction, so 771, with the colour theme (as above).  772
+  // and a fraction, so 773, with Earth's physical air (as above; over 772
+  // with the ion token baked in, as CI's and the precommit hook's builds are).
+  totalGzipKB: 773,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,
@@ -178,7 +195,10 @@ export const RUNTIME_BUDGET = {
   // of the event model; a CI run took 1,029.6): 1,033.  Its CMEs' chunk
   // isn't in this: it is fetched only where a CME can show, which the
   // homepage isn't (when it was, at first, it was the 29th request here).
-  ready: {requests: 28, kb: 1033},
+  // #375's physical air (the ozone in the tables), the camera's glare
+  // function and the backtick key's hooks took a CI run to 1,034.4: 1,036,
+  // for the runs' spread.
+  ready: {requests: 28, kb: 1036},
   // After #259: 39 requests, 3,918 KB.  Raised from #258's 29 requests:
   // the catalogue's faint tiers are 12 packs where stars.dat was one file,
   // by design (a deep link needs only its field's; DESIGN.md "The star

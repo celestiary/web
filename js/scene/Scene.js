@@ -48,6 +48,7 @@ import {newGaiaPopulation} from './gaia/gaiaPopulation.js'
 import {pickSurfaceLatLng} from './Picker.js'
 import {SATELLITES_LOAD_DIST} from './satellites/names.js'
 import {hitLabel, labelBoxes} from './labelPick.js'
+import {CAMERA} from './observer/instrument.js'
 import {labelTextColor} from '../shared.js'
 import * as Shared from '../shared.js'
 import * as Utils from '../utils.js'
@@ -235,6 +236,7 @@ export default class Scene {
       I: false, // Iridium and its crosslinks
       D: false, // the Deep Space Network and its live links
       i: true, // Earth's clouds: the shell and the volume (cloudsShown; the 'I' key)
+      K: false, // a camera the observer, not the eye (setObserverCamera; Sun.md, "Glare")
       v: true, // nav panels / heads-up display (Celestiary-owned, see registerSettingApplier)
     }
     // Each overlay's fade (OVERLAY_KEYS), stepped once a frame by the
@@ -463,6 +465,7 @@ export default class Scene {
     for (const key of OVERLAY_KEYS) {
       this.fades[key].set(hold ? false : this._settings[key], {instant: true})
     }
+    this._applyObserver()
     this.ui.scene.traverse((obj) => {
       if (obj.name === 'MilkyWay') {
         obj.visible = this._settings.U
@@ -653,6 +656,7 @@ export default class Scene {
       I: () => this.toggleNetwork('I'),
       D: () => this.toggleNetwork('D'),
       i: () => this.toggleClouds(),
+      K: () => this.toggleObserverCamera(),
       ...this._customAppliers,
     }
     for (const key of Object.keys(dispatch)) {
@@ -3821,6 +3825,31 @@ export default class Scene {
   /** @returns {boolean} whether Earth's clouds are drawn (the 'i' setting) */
   cloudsShown() {
     return this._settings.i !== false
+  }
+
+
+  /**
+   * The observer, the eye or a camera (the Settings' Observer row; `K` in
+   * a link's `s=`): a camera's veil round the Sun is a lens's, tens of
+   * times under the eye's (Sun.md, "Glare"; observer/instrument.js
+   * CAMERA).  The user's default observer: an app's own instrument
+   * (Rubin's) overrides it while the app runs (ThreeUi.setInstrument).
+   */
+  toggleObserverCamera() {
+    this._flipSetting('K')
+    this._applyObserver()
+  }
+
+
+  /** @returns {boolean} whether the observer is a camera (the 'K' setting) */
+  observerIsCamera() {
+    return this._settings.K === true
+  }
+
+
+  /** The observer setting to the renderer. */
+  _applyObserver() {
+    this.ui.setObserver?.(this._settings.K ? CAMERA : null)
   }
 
 

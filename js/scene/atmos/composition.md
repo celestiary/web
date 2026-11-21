@@ -420,7 +420,7 @@ receives from all the higher orders.  `precomputeMultiScatter` makes it a
 64×64 table from the transmittance table: at each (r, μ_sun) the
 single-scattered radiance arriving from 64 directions, averaged (the
 second scattering's uniform phase), with the sunlit ground's reflection
-(the body's `albedo`) where a direction meets the ground, over one minus
+(the ground's albedo, [below](#the-ground-under-the-air)) where a direction meets the ground, over one minus
 the average share of light leaving the point that is scattered again
 before it escapes: the geometric sum of every order.  Along a ray the
 in-scatter then adds `σ_s(x)·Ψ(x)` per metre through the ray's
@@ -434,7 +434,8 @@ most of its light round more than once, and the anti-solar sky, which
 single scattering through a forward-peaked phase function leaves nearly
 black (0.04 of a sunlit white surface at the zenith, 70° from the Sun),
 fills in.  Earth's sky gains the same term; its gain (`sunIntensity`,
-below) is re-fitted so its look holds.  The approximation's limit is a
+below) was re-fitted so its look held, and is now the physical one, its
+aerosol in the data (Earth's air, below).  The approximation's limit is a
 thick atmosphere (τ of several) or one whose multiple scattering is still
 strongly forward: Venus, Titan.  There the isotropic sum under-counts the
 forward glow: Titan's sky from the ground is a twentieth of what Huygens
@@ -634,8 +635,29 @@ Each body's atmosphere is data in its JSON descriptor (`atmosphere`), and
 the pass has one path for every body:
 
 - `height`, `rayleigh` (rgb, per metre), `rayleighScaleHeight`: the gas.
-- `mieCoeff` (extinction per metre at the ground), `mieScaleHeight`: the
-  aerosol or dust.  Its vertical optical depth is the product.
+- `mieCoeff` (extinction per metre at the ground, one number or rgb),
+  `mieScaleHeight`: the aerosol or dust.  Its vertical optical depth is
+  the product.  Per channel for an aerosol whose extinction follows
+  Ångström's law (Earth's); one number for a grey one (Mars's dust,
+  Titan's haze), whose tables are as they were.  The in-scatter tables
+  hold the Mie of red alone (its coefficient and transmittance, in the
+  atlas's a); for a per-channel aerosol the pass gives it its colour as
+  Bruneton's 2017 implementation does without a Mie texture of its own
+  (`mieColour`): the tables' Rayleigh over red's, which carries the path's
+  transmittance colour, times the ratio of the coefficients.  Earth's now
+  has the Mie's colour in an atlas of its own ([the Mie's
+  colour](#the-mies-colour), below), which the reconstruction got wrong
+  by up to 1.65 in the blue.  A grey
+  aerosol keeps red's transmittance in every channel, as before
+  (`mieParams` `chroma` 0): the bodies' fits (Mars's against its Monte
+  Carlo) were made so.
+- `ozone` (optional; Earth's alone): an absorbing layer that scatters
+  nothing, as in Bruneton's 2017 implementation (BRUNETON.md, "The ozone
+  layer"): `absorption`, rgb per metre at the layer's peak density, and
+  its tent, `bottom`, `peak`, `top` (heights above the ground), the
+  density rising linearly from 0 to 1 and falling back to 0.  The
+  transmittance table holds its density integral in b, and every
+  extinction (the Sun's path, the view ray, the march) adds it.
 - `mieAlbedo` (one number or rgb; default 1): the aerosol's
   single-scattering albedo, the share of what it takes from the beam that
   it scatters.  Mars's dust absorbs blue: 0.95 / 0.91 / 0.86 (Tomasko et
@@ -665,12 +687,12 @@ the pass has one path for every body:
   `skyExposure` is the body's irradiance times the exposure over
   π·`DISPLAY_GAIN`, 1 at the body's keyed exposure at any distance from
   the Sun, so the Sun's falloff (the inverse square, #192) reaches the sky
-  once, through the irradiance.  Only Earth sets one: 21 (30 before
-  multiple scattering was in; matched to Cesium's Earth over the same
-  imagery, Planet.md), 4.5× physical, standing in for the aerosols its
-  tables don't hold (its Mie optical depth is 0.006, against a real 0.1 or
-  so); the physical form is that aerosol load at 4.71, refitted against
-  parity, a follow-up.
+  once, through the irradiance.  No body sets one now.  Earth's was 21 (30
+  before multiple scattering was in; matched to Cesium's Earth over the
+  same imagery, Planet.md), 4.5× physical, standing in for the aerosols
+  its tables didn't hold (a Mie optical depth of 0.006, against a real 0.1
+  or so); with a clear day's aerosol and the ozone in its data it takes
+  4.71 (Earth's air, below).
   - **Until #214's follow-up**, the other bodies carried #55's gains, from when this
     was the Sun's light at the body and fell with distance: Mercury 35,
     Venus 18, Mars 14 (physical since #147), Jupiter 6, Saturn 4,
@@ -728,10 +750,312 @@ for the colour: the sky was 0.04 of a sunlit white surface at the zenith
 and 0.13 at the anti-solar horizon, black after the tone map, and white
 within 30° of the Sun.
 
+## Earth's air: a clear day's aerosol and the ozone
+
+Earth's data was Rayleigh and a token aerosol (`mieCoeff` 5e-6 /m over
+1.2 km, τ 0.006, a single lobe at 0.8, no absorption) at 4.5 times the
+physical gain.  It is now the measured air, at the physical gain:
+
+- **Rayleigh**: 12.16×10⁻⁶ /m at 550 nm over 8 km, the standard
+  atmosphere's column (Bucholtz 1995, Appl. Opt. 34, 2765; recalled): τ
+  0.0973 at 550 nm, as λ^−4.08 (λ⁻⁴ with the air's depolarisation and
+  dispersion).  It was (5.8, 13.5, 33.1)×10⁻⁶, Bruneton's and Hillaire's
+  λ⁻⁴ from 1.24062e-6 /m at 1 µm (Bruneton's `demo.cc`), 11% over the
+  standard column.  The channels take each spectrum's average over their
+  response (the channels' coefficients, below): (6.26, 12.36, 29.41)×10⁻⁶.
+- **The aerosol**: a clear day's continental and global mean.  τ 0.12 at
+  550 nm: MODIS's multi-year means are 0.13 over the oceans and 0.19 over
+  land (Remer et al. 2008, J. Geophys. Res. 113, D14S07), which include
+  hazy days; OPAC's continental average is 0.15 and its clean continental
+  0.06 (Hess, Koepke and Schult 1998, BAMS 79, 831; recalled).  Ångström's
+  exponent 1.3 (Ångström's standard for continental air; recalled), so
+  τ(λ) = 0.12 (λ/550)^−1.3 over the 1.2 km scale height (Bruneton's,
+  kept); over the channels, `mieCoeff` (8.18, 10.12, 13.30)×10⁻⁵ /m, τ
+  0.098 / 0.121 / 0.160.  Single-
+  scattering albedo 0.93 (OPAC's continental average 0.925; AERONET's
+  global means 0.93-0.95, recalled), asymmetry 0.7 (OPAC 0.70, AERONET's
+  typical value at 550 nm; recalled), one Cornette-Shanks lobe.  Its
+  visibility at the ground, 3.9 over the extinction at 550 nm, is 34 km.
+- **Ozone**: 300 Dobson units in Bruneton's tent, 0 at 10 km, 1 at 25 km,
+  0 at 40 km (its integral 15 km), so a peak number density of 300 ×
+  2.687e20 / 15000 = 5.374e18 /m³, times the Bremen cross-sections at 233 K
+  (Serdyuchenko et al. 2014, `demo.cc`'s `kOzoneCrossSection`, 10 nm bins
+  from 360 nm), averaged over the channels: `absorption` (2.471, 1.794,
+  0)×10⁻⁶ /m.  Chappuis's band, which peaks at 600 nm: red and green
+  absorbed, blue not.  At 680, 550 and 440 nm alone (1.209e-25, 3.5e-25,
+  1.582e-26 m²) it was (0.650, 1.881, 0.085)×10⁻⁶: red's a quarter of its
+  band's.
+
+### The channels' coefficients
+
+Each channel's coefficient for a species is the species' spectrum averaged
+over that channel's response under sunlight, not its value at one
+wavelength (`tools/atmos/bandAverage.mjs`, `node
+tools/atmos/bandAverage.mjs` prints the tables below; its test
+`bandAverage.test.js`, and `atmosphere.test.js` checks Earth's data
+against it):
+
+- **The responses**: the rows of the XYZ to linear sRGB matrix applied to
+  the CIE 1931 2° colour-matching functions, r̄ = 3.2406 x̄ − 1.5372 ȳ −
+  0.4986 z̄ and so on, times the Sun's spectrum (ASTM G-173's
+  extraterrestrial column; the tables are Bruneton's, `demo.cc` and
+  `constants.h`), at 1 nm from 360 to 830 nm.  They have negative lobes
+  (r̄ from 440 to 545 nm, b̄ over 500 nm, ḡ at both ends), and they are
+  kept: the light through a path, as linear sRGB relative to the Sun's, is
+  ∫ S c̄ T / ∫ S c̄, which is what the pass's white Sun times a per-channel
+  transmittance has to reproduce.
+- **The average**: k_c = ∫ S c̄ k / ∫ S c̄.  It is exact where the path is
+  thin, for the transmittance and for the in-scatter (whose colour is
+  ∫ S c̄ β), so the sky's colour is the spectrum's.  Ozone's blue comes out
+  slightly negative (b̄'s negative lobe sits on the Chappuis band), a
+  colour outside sRGB's gamut, and is clamped to 0.
+- **The alternative**, matching each species' transmittance through its
+  own column at the 20 km tangent (−ln(∫ S c̄ e^(−kN) / ∫ S c̄) / N), was
+  measured too: species by species it doesn't add, and through the limb it
+  misses the spectrum by more (below).
+
+| /m | 680 / 550 / 440 nm | band average (now) | matched at 20 km |
+|---|---|---|---|
+| Rayleigh | 5.12, 12.16, 30.2 ×10⁻⁶ | 6.26, 12.36, 29.41 ×10⁻⁶ | 6.31, 12.68, 29.84 ×10⁻⁶ |
+| aerosol | 7.59, 10.0, 13.37 ×10⁻⁵ | 8.18, 10.12, 13.30 ×10⁻⁵ | 8.18, 10.12, 13.30 ×10⁻⁵ |
+| ozone | 0.650, 1.881, 0.085 ×10⁻⁶ | 2.471, 1.794, 0 ×10⁻⁶ | 2.498, 1.743, 0.061 ×10⁻⁶ |
+
+The Rayleigh and the aerosol are smooth power laws and move little.  The
+ozone's red is 3.8 times its value at 680 nm: the Chappuis band peaks at
+600 nm, inside red's response, and 680 nm sees only its tail.  With red
+under-absorbed through every long path the limb, and the haze over the
+whole disc, came out lavender to magenta from low orbit, where the ISS's
+photographs show a deep blue limb.
+
+The light through the limb (a tangent path through the whole atmosphere,
+linear sRGB relative to the Sun's, R 6371 km), the spectrum's against the
+models':
+
+| tangent height | spectral r / g / b | band average | 680 / 550 / 440 nm |
+|---|---|---|---|
+| 10 km | 0.124 / 0.049 / 0.0077 | 0.109 / 0.056 / 0.0084 | 0.317 / 0.056 / 0.0071 |
+| 15 km | 0.145 / 0.110 / 0.084 | 0.125 / 0.112 / 0.078 | 0.428 / 0.108 / 0.069 |
+| 20 km | 0.154 / 0.174 / 0.260 | 0.141 / 0.168 / 0.254 | 0.508 / 0.160 / 0.231 |
+| 25 km | 0.209 / 0.267 / 0.479 | 0.202 / 0.258 / 0.481 | 0.602 / 0.246 / 0.448 |
+| 30 km | 0.423 / 0.484 / 0.677 | 0.419 / 0.479 / 0.675 | 0.760 / 0.467 / 0.650 |
+| 35 km | 0.725 / 0.749 / 0.813 | 0.724 / 0.748 / 0.811 | 0.896 / 0.742 / 0.798 |
+
+Over 10 to 35 km the rms of ln(model / spectrum) is 0.070 for the band
+average (its chromaticity, ln r/g and b/g, 0.103), 0.087 (0.128) matched
+at 20 km, and 0.565 (0.713) at one wavelength a channel: three times the
+spectrum's red at 15 to 25 km, red over blue at 20 km where the spectrum
+is blue over red.  Straight up from sea level the band average gives the
+spectrum's transmittance to the third digit (0.831 / 0.781 / 0.674 against
+0.831 / 0.780 / 0.674; 0.868 / 0.782 / 0.668 at the three wavelengths).
+
+Vertical optical depth from sea level (CPU integral of the tables' density
+profiles; `atmosphere.test.js`):
+
+| | red | green | blue |
+|---|---|---|---|
+| Rayleigh | 0.050 | 0.099 | 0.235 |
+| aerosol | 0.098 | 0.121 | 0.160 |
+| ozone | 0.037 | 0.027 | 0 |
+| total | 0.185 | 0.247 | 0.395 |
+| zenith transmittance | 0.831 | 0.781 | 0.674 |
+| at 680 / 550 / 440 nm: total, transmittance | 0.142, 0.868 | 0.246, 0.782 | 0.403, 0.668 |
+| before the measured air: total, transmittance | 0.052, 0.949 | 0.114, 0.892 | 0.271, 0.763 |
+
+Against the textbook: ozone's 0.028 at 550 nm is the 0.03 of 300 DU (0.027
+over green's band), and the Rayleigh is Bucholtz's 0.097 at 550 nm by
+construction.
+
+Through the limb (a tangent path, its transmittance, by the band
+averages; "ozone" is the ozone's share alone; the spectrum's against the
+models' is in the table above):
+
+| tangent height | transmittance r / g / b | ozone's r / g / b |
+|---|---|---|
+| 5 km | 0.043 / 0.0082 / 8.5e-5 | 0.38 / 0.49 / 1 |
+| 15 km | 0.13 / 0.11 / 0.078 | 0.22 / 0.33 / 1 |
+| 25 km | 0.20 / 0.26 / 0.48 | 0.24 / 0.35 / 1 |
+| 35 km | 0.72 / 0.75 / 0.81 | 0.76 / 0.82 / 1 |
+
+From 15 km up the ozone takes two thirds of the green and three quarters
+of the red and leaves the blue: at 25 km the light through the limb is
+blue (0.48 against 0.26 and 0.20), where without the ozone it was
+green-white.  That is the physical reason a limb from orbit stays deep
+blue along the long paths where the tables' Rayleigh alone saturated
+towards cyan.  At one wavelength a channel the ozone took only a third of
+the red (0.68 at 25 km), and the limb went magenta.
+
+**The zenith from sea level**, a CPU mirror of the tables' arithmetic
+(single scattering through the transmittance and Hillaire's isotropic sum,
+64 directions; the session's `atmo-cpu/sky.mjs`), as luminance
+(`Y(L/E)` × the Sun's 1.27e5 lux, which is the sky in exposure units times
+`EXPOSURE_UNIT_CD_M2`), against the CIE clear sky's zenith (Karayel et al.
+1984, CIE 110: Lz = (1.376 T − 1.81) tan h + 0.38 kcd/m², Linke turbidity
+T ≈ 3 for τ550 ≈ 0.1):
+
+| the Sun's elevation | now: kcd/m² (single only), B/R | before (gain 21): kcd/m², B/R | CIE, T 2.5 / 3 / 3.5 |
+|---|---|---|---|
+| 30° | 1.86 (1.03), 3.0 | 6.0, 4.8 | 1.32 / 1.72 / 2.12 |
+| 60° | 5.16 (3.96), 2.1 | 9.5, 4.4 | 3.20 / 4.39 / 5.59 |
+
+Now within the CIE's range of turbidity (T about 3.2, a clear day, as the
+aerosol's τ 0.12 is), where the old gain was 2.2-3.5 times over it and a
+third bluer.  Nothing was tuned to it.  (Measured with the coefficients at 680, 550 and 440 nm,
+before the band averages; the luminance is green's and moves little, the
+B/R lower with red's larger Rayleigh and ozone.  Not re-measured.  The
+ground's albedo in the multiple scattering, since, takes 14% off the zenith
+at noon: [the ground under the air](#the-ground-under-the-air).)
+
+## The ground under the air
+
+The multiple scattering's table (`precomputeMultiScatter`) and the
+volumetric clouds' light from below (CloudVolume) take a Lambertian ground
+under every point, of the atmosphere's `groundAlbedo` (one number or
+[r, g, b]; `AtmospherePrecompute` `groundAlbedo`), else the body's
+`albedo`.  That `albedo` is a geometric albedo, the whole disc's, and
+Earth's 0.367 has its air (the path radiance over the ground, a quarter
+to a half of the disc's light: [the disc from low
+orbit](#the-disc-from-low-orbit), below) and its clouds (two thirds of the
+sky) in it.  As the ground's it counted both twice: the air's own
+backscatter scattered again, and clouds under a clear sky, which are drawn
+on their shell, over the ground they cover.  Earth's tables now take its
+drawn ground's mean, the decoded Blue Marble's (`textureMeans.json`,
+0.0976 / 0.0934 / 0.0878), which `atmosphere.test.js` holds to the
+texture's.  The other bodies keep their `albedo`: Mars's 0.15 and the
+giants' are near their ground's or their cloud tops', and Venus's and
+Titan's ground is under a thick atmosphere whose fit was made with it.
+
+Measured (SwiftShader, Cesium off, the pass's floats; the sky per unit of
+the exposure): the in-scatter over the Kazakh desert from 400 km lost
+14 / 11 / 6% (red, green, blue), all of it from the multiple scattering
+(its ground-reflected share), and the sky from the Dead Sea's shore at
+noon 14% at the zenith (B/R 2.13 to 2.16) and 32% 10° over the anti-solar
+horizon (B/R 1.88 to 2.20), where the most of it was the ground's.  The
+zenith's luminance was the CIE clear sky's at turbidity 3.2 (Earth's air,
+above); 14% less is about 2.9, still a clear day's.
+
+## The Mie's colour
+
+The in-scatter atlas holds the Rayleigh's single scattering per channel
+and the Mie's of red alone (its a).  For a grey aerosol the pass takes
+that in every channel, as the bodies' fits were made.  For Earth's, whose
+extinction follows Ångström's law, it gave it a colour by Bruneton 2017's
+reconstruction (`mieColour`), Mie_c = a · (S_c / S_r) · (β_R,r / β_R,c) ·
+(β_M,c / β_M,r): the Rayleigh's path colour, taken as the Mie's.  The two
+didn't travel the same air: the aerosol's scale height is 1.2 km and the
+gas's 8, so the light the aerosol scatters has come through nearly the
+whole column and goes back through it, while the Rayleigh's mostly
+scattered above it.  A CPU single scattering of Earth's data
+(`atmosphere.test.js`, "the Mie's colour") puts the reconstruction over
+the Mie by 1.00 / 1.15 / 1.65 through the disc from 400 km at the Aydar
+Lake view (below), 1.00 / 0.82 / 0.60 by the Sun 5.5° up at 2°, and 2.4 in
+the blue at the zenith then (where the Mie is 4% of the blue); at the
+zenith at noon it is right to 2%.
+
+Now `precomputeInScatter` renders a second atlas for a chromatic aerosol:
+the Mie per channel over red's (half floats, a ratio: 8 MB at 2048×512;
+0 where there is no light), on the main atlas's texture
+(`texture.userData.mieColour`, read by the pass's `onBeforeRender`, so
+ThreeUi's binding is as it was; disposed with it).  `sampleInScatter`
+returns a times it, and the segment march (`marchSegment`) sums the Mie
+per channel as it goes; a grey aerosol keeps `vec3(a)`.  At the Aydar view
+the table's Mie over the desert went from 0.0269 / 0.0307 / 0.0336 to
+0.0269 / 0.0263 / 0.0195, the CPU's 0.0252 / 0.0252 / 0.0195 at the frame's
+centre.  By the low Sun the horizon toward it took more green and blue
+(B/R 0.186 to 0.196 at 5.5°, 0.413 to 0.459 at 11.8°): the sunset is as
+orange in red and green, a little less deep in blue.  The extra atlas
+costs a second march over it: the whole re-precompute on SwiftShader went
+from 3.4 to 4.6 s (a GPU's is milliseconds).
+
+## The disc from low orbit
+
+**The view**: Aydar Lake from the ISS's height, looking south from over
+Kazakhstan,
+`#sun/earth@47.3233,68.7289,400km;t=9821.711705jd;cq=-0.3992,0.736,0.3632,0.4087;fov=31.52deg;s=alpoGiFY;time:pause`.
+NASA's photograph of it shows a warm, pinkish-tan desert under a thin
+haze; the render's disc was a cool lavender, its canvas's mean (linear)
+0.196 / 0.228 / 0.336.
+
+The geometry is the cause.  The frame looks 60° off the nadir, so the
+ground is seen 64° from its zenith (μ_v 0.43), and the Sun is 22° up there
+(μ_s 0.37), 60° from the view ray (a forward scatter).  The two paths are
+5.0 airmasses: the optical depth along the view and the Sun's path is 0.9
+/ 1.2 / 2.0.  Measured (SwiftShader 360×240, Cesium off,
+glare off, the meter settled across tasks; the scene buffer and the
+pass's intermediates read as floats, `uDebug` 1, 2, 4, 5 and 7, over the
+region's pixels; per unit of the exposure, where 1.5 is a white
+Lambertian surface facing the Sun; the session's `disc-scripts/decomp.mjs`):
+
+| desert (41,390 px) | red | green | blue | share of the pixel, green |
+|---|---|---|---|---|
+| ground as drawn, S (albedo 0.21 / 0.15 / 0.08 × 1.5 μ_s) | 0.112 | 0.082 | 0.044 | |
+| view transmittance, T | 0.640 | 0.554 | 0.397 | |
+| ground through the air, S·T | 0.069 | 0.044 | 0.016 | 25% → 28% |
+| Rayleigh, single | 0.029 | 0.053 | 0.105 | 30% → 34% |
+| aerosol, single (before → now) | 0.022 → 0.022 | 0.025 → 0.022 | 0.028 → 0.016 | 14% → 14% |
+| multiple scattering (before → now) | 0.034 → 0.022 | 0.053 → 0.038 | 0.103 → 0.088 | 30% → 24% |
+| the pixel (before → now) | 0.154 → 0.142 | 0.174 → 0.156 | 0.251 → 0.225 | |
+| path radiance's share (before → now) | 55% → 51% | 75% → 72% | 94% → 93% | |
+
+The lake (151 px) is 91% path radiance in the green; the Blue Marble's
+November snow in the north (6,037 px, S 0.37 grey) shows 0.36 / 0.39 /
+0.48 → 0.34 / 0.36 / 0.42, a bluish white.  The link's `i` turns the
+clouds off; the white in the frame is that snow.
+
+**Against physics.**  The view's transmittance is the plane-parallel
+e^(−τ/μ_v), 0.653 / 0.566 / 0.402, to 3% (the curvature).  The single
+scattering at the frame's centre, by a CPU march of Earth's data (600
+steps, the Sun's path marched), is Rayleigh 0.0313 / 0.0574 / 0.115 and
+aerosol 0.0252 / 0.0252 / 0.0195 against the table's 0.031 / 0.056 / 0.112
+and (now) 0.027 / 0.026 / 0.020.  The multiple scattering is what
+Hillaire's isotropic sum gives with a diffuse field of the sky's light
+and the ground's: about half the single scattering's at green, which is
+also what a hand estimate of that field gives (0.07 against 0.069, with
+the 0.367 ground).  As path reflectance, π L / (E₀ μ_s), the green is
+0.146 single and 0.20 with the rest, at an airmass sum of 5 and a forward
+scatter: the oblique cameras of MISR (60° and 70°) see land through about
+that much.  Nothing in the pass is off by the factor of two or three
+that would make the desert warm: its air dominates because the view is
+oblique and the Sun low.  The ground's albedo is warm (r/b 2.6) and
+decoded right (Planet.md, [albedo](../Planet.md#albedo)); the Blue Marble
+is surface reflectance, atmospherically corrected (MODIS), so the pass's
+haze isn't on top of a haze in the picture; the planet shader adds no
+tint, ambient or specular there (S is 1.5 × albedo × μ_s to the third
+digit).
+
+**What was wrong**, and is fixed: the ground's albedo in the multiple
+scattering ([the ground under the air](#the-ground-under-the-air)) and the
+aerosol's colour ([the Mie's colour](#the-mies-colour)).  Together they
+take the desert's pixel from 0.154 / 0.174 / 0.251 to 0.142 / 0.156 /
+0.225 per unit of the exposure (B/R 1.63 to 1.58); the meter lifts the
+darker frame (gain 1.27 to 1.44), and the canvas's disc goes from 0.196 /
+0.228 / 0.336 to 0.207 / 0.232 / 0.337 (B/R 1.72 to 1.63).  The limb
+there is 0.323 / 0.432 / 0.672 → 0.320 / 0.409 / 0.661, deep blue still.
+
+**What is still wrong, and moves the other way**: the ground is lit by
+the Sun above the air.  Its light reaches the ground through the air's
+transmittance, 0.615 / 0.522 / 0.354 at the frame's centre (μ_s 0.38),
+and the sky's light adds 0.153 / 0.184 / 0.216 of E₀μ_s by single
+scattering (a CPU hemisphere of rays), about 0.2 / 0.24 / 0.3 with the
+higher orders: the ground's irradiance is about 0.81 / 0.76 / 0.65 of
+what it is drawn with.  Drawn so, the desert's pixel would be about
+0.137 / 0.147 / 0.214, bluer still (B/R 1.56 with the ground warmer and
+darker).  It matters more toward the terminator, where the ground should
+redden and dim, and it needs the ground's irradiance (Bruneton's
+irradiance table, or the direct beam through the transmittance table and
+the sky's from Ψ) in the planet's material and in Cesium's; not done
+(known gaps, below).
+
+**And the rest is the observer's.**  The model's colours are linear sRGB
+relative to the Sun's light, white: a camera's white balance, auto or set
+to daylight under a bluish scene, and the contrast and dehaze applied to
+the photographs, aren't in it.  A regional aerosol (the Aral's and the
+Kyzylkum's dust, a lower Ångström exponent and a lower albedo in the
+blue) would warm the haze too; Earth has one aerosol.
+
 ## Knobs you might want to tune
 
 - Per-body `sunIntensity`: the physical 4.71 unless the data has a
-  documented reason (only Earth's does); not a knob to tune a look by.
+  documented reason (none does now); not a knob to tune a look by.
 - The metered exposure's constants (`exposure.js`: the key, the highlight
   cap, the gain's range and time constant), documented in HDR.md.
 
@@ -754,21 +1078,66 @@ The cyan-white band is the tangent path's in-scatter at 4.5 times the
 physical gain: blue clips (248) while green climbs, and Neutral's shoulder
 desaturates what it compresses.  At 4.71 the band is gone and the surface
 isn't veiled.  The other tone maps and the colour-managed pipeline don't
-remove it.  The gain stands in for aerosols the tables don't hold (above,
-`sunIntensity`), and was matched to Cesium's Earth, so changing it is the
-follow-up already named there: the aerosol load at 4.71, refitted against
-parity.  The model has no ozone either, whose Chappuis absorption keeps a real
-limb blue along long paths.  Try it: the performance panel's *Sky gain*, or
-`?skygain=4.71` (DESIGN.md, performance panel).
+remove it.  The gain stood in for aerosols the tables didn't hold (above,
+`sunIntensity`).
+
+**Done**: Earth's air is physical, at 4.71, with a clear day's aerosol and
+the ozone (Earth's air, above): the ozone's Chappuis absorption takes the
+green and red from the long tangent paths and leaves the blue, which is
+what keeps a real limb blue.  The table above was measured before; still to
+verify by rendering: the limb from 420 km against the photograph (black →
+deep blue → surface, no cyan band), the ground's sky at noon and sunset
+(the aureole and the horizon's haze are the aerosol's now, the setting
+Sun's reddened Mie through `mieColour`), Earth's disc from afar (the haze
+over the disc is the aerosol's: the disc's I/F against Earth's geometric
+albedo, 0.367, Planet.md) and the night side (unchanged but for the
+twilight arc).  The gain was matched to Cesium's Earth; parity's Earth
+views measure Cesium on against off under the same pass, so they should
+move only where the haze, now heavier near the ground, covers both sides
+(`earth-low-land-day`, `earth-low-dusk`, the terminator profiles of
+`earth-orbit-gibbous`).
 
 ## Known gaps / future work
 
-- **Surface-vs-atmosphere coloring from space.** The additive composite
-  of inscatter + surface*T reads OK but the saturation/hue balance over
-  land vs ocean isn't perfectly tuned, and the coastal hand-off looks
-  slightly washed. Plausible knobs: per-channel inscatter scaling, a
-  soft saturation curve on the composite, or proper aerial-perspective
-  integration over the segment from surface depth back to camera.
+- **The channels' coefficients** are band averages (Earth's air, "The
+  channels' coefficients"), which reproduce the spectrum's limb to about
+  7%, not its exact colour: a transmittance's average over a band isn't
+  the exponential of its coefficient's average, and the error grows with
+  the optical depth (at 10 km, red 0.109 against 0.124).  A spectral model
+  (Bruneton's 2017 implementation's 40 wavelengths, converted to the
+  primaries) is the step after, for the long paths.  The other bodies'
+  coefficients are still at one wavelength a channel; they have no
+  absorber with a band inside a channel, so the error is the small one of
+  the power laws (Earth's Rayleigh red moved 22%).
+- **The grey aerosols' Mie colour.**  Mars's dust and Titan's haze keep
+  red's transmittance for their Mie in every channel (`mieColour`, grey);
+  Bruneton's reconstruction would colour it by the path, which moves their
+  B/R, so their fits would need redoing with it.
+- **The march's step count** (`segmentSteps`) bounds the segment's
+  optical depth by the extinction at its lowest point times its length, in
+  the bluest channel, and at Earth's ground that is now the aerosol's:
+  1.7e-4 /m, against 3.8e-5 before (The march's cost, above).  Looking
+  straight down from 7.5 km the bound is 1.27 (13 steps), where the
+  segment's real optical depth is about 0.4 (the aerosol is in its lowest
+  1.2 km): the march is about three times what it was in #189's view.  A
+  bound per species with the ray's height range (`tMax·H/Δh` in place of
+  `tMax` for the steep rays) would take it back to 4-5 steps; it would
+  change the other bodies' step counts too, so it waits for a measure on a
+  real GPU (`?perf=sync`).
+- **The sky guest's gains by the Sun's altitude** (`js/sky/view.js`
+  `METERED_GAIN`) were settled on Earth's sky at a gain of 21, and want
+  re-measuring with the physical one.
+
+- **The ground's light through the air.**  Celestiary's ground (and
+  Cesium's) is lit by the Sun above the air: no transmittance on the
+  Sun's path to it, and no sky light.  At the Aydar view its irradiance
+  is about 0.81 / 0.76 / 0.65 of what it is drawn with ([the disc from low
+  orbit](#the-disc-from-low-orbit)); toward the terminator the ground
+  should redden and dim.  Bruneton's irradiance table (or the direct beam
+  through the transmittance table and the sky's light from Ψ) in the
+  planet's material, and the same in Cesium's lighting, so parity holds.
+  The disc from orbit gets bluer with it, not warmer: its colour at an
+  oblique view and a low Sun is its air's.
 - **Twilight's stars.**  The metered exposure is a whole-frame meter;
   at −10° the horizon band toward the Sun (1.8e-3 of a sunlit white) or
   away from it (5.7e-4) caps the gain at a few hundred to a thousand,

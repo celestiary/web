@@ -1,19 +1,19 @@
-import Stats from 'three/examples/jsm/libs/stats.module.js'
-
-
 /**
- * The performance panel (DESIGN.md, "Performance panel"): controls and
- * render info over three's Stats graph; the backtick key shows it.  Loaded
- * with the panel's first showing (ThreeUi.togglePerfPanel), so it costs the
- * first load nothing.
+ * The render panel (DESIGN.md, "Performance panel"): the rendering's
+ * controls and what it is set to; the backtick key shows it, with the perf
+ * overlay (perf.js show), which has the frame's numbers, graphs and render
+ * counts.  Loaded with the panel's first showing (ThreeUi.togglePerfPanel),
+ * so it costs the first load nothing.
  *
  * - **Tone map**: the final tone map, in the atmosphere pass
  *   (scene/toneMaps.js), for diagnosing colour.  PBR Neutral is the app's.
- * - **Frame**: FPS and the frame's interval, and the CPU time to issue it.
- * - **Memory** and **Render**: three's `renderer.info`, the render counts
- *   summed over the frame's renders (ThreeUi resets them once a frame while
- *   the panel shows).  Cesium's replayed draws aren't three's and aren't in
- *   them; `?perf=1` counts those.
+ * - **Output colour space** and **sky gain**.
+ * - **Observer, exposure and glare**: the eye or a camera (the Settings'
+ *   Observer row, `K` in a link), the exposure compensation (`ev=`, the
+ *   keys' EV) with Auto, the Sun's glare on or off and a diagnostic
+ *   strength; and readouts of the exposure, the meter's gain and the glare's
+ *   model.  Each control drives the app's own state (Scene, Celestiary,
+ *   SunLayers) and is set back from it at each redraw, so it holds nothing.
  * - **Output**: the renderer's output colour space and tone mapping, and
  *   whether the scene buffer is HDR.
  * - **Capabilities**: three's `renderer.capabilities`, folded.
@@ -41,8 +41,6 @@ export const OUTPUT_COLOR_SPACES = [
 
 /** How often the text is redrawn, ms: it never touches the frame it describes. */
 export const UPDATE_MS = 500
-/** Frames the FPS and interval average over. */
-const WINDOW = 60
 
 // three's constants by value (r187), so this module needn't import three.
 const TONE_MAPPING_NAMES = {
@@ -96,38 +94,18 @@ export function capabilityRows(caps) {
 
 
 /**
- * The panel's sections, from the renderer and the frame's timings.  Pure, for
- * tests.
+ * The panel's sections, from the renderer.  Pure, for tests.  The frame's
+ * numbers, memory and render counts are the perf overlay's (PerfInfo.js).
  *
  * @param {object} p
  * @param {object} p.renderer A three WebGLRenderer, or its shape
- * @param {{calls: number, triangles: number, points: number, lines: number}} p.render The frame's render counts
- * @param {number} p.fps
- * @param {number} p.intervalMs The mean frame interval
- * @param {number} p.cpuMs The mean CPU time to issue a frame
  * @param {boolean} p.hdr Whether the scene buffer is half-float HDR
  * @param {string} p.toneMap The final tone map's key
  * @returns {Array<{title: string, rows: Array<Array<string>>}>}
  */
-export function infoSections({renderer, render, fps, intervalMs, cpuMs, hdr, toneMap}) {
-  const mem = renderer.info?.memory ?? {}
+export function infoSections({renderer, hdr, toneMap}) {
   const label = TONE_MAPS.find((t) => t.key === toneMap)?.label ?? toneMap
   return [
-    {title: 'Frame', rows: [
-      ['FPS', fps.toFixed(1)],
-      ['frame time', `${intervalMs.toFixed(2)} ms`],
-      ['CPU to issue', `${cpuMs.toFixed(2)} ms`],
-    ]},
-    {title: 'Memory', rows: [
-      ['geometries', String(mem.geometries ?? 0)],
-      ['textures', String(mem.textures ?? 0)],
-    ]},
-    {title: 'Render (per frame, three\'s draws)', rows: [
-      ['calls', String(render.calls)],
-      ['triangles', String(render.triangles)],
-      ['points', String(render.points)],
-      ['lines', String(render.lines)],
-    ]},
     {title: 'Output', rows: [
       ['outputColorSpace', colorSpaceName(renderer.outputColorSpace)],
       ['final tone map', label],
@@ -135,6 +113,39 @@ export function infoSections({renderer, render, fps, intervalMs, cpuMs, hdr, ton
       ['toneMappingExposure', Number(renderer.toneMappingExposure).toPrecision(4)],
       ['scene buffer', hdr ? 'RGBA16F, linear HDR' : 'RGBA8 (LDR fallback)'],
     ]},
+  ]
+}
+
+
+/** The glare models' names, by an instrument's psf.glareModel (glare.js GLARE_MODEL_*). */
+const GLARE_MODELS = ['the eye\'s (disability glare)', 'a camera\'s (a lens\'s veil)']
+
+
+/**
+ * The observer's, the exposure's and the glare's readouts.  Pure, for tests.
+ *
+ * @param {object} ui ThreeUi: `instrument`, `observer`, `_appInstrument`,
+ *   `renderer.toneMappingExposure`, `_exposureGoal`, `_meterGain`,
+ *   `_meterGainGoal`, `_renderedGain`, `exposureCompensation()`
+ * @param {object|null} sun The Sun's SunLayers: `enabled.glare`, `glare.visible`, `glareGain`
+ * @returns {Array<Array<string>>} [name, value] pairs
+ */
+export function cameraRows(ui, sun) {
+  const g = (v) => (Number.isFinite(v) ? Number(v).toPrecision(4) : 'n/a')
+  const instrument = ui.instrument ?? {}
+  const app = ui._appInstrument ? ' (an app\'s)' : ''
+  const ev = ui.exposureCompensation?.() ?? 0
+  const model = GLARE_MODELS[instrument.psf?.glareModel ?? 0] ?? String(instrument.psf?.glareModel)
+  return [
+    ['instrument', `${instrument.name ?? 'n/a'}${app}`],
+    ['exposure', g(ui.renderer?.toneMappingExposure)],
+    ['keyed exposure', g(ui._exposureGoal)],
+    ['metered gain', `${g(ui._meterGain)} (goal ${g(ui._meterGainGoal)})`],
+    ['rendered gain', g(ui._renderedGain)],
+    ['EV', `${ev > 0 ? '+' : ''}${Number(ev.toFixed(2))}${ev === 0 ? ' (auto)' : ''}`],
+    ['glare model', model],
+    ['glare', sun ? `${sun.enabled.glare ? 'on' : 'off'}, ${sun.glare?.visible ? 'drawn' : 'not drawn'}` +
+      `${sun.glareGain === 1 ? '' : `, x${sun.glareGain} (diagnostic)`}` : 'no Sun'],
   ]
 }
 
@@ -151,23 +162,20 @@ export default class RenderPanel {
    * @param {function(string): void} [p.onColorSpace] Called with 'srgb' or 'srgb-linear' on a change
    * @param {number|null} [p.skyGain] The sky gain in place of the body's, or null
    * @param {function(string): void} [p.onSkyGain] Called with the field's text on a change ('' for the body's)
+   * @param {object} [p.ui] ThreeUi, for the observer, exposure and glare (cameraRows, _cameraControls)
    * @param {function(): number} [p.now] Milliseconds
    */
   constructor({
     doc, renderer, hdr, toneMap, onToneMap, onColorSpace = () => undefined,
-    skyGain = null, onSkyGain = () => undefined, now = () => performance.now(),
+    skyGain = null, onSkyGain = () => undefined, ui = null, now = () => performance.now(),
   }) {
     this.doc = doc
+    this.ui = ui
     this.renderer = renderer
     this.hdr = hdr
     this.toneMap = toneMap
     this.now = now
-    this.intervals = []
-    this.cpu = []
-    this.lastFrameAt = null
-    this.frameStartAt = null
     this.lastDrawAt = -Infinity
-    this.render = {calls: 0, triangles: 0, points: 0, lines: 0}
     const el = (tag, props = {}, style = {}) => {
       const e = doc.createElement(tag)
       Object.assign(e, props)
@@ -224,34 +232,107 @@ export default class RenderPanel {
       reset.blur()
     })
     gainRow.append(el('span', {textContent: 'Sky gain'}, {color: '#8ac', width: '4.5em'}), gainBox, physical, reset)
-    this.root.append(toneMapRow, spaceRow, gainRow, this.info, caps)
-  }
-
-
-  /** Mark a frame's start: its interval from the last. */
-  frameBegin() {
-    const t = this.now()
-    if (this.lastFrameAt !== null) {
-      push(this.intervals, t - this.lastFrameAt)
+    this.root.append(toneMapRow, spaceRow, gainRow)
+    if (ui) {
+      this.root.append(this._cameraControls(ui))
     }
-    this.lastFrameAt = t
-    this.frameStartAt = t
+    this.root.append(this.info, caps)
   }
 
 
   /**
-   * Mark a frame's end: its CPU time, and the render counts it summed.
-   * Redraws the text every UPDATE_MS.
+   * The observer's, the exposure's and the glare's controls.
+   *
+   * @param {object} ui ThreeUi
+   * @returns {HTMLElement}
    */
+  _cameraControls(ui) {
+    const {el} = this
+    const box = el('div', {}, {borderTop: '1px solid #444', paddingTop: '4px', marginBottom: '2px'})
+    const row = (text, title) => {
+      const label = el('label', {title}, {display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '4px'})
+      label.append(el('span', {textContent: text}, {color: '#8ac', width: '4.5em'}))
+      box.append(label)
+      return label
+    }
+    const button = (text, title, onClick) => {
+      const b = el('button', {textContent: text, title}, {font: 'inherit', cursor: 'pointer'})
+      b.addEventListener('click', () => {
+        onClick()
+        b.blur()
+        this.draw()
+      })
+      return b
+    }
+    const scene = () => ui.sceneManager
+    const observer = el('select', {}, {flex: '1', font: 'inherit'})
+    observer.setAttribute('data-testid', 'render-info-observer')
+    for (const [value, label] of [['eye', 'Eye (naked, dark adapted)'], ['camera', 'Camera (a lens\'s glare)']]) {
+      observer.append(el('option', {value, textContent: label}))
+    }
+    observer.addEventListener('change', () => {
+      if ((observer.value === 'camera') !== Boolean(scene()?.observerIsCamera())) {
+        scene()?.toggleObserverCamera()
+      }
+      observer.blur()
+      this.draw()
+    })
+    row('Observer', 'The user\'s observer: the Settings\' Observer row, `K` in a link\'s s= (Sun.md, "Glare").  ' +
+      'An app\'s instrument (Rubin\'s) overrides it while the app runs').append(observer)
+    const ev = el('input', {type: 'number', min: '-10', max: '10', step: String(1 / 3)}, {width: '6em', font: 'inherit'})
+    ev.setAttribute('data-testid', 'render-info-ev')
+    const setEv = (v) => (ui.onEv ?? ((x) => ui.setExposureCompensation(x)))(v)
+    ev.addEventListener('change', () => {
+      setEv(Number(ev.value))
+      ev.blur()
+      this.draw()
+    })
+    row('EV', 'Exposure compensation, stops over the metered exposure: the EV keys\' and `ev=` in a link ' +
+      '(HDR.md, "User exposure compensation")').append(ev, button('Auto', 'The metered exposure: EV 0', () => setEv(0)))
+    const sun = () => scene()?.objects?.sun?.sunLayers ?? null
+    const glare = el('input', {type: 'checkbox'}, {verticalAlign: 'middle'})
+    glare.setAttribute('data-testid', 'render-info-glare')
+    glare.addEventListener('change', () => {
+      if (sun()) {
+        sun().enabled.glare = glare.checked
+      }
+      glare.blur()
+    })
+    const strength = el('input', {type: 'number', min: '0', step: '0.1'}, {width: '5em', font: 'inherit'})
+    strength.setAttribute('data-testid', 'render-info-glare-gain')
+    strength.title = 'Diagnostic: a multiplier on the veil, 1 as the model has it.  Not kept in a link'
+    strength.addEventListener('change', () => {
+      const g = Number(strength.value)
+      if (sun() && Number.isFinite(g) && g >= 0) {
+        sun().glareGain = g
+      }
+      strength.blur()
+    })
+    row('Glare', 'The Sun\'s glare, the observer\'s veil round it (Sun.md, "Glare")').append(glare,
+        el('span', {textContent: 'x'}, {color: '#aaa'}), strength,
+        button('1', 'The model\'s own strength', () => sun() && (sun().glareGain = 1)))
+    this.cameraInfo = el('div')
+    box.append(this.cameraInfo)
+    this._syncCamera = () => {
+      observer.value = scene()?.observerIsCamera() ? 'camera' : 'eye'
+      if (this.doc.activeElement !== ev) {
+        ev.value = String(Number((ui.exposureCompensation?.() ?? 0).toFixed(2)))
+      }
+      const s = sun()
+      glare.checked = s?.enabled.glare ?? false
+      glare.disabled = !s
+      if (this.doc.activeElement !== strength) {
+        strength.value = String(s?.glareGain ?? 1)
+      }
+      this.cameraInfo.replaceChildren(this._table(cameraRows(ui, s)))
+    }
+    return box
+  }
+
+
+  /** Mark a frame's end: redraws the text every UPDATE_MS (the exposure moves). */
   frameEnd() {
     const t = this.now()
-    if (this.frameStartAt !== null) {
-      push(this.cpu, t - this.frameStartAt)
-    }
-    const r = this.renderer.info?.render
-    if (r) {
-      this.render = {calls: r.calls, triangles: r.triangles, points: r.points, lines: r.lines}
-    }
     if (t - this.lastDrawAt >= UPDATE_MS) {
       this.lastDrawAt = t
       this.draw()
@@ -261,11 +342,8 @@ export default class RenderPanel {
 
   /** Rewrite the info from the latest numbers. */
   draw() {
-    const intervalMs = mean(this.intervals)
-    const sections = infoSections({
-      renderer: this.renderer, render: this.render, hdr: this.hdr, toneMap: this.toneMap,
-      fps: intervalMs > 0 ? 1000 / intervalMs : 0, intervalMs, cpuMs: mean(this.cpu),
-    })
+    this._syncCamera?.()
+    const sections = infoSections({renderer: this.renderer, hdr: this.hdr, toneMap: this.toneMap})
     const parts = []
     for (const s of sections) {
       parts.push(this.el('div', {textContent: s.title}, {color: '#8ac', marginTop: '3px'}), this._table(s.rows))
@@ -313,28 +391,13 @@ export default class RenderPanel {
 }
 
 
-/** Keep the last WINDOW values. */
-function push(list, v) {
-  list.push(v)
-  if (list.length > WINDOW) {
-    list.shift()
-  }
-}
-
-
-/** @returns {number} 0 for none */
-function mean(list) {
-  return list.length === 0 ? 0 : list.reduce((a, b) => a + b, 0) / list.length
-}
-
-
 /**
- * The whole performance panel: the render info over three's Stats graph, in
- * an element on the page, hidden until the caller shows it.  Bottom-right,
- * above the fullscreen control; only the boxes take pointer events.
+ * The render panel, in an element on the page, hidden until the caller shows
+ * it.  Bottom-right, above the fullscreen control; only its box takes pointer
+ * events.
  *
  * @param {object} p RenderPanel's constructor's
- * @returns {{root: HTMLElement, stats: Stats, panel: RenderPanel}}
+ * @returns {{root: HTMLElement, panel: RenderPanel}}
  */
 export function createPerfPanel(p) {
   const {doc} = p
@@ -344,12 +407,9 @@ export function createPerfPanel(p) {
     position: 'fixed', bottom: '3.5em', right: '0.5em', zIndex: '1000', display: 'none',
     flexDirection: 'column', alignItems: 'flex-end', pointerEvents: 'none',
   })
-  const stats = new Stats
-  Object.assign(stats.dom.style, {position: 'relative', top: 'auto', left: 'auto', pointerEvents: 'auto'})
-  stats.dom.id = 'perf-panel'
   const panel = new RenderPanel(p)
   panel.root.style.pointerEvents = 'auto'
-  root.append(panel.root, stats.dom)
+  root.append(panel.root)
   doc.body.appendChild(root)
-  return {root, stats, panel}
+  return {root, panel}
 }

@@ -1,8 +1,9 @@
 import {describe, expect, it} from 'bun:test'
 import {balmerPerNm, centreTemperatureAtHalpha, flareContrast} from './emission.js'
 import {
-  EYE_PSF_GLSL, GLARE_FADE_DEG, GLARE_GLSL, GLARE_MAX_DEG, eyePsf, eyePsfRadiusDeg, eyePsfShare, glareFieldWeight,
-  glareFunction, glareOverRadiance, glareRadiusDeg,
+  CAMERA_GLARE_GLSL, EYE_PSF_GLSL, GLARE_FADE_DEG, GLARE_GLSL, GLARE_MAX_DEG, GLARE_MODEL_CAMERA, GLARE_MODEL_EYE,
+  cameraGlareFunction, eyePsf, eyePsfRadiusDeg, eyePsfShare, glareFieldWeight, glareFunction, glareFunctionOf,
+  glareOverRadiance, glareRadiusDeg, veilingGlareIndex,
 } from './glare.js'
 
 
@@ -42,6 +43,52 @@ describe('the eye\'s veiling glare (CIE 135/1999)', () => {
     expect(glareFunction(60)).toBeGreaterThan(glareFunction(89))
     expect(glareFunction(150)).toBeCloseTo(glareFunction(100), 12)
     expect(GLARE_GLSL).not.toMatch(/smoothstep/)
+  })
+})
+
+
+describe('a camera\'s veiling glare (a good lens: Sun.md, "Glare")', () => {
+  it('is 10 to 40 times under the eye\'s at 1°, 10° and 30°, the gap widening outward', () => {
+    const ratio = (t) => glareFunction(t) / cameraGlareFunction(t)
+    expect(ratio(1)).toBeGreaterThan(10)
+    expect(ratio(1)).toBeLessThan(16)
+    expect(ratio(10)).toBeGreaterThan(18)
+    expect(ratio(10)).toBeLessThan(28)
+    expect(ratio(30)).toBeGreaterThan(28)
+    expect(ratio(30)).toBeLessThan(42)
+    expect(ratio(1)).toBeLessThan(ratio(10))
+    expect(ratio(10)).toBeLessThan(ratio(30))
+    expect(cameraGlareFunction(1)).toBeCloseTo(1.2, 9)
+    expect(cameraGlareFunction(10)).toBeCloseTo(3e-3, 9)
+  })
+
+  it('its veiling glare index (ISO 9358: a black spot of 1° in a field of 30°) is a good lens\'s, 0.3%; the eye\'s 5.6%', () => {
+    expect(veilingGlareIndex(cameraGlareFunction)).toBeGreaterThan(0.0025)
+    expect(veilingGlareIndex(cameraGlareFunction)).toBeLessThan(0.004)
+    expect(veilingGlareIndex(glareFunction)).toBeGreaterThan(0.04)
+    expect(veilingGlareIndex(glareFunction)).toBeLessThan(0.07)
+  })
+
+  it('falls as θ^-3 near the source and θ^-2 beyond a few degrees', () => {
+    expect(cameraGlareFunction(0.2) / cameraGlareFunction(0.4)).toBeGreaterThan(7)
+    expect(cameraGlareFunction(30) / cameraGlareFunction(60)).toBeGreaterThan(4)
+    expect(cameraGlareFunction(30) / cameraGlareFunction(60)).toBeLessThan(4.4)
+    expect(cameraGlareFunction(150)).toBeCloseTo(cameraGlareFunction(100), 12)
+  })
+
+  it('is picked by its model, and its reach is the inverse of it', () => {
+    expect(glareFunctionOf(GLARE_MODEL_EYE)).toBe(glareFunction)
+    expect(glareFunctionOf(GLARE_MODEL_CAMERA)).toBe(cameraGlareFunction)
+    expect(glareRadiusDeg(cameraGlareFunction(7), cameraGlareFunction)).toBeCloseTo(7, 3)
+    expect(CAMERA_GLARE_GLSL).toMatch(/float cameraGlareFunction\(float thetaDeg\)/)
+  })
+
+  it('its GLSL is the JS function, term for term', () => {
+    const body = CAMERA_GLARE_GLSL.match(/return (.*);/)[1]
+    const glsl = new Function('t', `return ${body}`)
+    for (const t of [0.1, 1, 10, 30, 100]) {
+      expect(glsl(t)).toBeCloseTo(cameraGlareFunction(t), 9)
+    }
   })
 })
 

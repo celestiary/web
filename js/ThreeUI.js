@@ -24,7 +24,7 @@ import {DEFAULT_TONE_MAP_GLSL, newAtmospherePass} from './scene/atmos/Atmosphere
 import {atmosphereBody, atmosphereResolvable} from './scene/atmos/atmosphereBody.js'
 import {setDrawingBuffer} from './scene/farPoint.js'
 import {
-  mieParams, precomputeInScatter, precomputeInScatterMs, precomputeMultiScatter, precomputeTransmittance,
+  mieParams, ozoneParams, precomputeInScatter, precomputeInScatterMs, precomputeMultiScatter, precomputeTransmittance,
 } from './scene/atmos/AtmospherePrecompute'
 import CesiumLayers from './scene/cesium/CesiumLayers'
 import {
@@ -181,11 +181,14 @@ export default class ThreeUi {
     this.meterReadings = 0
     // The user's exposure compensation, stops (setExposureCompensation).
     this._evStops = 0
-    // The observer (observer/instrument.js): the naked eye, dark adapted,
-    // or the instrument an app sets while it runs (setInstrument).  What
-    // the star field takes from it goes to the shaders through hdr.js
-    // absoluteUniforms, once here (the field's magnification is the
+    // The observer (observer/instrument.js): the user's (setObserver: the
+    // naked eye, dark adapted, or a camera), or the instrument an app sets
+    // while it runs (setInstrument), which overrides it.  What the star
+    // field and the Sun's glare take from it go to the shaders through
+    // hdr.js absoluteUniforms, once here (the field's magnification is the
     // camera's, each frame in the shader).
+    this.observer = NAKED_EYE
+    this._appInstrument = null
     this.instrument = NAKED_EYE
     // Whether the instrument's field range holds the field (setFieldLimit).
     this.fieldLimit = true
@@ -228,11 +231,9 @@ export default class ThreeUi {
       this.scene.add(controllerGrip);
     */
 
-    // three's Stats panel (FPS / MS / MB): built on first toggle, so startup
-    // and the tests never touch the DOM for it.  See togglePerfPanel.
-    this._stats = null
-    // The panel's controls and render info (perf/RenderPanel.js), loaded with
-    // its first showing, and the element holding it and the Stats graph.
+    // The render panel's controls (perf/RenderPanel.js): built on first
+    // toggle, so startup and the tests never touch the DOM for it, and the
+    // element holding it.  See togglePerfPanel.
     this._renderPanel = null
     this._perfRoot = null
     this._perfPanelLoading = null
@@ -541,13 +542,35 @@ export default class ThreeUi {
 
   /**
    * Make an instrument the observer (HDR.md, "The instrument"): an app's,
-   * while it runs (the Rubin app's RUBIN), or the naked eye again.  The
-   * star field's numbers follow it, and the field is held to its range.
+   * while it runs (the Rubin app's RUBIN), or, with null, the user's
+   * observer again (setObserver).  The star field's numbers and the Sun's
+   * glare follow it, and the field is held to its range.
+   *
+   * @param {?object} instrument An Instrument; null for the user's observer
+   */
+  setInstrument(instrument) {
+    this._appInstrument = instrument ?? null
+    this._applyInstrument()
+  }
+
+
+  /**
+   * The user's observer (the Observer setting, `K` in a link's `s=`):
+   * the naked eye, or a camera, whose veil round the Sun is a lens's
+   * (Sun.md, "Glare").  It is the observer whenever no app has set its
+   * own instrument (setInstrument), and again once that app stops.
    *
    * @param {?object} instrument An Instrument; null for NAKED_EYE
    */
-  setInstrument(instrument) {
-    this.instrument = instrument ?? NAKED_EYE
+  setObserver(instrument) {
+    this.observer = instrument ?? NAKED_EYE
+    this._applyInstrument()
+  }
+
+
+  /** The app's instrument, or the user's observer: its numbers to the shaders. */
+  _applyInstrument() {
+    this.instrument = this._appInstrument ?? this.observer ?? NAKED_EYE
     this._setObserverUniforms()
     this.setStarGain(instrumentStarGain(this.instrument, this._starMag))
     this.setFov(this.camera.fov)
@@ -600,17 +623,7 @@ export default class ThreeUi {
       }
       return
     }
-    // Timing runs only while the panel is showing.  Visibility flips from
-    // key events, never mid-frame, so begin() and end() always pair.
-    const stats = this._perfVisible ? this._stats : null
-    this._frameStats = stats
-    stats?.begin()
-    // The panel's render counts are the frame's, summed over its renders.
     this._frameRenderPanel = this._perfVisible ? this._renderPanel : null
-    if (this._frameRenderPanel) {
-      this.renderer.info.reset()
-      this._frameRenderPanel.frameBegin()
-    }
     perf.frameBegin()
     perf.begin('update')
     this.camera.updateMatrixWorld()
@@ -759,7 +772,6 @@ export default class ThreeUi {
       }
     }
     perf.frameEnd()
-    this._frameStats?.end()
     this._frameRenderPanel?.frameEnd()
   }
 
@@ -924,14 +936,13 @@ export default class ThreeUi {
 
 
   /**
-   * Show or hide the performance panel: three's Stats graph (FPS, MS, MB;
-   * click it to cycle) under the render info and the tone map control
-   * (perf/RenderPanel.js).  The elements are created on the first show and
-   * then only hidden, so they cost nothing until asked for; their module
-   * (perf/RenderPanel.js, with three's Stats) loads then too.  It sits bottom-right above the fullscreen
-   * control, the corner the HUD leaves free (the info list can run long down
-   * the left), over the canvas; only its own boxes take pointer events.
-   * While it shows, renderer.info is reset once a frame, not per render.
+   * Show or hide the performance panels together: the render panel (the
+   * tone map and the rendering's controls, perf/RenderPanel.js) and the perf
+   * overlay (perf.js show: started here without `?perf=1`, and taken off
+   * again on the next press), which has the frame's graphs and render info.
+   * The render panel is created on the first show and then only hidden; its
+   * module loads then too.  It sits bottom-right above the fullscreen
+   * control, over the canvas; only its own box takes pointer events.
    *
    * @returns {boolean} whether the panel is now showing.
    */
@@ -939,15 +950,15 @@ export default class ThreeUi {
     this._perfVisible = !this._perfVisible
     if (this._perfVisible && !this._perfPanelLoading) {
       this._perfPanelLoading = import('./perf/RenderPanel.js').then(({createPerfPanel}) => {
-        const {root, stats, panel} = createPerfPanel({
+        const {root, panel} = createPerfPanel({
           doc: document, renderer: this.renderer, hdr: this.hdr, toneMap: this.toneMap,
           onToneMap: (key) => this.setToneMap(key),
           onColorSpace: (space) => this.setOutputColorSpace(space),
           skyGain: this.skyGainOverride,
           onSkyGain: (gain) => this.setSkyGain(gain),
+          ui: this,
         })
         this._perfRoot = root
-        this._stats = stats
         this._renderPanel = panel
         this._showPerfPanel()
       }).catch((err) => {
@@ -956,6 +967,7 @@ export default class ThreeUi {
         // reload does.
         this._perfPanelLoading = null
         this._perfVisible = false
+        this._showPerfPanel()
         console.warn('Performance panel failed to load (press ` to retry, or reload):', err)
       })
     }
@@ -964,14 +976,12 @@ export default class ThreeUi {
   }
 
 
-  /** Apply _perfVisible to the panel, once it's loaded, and to renderer.info. */
+  /** Apply _perfVisible to the render panel, once it's loaded, and to the perf overlay. */
   _showPerfPanel() {
     if (this._perfRoot) {
       this._perfRoot.style.display = this._perfVisible ? 'flex' : 'none'
     }
-    // Counted per frame while showing (renderLoop); per render otherwise,
-    // as three does, unless ?perf=1 counts them itself.
-    this.renderer.info.autoReset = !this._perfVisible && !perf.enabled
+    perf.show(this, this._perfVisible)
   }
 
 
@@ -1240,6 +1250,7 @@ export default class ThreeUi {
     absoluteUniforms.uEyePointRad.value = this.instrument.pointPoolRad
     absoluteUniforms.uPoolRadiusDeg.value = psf.poolRadiusDeg
     absoluteUniforms.uCoreShare.value = psf.coreShare
+    absoluteUniforms.uGlareModel.value = psf.glareModel ?? 0
     let maxPoint = STAR_MAX_SIZE_PX
     try {
       const gl = this.renderer.getContext()
@@ -2152,9 +2163,13 @@ export default class ThreeUi {
     u.uSkyExposure.value = sunDist > 0 ? skyExposure(sunDist, this.renderer.toneMappingExposure) : 1
     u.uRayleigh.value.set(...atmos.rayleigh)
     u.uRayleighScaleHeight.value = atmos.rayleighScaleHeight.scalar
-    u.uMieCoeff.value = atmos.mieCoeff
-    u.uMieScaleHeight.value = atmos.mieScaleHeight.scalar
     const mie = mieParams(atmos)
+    const ozone = ozoneParams(atmos)
+    u.uMieCoeff.value.copy(mie.extinction)
+    u.uMieChroma.value = mie.chroma
+    u.uOzone.value.copy(ozone.absorption)
+    u.uOzoneProfile.value.copy(ozone.profile)
+    u.uMieScaleHeight.value = atmos.mieScaleHeight.scalar
     u.uMiePolarity.value.copy(mie.polarity)
     u.uMieBackPolarity.value = mie.backPolarity
     u.uMieForwardWeight.value = mie.forwardWeight
