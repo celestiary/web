@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["satellite-wasm-stub"],
-  "sourcesContent": ["export default () => { throw new Error(\"satellite.js WASM is not bundled\") }"],
-  "mappings": "wCAAA,IAAOA,EAAQC,EAAA,IAAM,CAAE,MAAM,IAAI,MAAM,kCAAkC,CAAE,EAA5D",
-  "names": ["satellite_wasm_stub_default", "__name"]
-}
