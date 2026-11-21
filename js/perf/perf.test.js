@@ -119,6 +119,56 @@ describe('Perf off', () => {
 })
 
 
+describe('Perf from the backtick key (show)', () => {
+  it('starts without ?perf=1, and comes off again when hidden', () => {
+    const ui = fakeUi()
+    const gl = ui.renderer.getContext()
+    const drawArrays = gl.drawArrays
+    const perf = new Perf
+    perf.show(ui, true)
+    expect(perf.enabled).toBe(true)
+    expect(gl.drawArrays).not.toBe(drawArrays)
+    expect(ui.renderer.info.autoReset).toBe(false)
+    frame(perf)
+    frame(perf)
+    expect(perf.stats.interval.n).toBe(1)
+    // A second show while shown changes nothing.
+    perf.show(ui, true)
+    expect(perf.stats.interval.n).toBe(1)
+    perf.show(ui, false)
+    expect(perf.enabled).toBe(false)
+    expect(gl.drawArrays).toBe(drawArrays)
+    expect(ui.renderer.info.autoReset).toBe(true)
+    // And again: a fresh start.
+    perf.show(ui, true)
+    expect(perf.enabled).toBe(true)
+    expect(perf.stats.interval.n).toBe(0)
+    perf.show(ui, false)
+    expect(perf.enabled).toBe(false)
+  })
+
+  it('under ?perf=1 only hides: the measuring goes on', () => {
+    const ui = fakeUi()
+    const perf = new Perf
+    expect(perf.install(ui, {search: '?perf=sync', overlay: false})).toBe(true)
+    perf.show(ui, true)
+    perf.show(ui, false)
+    expect(perf.enabled).toBe(true)
+    expect(perf.sync).toBe(true)
+    perf.uninstall()
+  })
+
+  it('keeps the link\'s toggles when the key starts it', () => {
+    const perf = new Perf
+    const ui = fakeUi()
+    expect(perf.install(ui, {search: '?off=clouds', overlay: false, force: true})).toBe(true)
+    expect(perf.runs('clouds')).toBe(false)
+    expect(perf.sync).toBe(false)
+    perf.uninstall()
+  })
+})
+
+
 describe('Perf on', () => {
   const on = (search = '?perf=1', ui = fakeUi()) => {
     const perf = new Perf

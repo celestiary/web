@@ -691,6 +691,12 @@ count it twice.  The observer's glare function is the instrument's
 (`observer/instrument.js` `NAKED_EYE.psf.glare`; HDR.md, [the
 instrument](HDR.md#the-instrument)).
 
+**For diagnosis** the render panel (`` ` ``; DESIGN.md [performance
+panel](../../DESIGN.md#performance-panel)) switches the glare off and on
+(`SunLayers.enabled.glare`), reads the model in use and whether the pass
+drew, and scales the veil by `SunLayers.glareGain` (default 1, through
+`uFieldWeight`; not in the link).
+
 **A camera's** ([#375](https://github.com/celestiary/web/pull/375)): the
 eye's veil is the default, and a camera is the Settings' Observer row (`K`
 in a link's `s=`, [design/URLs.md](../../design/URLs.md)).  Against ISS

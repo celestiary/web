@@ -26,9 +26,10 @@ const COLUMN_TITLES = {
 /**
  * The `?perf=1` panel, in the DOM, not the scene: it never touches the frame
  * it measures.  Bottom-left, above the settings icons, clear of the top-left
- * info panel, the top-right time controls and the Stats panel (bottom-right,
- * `` ` ``).  Created once, only under `?perf=1` (perf.js); redrawn a couple of
- * times a second.
+ * info panel, the top-right time controls and the render panel (bottom-right).
+ * Created under `?perf=1`, or by the backtick key (perf.js show); redrawn a
+ * couple of times a second.  Its graphs and render info (PerfInfo.js) go in
+ * between the header and the body, so folding leaves them showing.
  */
 export default class Overlay {
   /**

@@ -493,6 +493,11 @@ tried and dropped.
     (in sync mode, how long it was waited on).  `counts` are per frame,
     by pass.  `gpu.unmaskedRenderer` and `devicePixelRatio` say which GPU
     and how many pixels.
+  - **The `` ` `` key** opens the same overlay without `?perf=1` (with
+    the render panel; DESIGN.md [performance
+    panel](DESIGN.md#performance-panel)), but a Cesium layer made before
+    the press has no shadow-context row: for a snapshot, ask for the
+    `?perf=1` link.
   - **Add a pass's marker** when you add a pass: `perf.begin('name')` /
     `perf.end('name')` in the loop and a line in `js/perf/passes.js`.
 - **Known SwiftShader quirk:** `gl_PointCoord` flips in point shaders
