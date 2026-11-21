@@ -12,54 +12,8 @@
   --fade-ms: 400ms;
   --fade-ease: ease-in-out;
 
-  /* theme: begin.  Written by `yarn theme` from js/theme.js; edit there. */
-  --surface: #0a0c14;
-  --surface-veil: rgba(10, 12, 20, 0.75);
-  --line-hairline: rgba(255, 255, 255, 0.08);
-  --line: rgba(255, 255, 255, 0.12);
-  --line-strong: rgba(255, 255, 255, 0.16);
-  --line-accent: rgba(134, 159, 219, 0.55);
-  --accent: #869fdb;
-  --accent-soft: #c4d2f2;
-  --accent-fill: rgba(134, 159, 219, 0.14);
-  --accent-fill-hover: rgba(134, 159, 219, 0.28);
-  --ink-bright: #ffffff;
-  --ink: #dfe5f3;
-  --ink-2: #b9c3d9;
-  --ink-3: #a9b4cc;
-  --ink-4: #8f9bb5;
-  --ink-link: #b8cdea;
-  --label: #7fa0e0;
-  --shadow: #000000;
-  --surface-raised: rgba(12, 14, 24, 0.72);
-  --surface-raised-hover: rgba(24, 30, 52, 0.8);
-  --surface-deep: rgba(3, 5, 10, 0.74);
-  --surface-button-hover: rgba(40, 48, 78, 0.85);
-  --image-well: #05060a;
-  --ink-title: #d8deec;
-  --ink-chip-hover: #dde8f7;
-  --ink-count: #e6ebf7;
-  --ink-caption: #eef1fa;
-  --ink-caption-meta: #c3cbe0;
-  --ink-tag: #a9b9e3;
-  --ink-faint: #7f8cab;
-  --control-selected: #90caf9;
-  --control-halo: #2196f3;
-  --menu-surface: rgba(20, 20, 20, 0.85);
-  --list-surface: rgba(30, 30, 30, 0.5);
-  --drawer-surface: #121212;
-  --settings-divider: rgba(255, 255, 255, 0.15);
-  --legacy-grey: grey;
-  --legacy-ink: #cccccc;
-  --legacy-link: #006699;
-  --accent-rgb: 134, 159, 219;
-  --accent-soft-rgb: 196, 210, 242;
-  --label-rgb: 127, 160, 224;
-  --surface-rgb: 10, 12, 20;
-  --ink-4-rgb: 143, 155, 181;
-  --ink-bright-rgb: 255, 255, 255;
-  --shadow-rgb: 0, 0, 0;
-  /* theme: end */
+  /* The colours are the theme's (js/theme.js), set on the root as App loads
+     (applyCssColors): --accent, --ink, --surface and the rest. */
   /* Focus rings: the signal colour. */
   --focus: var(--accent);
 

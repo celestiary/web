@@ -5,9 +5,10 @@
  * the scene's lines (design/UI.md, principle 3) and a whole theme can be
  * swapped (the observing red theme, design/UI.md phase 2).
  *
- * - `uiColors` holds CSS colours (strings).  `js/index.css`'s `:root` colour
- *   tokens are written from it by `yarn theme` (tools/theme/css.mjs), and a
- *   test fails when they drift; MUI's palette reads it (Style.jsx).
+ * - `uiColors` holds CSS colours (strings).  `applyCssColors()` sets each as
+ *   a custom property on the page's root, which `js/index.css` uses
+ *   (`inkLink` is `--ink-link`); App runs it as it loads.  MUI's palette
+ *   reads it (ui/Palette.jsx).
  * - `sceneColors` holds 0xRRGGBB numbers, as three's `Color` and `setHex` take them;
  *   `css()` turns one into a CSS colour for a canvas or the DOM.
  *
@@ -114,6 +115,42 @@ export const uiColors = Object.freeze({
   legacyInk: '#cccccc',
   legacyLink: '#006699',
 })
+
+
+/** The `uiColors` CSS takes with an alpha: `rgba(var(--accent-rgb), 0.5)`. */
+const RGB_KEYS = ['accent', 'accentSoft', 'label', 'surface', 'ink4', 'inkBright', 'shadow']
+
+
+/**
+ * @param {string} key A `uiColors` key, camel case
+ * @returns {string} Its CSS custom property, e.g. '--ink-link', '--ink-2'
+ */
+export function cssVar(key) {
+  return `--${key.replace(/([a-z])([A-Z0-9])/g, '$1-$2').toLowerCase()}`
+}
+
+
+/**
+ * Set the chrome's colours as custom properties on an element (the page's
+ * root): each `uiColors` key as its property, and an `-rgb` triple for
+ * those CSS takes with an alpha.  Again with another theme's colours to swap
+ * the chrome's whole look (the observing red theme, design/UI.md phase 2).
+ *
+ * @param {object} [style] An element's style; the page root's by default
+ * @param {object} [colors] uiColors' shape
+ */
+export function applyCssColors(style = globalThis.document?.documentElement?.style, colors = uiColors) {
+  if (!style) {
+    return
+  }
+  for (const [k, v] of Object.entries(colors)) {
+    style.setProperty(cssVar(k), v)
+  }
+  for (const k of RGB_KEYS) {
+    const n = parseInt(colors[k].slice(1), 16)
+    style.setProperty(`${cssVar(k)}-rgb`, `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`)
+  }
+}
 
 
 /** The scene's overlay colours (0xRRGGBB): labels, lines, marks and keys. */

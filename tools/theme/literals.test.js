@@ -20,7 +20,7 @@ const ALLOWED = {
   'js/scene/rubin/rubinModel.js': 'the telescope\'s paint: albedo, not design',
   'js/scene/points/float16.js': 'bit masks',
   'js/lib/three-custom/points.js': 'a vendored default',
-  'js/Style.jsx': 'MUI\'s placeholder light and dark, until the corrections',
+  'js/ui/Palette.jsx': 'MUI\'s placeholder light and dark, until the corrections',
 }
 // One literal in a file that otherwise has none.
 const ALLOWED_LITERALS = {

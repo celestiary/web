@@ -28,8 +28,8 @@ landed; the epic is [#279](https://github.com/celestiary/web/issues/279).
 `:root`, under the same names (`--accent`, `--ink-3`, `--surface-sheet`,
 `--space-16`, `--radius-card`, `--row`).  New CSS uses them, never raw
 values.  Numbers are set in IBM Plex Mono (`--font-mono`, loaded with Inter
-in `public/index.html`).  The colour tokens come from the theme (below);
-spacing, radii, rows and type stay in the CSS.
+in `public/index.html`).  The colour tokens come from the theme (below),
+set at run time; spacing, radii, rows and type stay in the CSS.
 
 ## The theme
 
@@ -38,21 +38,25 @@ together, so the panel's numbers can be keyed to the scene's lines
 (principle 3) and a whole theme can be swapped (phase 2's red theme is a
 second object with the same keys).
 
-- **`uiColors`**: the chrome's, as CSS strings.  `yarn theme`
-  (`tools/theme/css.mjs`) writes them into `index.css`'s `:root` between
-  its `theme: begin` and `theme: end` markers, each key as a property
-  (`inkLink` is `--ink-link`), with an `-rgb` triple for the few CSS takes
-  with an alpha (`rgba(var(--accent-rgb), 0.5)`).  MUI's palette reads them
-  (`Style.jsx`), and so does JSX that styles in code (`alpha()` makes an
-  rgba).  `tools/theme/css.test.js` fails when `index.css` has drifted from
-  the theme, or holds a colour literal outside the block.
+- **`uiColors`**: the chrome's, as CSS strings.  `applyCssColors()` sets
+  each on the page's root as a custom property (`inkLink` is
+  `--ink-link`), with an `-rgb` triple for the few CSS takes with an alpha
+  (`rgba(var(--accent-rgb), 0.5)`); App runs it as its module loads,
+  before React renders anything the CSS colours, and the red theme is the
+  same call with its own colours.  MUI's palette takes them in
+  `ui/Palette.jsx`, which each route (App, the guide) wraps itself in;
+  JSX that styles in code imports them (`alpha()` makes an rgba).
+  `tools/theme/theme.test.js` fails when `index.css` uses a custom
+  property neither it nor the theme defines, or holds a colour literal.
 - **`sceneColors`**: the scene's overlays (labels, orbit lines, grids,
   regimes, Lagrange marks, periodic orbits, the networks, the diagrams), as
   0xRRGGBB numbers, which three's `Color` and `setHex` take; `css()` gives
   the CSS form for a canvas or the DOM.  A lazy feature that may import
   nothing of the first load's (Suntan, Rubin) is handed its colours by
-  Scene with its other dependencies (`deps.colors`): importing the theme
-  split it into a file of its own, a request more on every load.
+  Scene with its other dependencies (`deps.colors`), and `Style.jsx`, in
+  the page's entry, takes none (the routes set the palette): importing the
+  theme from any of them split it into a file of its own, a request more
+  on every load.
 - **Values are sRGB, as a designer gives them.**  How a colour reaches the
   screen is the renderer's business (`js/scene/HDR.md`, colour spaces).
 - **Not in it**: physical colours (an albedo, a star's blackbody, a

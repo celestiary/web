@@ -49,27 +49,8 @@ export default function Style({children}) {
 const UI_FONT = '\'Inter\', system-ui, -apple-system, \'Segoe UI\', Roboto, \'Helvetica Neue\', Arial, sans-serif'
 
 
-// MUI's palette, from the theme (js/theme.js; design/UI.md, "The theme").
-// Written here by `yarn theme`, not imported: this module is in the page's
-// entry, and importing the theme from it split the theme into a file of its
-// own, a request more on every load.  tools/theme/css.test.js checks it.
-// The page is dark only: the light palette and its toggle were never used.
-// theme: begin.  Written by `yarn theme` from js/theme.js; edit there.
-const uiColors = {
-  accent: '#869fdb',
-  inkBright: '#ffffff',
-}
-// theme: end
+// Dark only (the light palette and its toggle were never used).  The
+// palette's colours are the theme's, set by each route (ui/Palette.jsx).
 const dark = {
   mode: 'dark',
-  primary: {
-    main: uiColors.accent,
-    // Placeholders from the start, which MUI uses for a contained button's
-    // hover (dark) and more: kept as they are in the theme's refactor, which
-    // changes nothing on screen; to be taken from the theme (or left for MUI
-    // to derive from main) in the colour corrections that follow.
-    light: '#0f0',
-    dark: '#00f',
-    contrastText: uiColors.inkBright,
-  },
 }
