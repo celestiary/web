@@ -2,18 +2,13 @@ import {Object3D} from 'three'
 import {LIGHTYEAR_METER, overlay} from '../shared.js'
 import {pulseCycle} from './Colonization.js'
 import {ALWAYS, disposeWideLines, newWideLines} from './wideLines.js'
+import {sceneColors} from '../theme.js'
 
 
 // Bright-to-dark along blue.  The first hop (e.g. Alpha Centauri) is near
 // white, the last near black.  Display values: sceneReferred puts them
 // through the tone map's inverse, so they reach the screen as written.
-const RAMP = [
-  [0.95, 0.97, 1.00],
-  [0.62, 0.77, 1.00],
-  [0.25, 0.50, 0.92],
-  [0.09, 0.22, 0.52],
-  [0.02, 0.03, 0.07],
-]
+const RAMP = sceneColors.colonization.ramp
 
 export const DEFAULT_STYLE = {
   widthFirst: 5, // px at hop 1
@@ -30,7 +25,7 @@ export const DEFAULT_PULSE = {
 }
 
 // The route to a selected star: amber, over the spread's blues.
-const PATH_COLOR = [1.0, 0.7, 0.15]
+const PATH_COLOR = sceneColors.colonization.path
 const PATH_WIDTH = 4
 const MS_PER_SEC = 1000
 // Draw the route after (over) the spread.

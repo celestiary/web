@@ -12,6 +12,7 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import CloseIcon from '@mui/icons-material/Close'
 import MyLocationIcon from '@mui/icons-material/MyLocation'
 import SearchIcon from '@mui/icons-material/Search'
+import {uiColors} from '../theme.js'
 
 
 const HOVER_RESET_MS = 600
@@ -414,9 +415,9 @@ export default function SearchBar({celestiary, home = false}) {
             slotProps={{
               paper: {
                 sx: {
-                  backgroundColor: 'rgba(30, 30, 30, 0.5)',
+                  backgroundColor: uiColors.listSurface,
                   backdropFilter: 'blur(4px)',
-                  color: '#fff',
+                  color: uiColors.inkBright,
                 },
               },
             }}

@@ -14,6 +14,7 @@ import SpriteSheet from '../SpriteSheet.js'
 import {sceneReferred} from '../hdr.js'
 import {labelFont, labelLook, prominence, viewRange} from '../labelStyle.js'
 import {behindSphere} from '../labelPick.js'
+import {css, sceneColors} from '../../theme.js'
 
 
 // A population of objects round a body, drawn (js/scene/population/Population.md):
@@ -32,7 +33,7 @@ import {behindSphere} from '../labelPick.js'
 
 
 const POINT_SIZE_PX = 3.5
-const OTHER_COLOR = '#c8c8c8'
+const OTHER_COLOR = css(sceneColors.populationOther)
 // How far from an object a go arrives, metres, until a model (#25) says
 // otherwise (`node.arrivalDistance`): far enough to see it against its body.
 export const ARRIVAL_DIST = 300e3

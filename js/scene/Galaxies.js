@@ -38,6 +38,7 @@ import {
 } from './sparcGalaxy.js'
 import {hashString} from './starSeed.js'
 import {viewChanged} from './viewCache.js'
+import {css, sceneColors} from '../theme.js'
 
 
 /**
@@ -126,7 +127,7 @@ export const LOAD_DISTANCE_M = 1e4 * LIGHTYEAR_METER
 export const LOAD_RETRY_MS = 30000
 
 /** The galaxies' label colour: apart from the stars' blue (shared.js labelTextColor). */
-export const GALAXY_LABEL_COLOR = '#c8b0e8'
+export const GALAXY_LABEL_COLOR = css(sceneColors.galaxyLabel)
 
 const DEG = Math.PI / 180
 

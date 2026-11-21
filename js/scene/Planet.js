@@ -42,10 +42,11 @@ import {newCloudShell} from './clouds/CloudShell.js'
 import CloudVolume from './clouds/CloudVolume.js'
 import {cloudParams} from './clouds/cloudPhysics.js'
 import {capitalize, named} from '../utils.js'
+import {sceneColors} from '../theme.js'
 
 
 // Orbit lines: blue, added over the scene, as before as 1 px GL lines.
-const ORBIT_COLOR = 0x0000ff
+const ORBIT_COLOR = sceneColors.orbit
 const ORBIT_WIDTH_PX = 1.5
 
 

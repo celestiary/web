@@ -51,6 +51,7 @@ import {hitLabel, labelBoxes} from './labelPick.js'
 import {labelTextColor} from '../shared.js'
 import * as Shared from '../shared.js'
 import * as Utils from '../utils.js'
+import {sceneColors} from '../theme.js'
 
 
 const ELEMENT_CODE_SET = new Set(CODES)
@@ -3632,7 +3633,7 @@ export default class Scene {
     this.rubin ??= installRubin(this, {
       orbitAt, precessionQuaternion, utcToTtJulianDay, J2000_JD, newRings, newLabels, newWideLineStrip, loadModel,
       latLngAltToBodyFixed, sceneReferred, OVERLAY_LAYER: Shared.OVERLAY_LAYER, ASTRO_UNIT_METER: Shared.ASTRO_UNIT_METER,
-      dataUrl, addCredit, removeCredit,
+      dataUrl, addCredit, removeCredit, colors: sceneColors.rubin,
     })
     return this.rubin
   }
@@ -3676,7 +3677,7 @@ export default class Scene {
     if (!this.suntan) {
       this.suntan = installSuntan(this, {
         planetsApprox, newWideLineStrip, newRings, newLabels, loadModel, OVERLAY_LAYER: Shared.OVERLAY_LAYER,
-        BodyLine, MAX_FINE_STEPS,
+        BodyLine, MAX_FINE_STEPS, colors: sceneColors.suntan,
       })
       this._joinOverlay('o', this.suntan.track)
       // Its craft are search results while it runs (SuntanProvider).
