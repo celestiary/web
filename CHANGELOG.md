@@ -45,7 +45,7 @@ Earth's sky is now drawn from the measured air, at its physical brightness: a cl
 
 - Date: 2026-11-21
 - PR: [#375](https://github.com/celestiary/web/pull/375)
-- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
 - Permalink: none
 - Featured: yes
 
