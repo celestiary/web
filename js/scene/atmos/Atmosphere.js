@@ -29,6 +29,14 @@ import {SHELL_AHEAD_GLSL, SUN_BELOW_HORIZON_GLSL} from './rayEnd.js'
 
 
 /**
+ * The final tone map, PBR Neutral (HDR.md).  toneMaps.js replaces this line
+ * with every operator when another is asked for, for diagnosis
+ * (installToneMaps), so the first load carries only this.
+ */
+export const DEFAULT_TONE_MAP_GLSL = 'vec3 finalToneMap(vec3 color) { return neutralToneMap(color); }'
+
+
+/**
  * Physical Rayleigh/Mie atmosphere rendered as a sphere shell around a planet.
  * Works from any camera distance (from space or low orbit).
  *
@@ -453,6 +461,10 @@ export function newAtmospherePass() {
       // encodes it at its end (the sky guest, design/SkyGuest.md, "Drawn in
       // place").  0, the app's own: display values, as the canvas shows them.
       uLinearOut: {value: 0.0},
+      // 1: encode the screen's values to sRGB, for diagnosis (the performance
+      // panel's output colour space, SRGBColorSpace; HDR.md, "Colour spaces").
+      // 0, the app's: stored values, as they are.
+      uSrgbOut: {value: 0.0},
       // The night sky's own light (HDR.md, "The night sky's own light";
       // nightSky.js, eye.js), drawn here so it can be tone-mapped by the
       // eye's response to extended light and added over the scene's display,
@@ -552,6 +564,7 @@ uniform float     uHdr;
 uniform float     uSkyExposure;
 uniform float     uDebug;
 uniform float     uLinearOut;
+uniform float     uSrgbOut;
 #if CLOUDS
 uniform sampler2D tClouds;
 uniform sampler2D tCloudData;
@@ -628,6 +641,7 @@ void cloudRead(vec2 uv, float tEnd, out vec4 cloud, out vec2 data) {
 #define SEG_STEPS 16
 
 ${NEUTRAL_GLSL}
+${DEFAULT_TONE_MAP_GLSL}
 ${MIE_PHASE_GLSL}
 uniform float uExposureRelative;
 ${EYE_GLSL}
@@ -699,6 +713,10 @@ vec3 overNight(vec3 display, vec3 night) {
 // The screen's display values, as written: as they are, or decoded from
 // sRGB for a host's linear buffer (uLinearOut).
 vec4 screenOut(vec3 display) {
+  if (uSrgbOut > 0.5) {
+    vec3 e = clamp(display, 0.0, 1.0);
+    return vec4(mix(12.92 * e, 1.055 * pow(e, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, e)), 1.0);
+  }
   if (uLinearOut < 0.5) {
     return vec4(display, 1.0);
   }
@@ -714,7 +732,7 @@ vec4 sceneToScreen(vec3 scene, vec3 night) {
     return vec4(uDebug < 7.5 ? scene + night : night, 1.0);
   }
   if (uHdr > 0.5) {
-    return screenOut(overNight(neutralToneMap(scene), night));
+    return screenOut(overNight(finalToneMap(scene), night));
   }
   return screenOut(scene);
 }
@@ -727,9 +745,9 @@ vec4 sceneToScreen(vec3 scene, vec3 night) {
 // added to it.
 vec4 atmToScreen(vec3 scene, vec3 sky, vec3 transmittance, vec3 night) {
   if (uHdr > 0.5) {
-    return screenOut(overNight(neutralToneMap(mix(scene, sky + scene * transmittance, uAtmStrength)), night));
+    return screenOut(overNight(finalToneMap(mix(scene, sky + scene * transmittance, uAtmStrength)), night));
   }
-  return screenOut(mix(scene, neutralToneMap(sky) + scene * transmittance, uAtmStrength));
+  return screenOut(mix(scene, finalToneMap(sky) + scene * transmittance, uAtmStrength));
 }
 
 // Map (r, mu_sun) → UV for the precomputed transmittance LUT.

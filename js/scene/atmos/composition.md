@@ -735,6 +735,32 @@ within 30° of the Sun.
 - The metered exposure's constants (`exposure.js`: the key, the highlight
   cap, the gain's range and time constant), documented in HDR.md.
 
+## Earth's limb from low orbit: the gain, not the tone map
+
+Against a NASA photograph from about the ISS's height, celestiary's limb went
+black, blue, cyan-white, then a blue-veiled surface, where the photograph's
+goes black, deep blue, then the surface.  Measured headless (2026-11-21,
+420 km over the day side, the Sun 64° up, a column down through the limb, 3 px
+a step, display values):
+
+| Setting | Down through the limb |
+|---|---|
+| Earth's gain, 21; PBR Neutral | 2,13,36 → 70,132,240 → **191,235,248** → 149,197,247 |
+| the physical 4.71; PBR Neutral | 3,9 → 12,36,79 → 126,138,144 (land and cloud show) |
+| 21; AgX | 12,30,54 → 105,143,181 → 189,201,204 → 164,183,199 |
+| 21; Neutral, sRGB out, textures decoded | 21,65,105 → 143,190,248 → 223,246,252 → 191,220,251 |
+
+The cyan-white band is the tangent path's in-scatter at 4.5 times the
+physical gain: blue clips (248) while green climbs, and Neutral's shoulder
+desaturates what it compresses.  At 4.71 the band is gone and the surface
+isn't veiled.  The other tone maps and the colour-managed pipeline don't
+remove it.  The gain stands in for aerosols the tables don't hold (above,
+`sunIntensity`), and was matched to Cesium's Earth, so changing it is the
+follow-up already named there: the aerosol load at 4.71, refitted against
+parity.  The model has no ozone either, whose Chappuis absorption keeps a real
+limb blue along long paths.  Try it: the performance panel's *Sky gain*, or
+`?skygain=4.71` (DESIGN.md, performance panel).
+
 ## Known gaps / future work
 
 - **Surface-vs-atmosphere coloring from space.** The additive composite

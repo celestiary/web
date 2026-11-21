@@ -5,6 +5,7 @@ import {
   FloatType,
   HalfFloatType,
   LinearSRGBColorSpace,
+  SRGBColorSpace,
   Matrix3,
   NeutralToneMapping,
   Object3D,
@@ -19,7 +20,7 @@ import {
   WebGLRenderer,
   WebGLRenderTarget,
 } from 'three'
-import {newAtmospherePass} from './scene/atmos/Atmosphere'
+import {DEFAULT_TONE_MAP_GLSL, newAtmospherePass} from './scene/atmos/Atmosphere'
 import {atmosphereBody, atmosphereResolvable} from './scene/atmos/atmosphereBody.js'
 import {setDrawingBuffer} from './scene/farPoint.js'
 import {
@@ -47,7 +48,6 @@ import {declutterLabels, showAllLabels} from './scene/labelDeclutter.js'
 import {styleLabels} from './scene/labelStyle.js'
 import {ECLIPSED_DISC, eclipsedSky} from './scene/sun/eclipse.js'
 import {perf} from './perf/perf.js'
-import Stats from 'three/examples/jsm/libs/stats.module.js'
 import TouchSafeTrackballControls from './TouchSafeTrackballControls.js'
 import {attachPointerDrag} from './dragControls'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
@@ -76,6 +76,8 @@ const NIGHT_SKY_SKIP_VALUE = Math.sqrt(0.5 / 255 / 6.25)
 // Under a frame cap, a frame this early is still drawn, ms: the display's
 // intervals jitter, and a 60 Hz frame at 33.2 ms shouldn't wait for 50.
 const FRAME_CAP_SLACK_MS = 2
+/** While the colour textures are decoded (setTextureDecode), how often maps loaded since are, in frames. */
+const DECODE_EVERY_FRAMES = 30
 // A hidden canvas's opacity: under a display step (0.001 of 255 rounds to
 // 0), but not 0, which a compositor may take as not drawn at all, and then
 // the exposure meter's reads, fenced on the GPU, may not finish until it
@@ -138,6 +140,29 @@ export default class ThreeUi {
     this._atmCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1)
     this._atmMesh = newAtmospherePass()
     this._atmMesh.material.uniforms.uHdr.value = this.hdr ? 1 : 0
+    // The final tone map: PBR Neutral, or another for diagnosis
+    // (`?tonemap=aces`, or the performance panel's control; toneMaps.js).
+    this.toneMap = 'neutral'
+    const params = new URLSearchParams(typeof location === 'undefined' ? '' : location.search)
+    const toneMapParam = params.get('tonemap')
+    if (toneMapParam && toneMapParam !== 'neutral') {
+      this.setToneMap(toneMapParam)
+    }
+    // And the output colour space: stored values, or `?colorspace=srgb`.
+    if (params.get('colorspace') === 'srgb') {
+      this.setOutputColorSpace(SRGBColorSpace)
+    }
+    // And the colour textures decoded from sRGB, `?decode=1` (perf/textureDecode.js).
+    this.textureDecode = false
+    this._textureDecoder = null
+    this._decodeFrames = 0
+    if (params.get('decode') === '1') {
+      this.setTextureDecode(true)
+    }
+    // And a sky gain in place of the body's (`?skygain=4.71`, the physical;
+    // the performance panel's; composition.md, "Per-body data").
+    this.skyGainOverride = null
+    this.setSkyGain(params.get('skygain'))
     this._atmScene.add(this._atmMesh)
     this._pWorldAtm = new Vector3()
     this._camWorldAtm = new Vector3()
@@ -211,6 +236,11 @@ export default class ThreeUi {
     // three's Stats panel (FPS / MS / MB): built on first toggle, so startup
     // and the tests never touch the DOM for it.  See togglePerfPanel.
     this._stats = null
+    // The panel's controls and render info (perf/RenderPanel.js), loaded with
+    // its first showing, and the element holding it and the Stats graph.
+    this._renderPanel = null
+    this._perfRoot = null
+    this._perfPanelLoading = null
     this._perfVisible = false
     // Whether the canvas has drawn its first frame (initRenderer, renderLoop),
     // and whether its owner shows it (holdCanvas).
@@ -577,6 +607,12 @@ export default class ThreeUi {
     const stats = this._perfVisible ? this._stats : null
     this._frameStats = stats
     stats?.begin()
+    // The panel's render counts are the frame's, summed over its renders.
+    this._frameRenderPanel = this._perfVisible ? this._renderPanel : null
+    if (this._frameRenderPanel) {
+      this.renderer.info.reset()
+      this._frameRenderPanel.frameBegin()
+    }
     perf.frameBegin()
     perf.begin('update')
     this.camera.updateMatrixWorld()
@@ -726,6 +762,11 @@ export default class ThreeUi {
     }
     perf.frameEnd()
     this._frameStats?.end()
+    if (this.textureDecode && this._textureDecoder && (++this._decodeFrames % DECODE_EVERY_FRAMES) === 0) {
+      this._textureDecoder.setTextureDecode(this.scene, true)
+      this._textureDecoder.setCesiumDecode(this.layers, true)
+    }
+    this._frameRenderPanel?.frameEnd()
   }
 
 
@@ -828,32 +869,138 @@ export default class ThreeUi {
 
 
   /**
-   * Show or hide three's Stats panel (FPS, MS, MB; click it to cycle).  The
-   * element is created on the first show and then only hidden, so it costs
-   * nothing until asked for.  It sits bottom-right above the fullscreen
-   * control, the corner the HUD leaves free (the info list can run long
-   * down the left), over the canvas; only its own 80x48 box takes pointer
-   * events.
+   * Set the final tone map (toneMaps.js): PBR Neutral, the app's, or another
+   * for diagnosis.  Only the atmosphere pass's last step changes; the scene
+   * pass stays exposure-only.  The other operators load with the first ask
+   * for one (a dynamic import, out of the first load), and the pass
+   * recompiles once then.
+   *
+   * @param {string} key A toneMaps.js TONE_MAP_IDS key; an unknown one is ignored
+   * @returns {Promise<string>} The tone map once it is applied
+   */
+  async setToneMap(key) {
+    const material = this._atmMesh.material
+    if (key === 'neutral' && !material.uniforms.uToneMap) {
+      this.toneMap = key
+      return key
+    }
+    const {TONE_MAP_IDS, installToneMaps} = await import('./scene/toneMaps.js')
+    if (Object.hasOwn(TONE_MAP_IDS, key)) {
+      installToneMaps(material, DEFAULT_TONE_MAP_GLSL)
+      material.uniforms.uToneMap.value = TONE_MAP_IDS[key]
+      this.toneMap = key
+    }
+    return this.toneMap
+  }
+
+
+  /**
+   * Set the output colour space, for diagnosis.  The app's is
+   * LinearSRGBColorSpace: stored values go to the screen as they are
+   * (HDR.md, "Colour spaces").  SRGBColorSpace encodes them to sRGB: the
+   * atmosphere pass in its screenOut, and three's materials drawn to the
+   * screen (the overlay pass) by three's own colorspace_fragment.  Textures
+   * are still not decoded, so this alone brightens and flattens the frame.
+   *
+   * @param {string} space SRGBColorSpace or LinearSRGBColorSpace; another is ignored
+   * @returns {string} The output colour space now
+   */
+  setOutputColorSpace(space) {
+    if (space === SRGBColorSpace || space === LinearSRGBColorSpace) {
+      this.renderer.outputColorSpace = space
+      this._atmMesh.material.uniforms.uSrgbOut.value = space === SRGBColorSpace ? 1 : 0
+    }
+    return this.renderer.outputColorSpace
+  }
+
+
+  /**
+   * Decode the bodies' colour textures from sRGB, or stop, for diagnosis
+   * (perf/textureDecode.js, loaded with the first ask): celestiary's own
+   * colour maps by their colour space, Cesium's imagery by its gamma.  While on, renderLoop
+   * applies it again every DECODE_EVERY_FRAMES, for maps that load later.
+   *
+   * @param {boolean} on
+   * @returns {Promise<boolean>} Whether decoding is on, once applied
+   */
+  async setTextureDecode(on) {
+    this.textureDecode = on
+    if (!on && !this._textureDecoder) {
+      return false
+    }
+    this._textureDecoder ??= await import('./perf/textureDecode.js')
+    this._textureDecoder.setTextureDecode(this.scene, this.textureDecode)
+    this._textureDecoder.setCesiumDecode(this.layers, this.textureDecode)
+    return this.textureDecode
+  }
+
+
+  /**
+   * Draw the sky at another gain than its body's data gives (`sunIntensity`;
+   * Earth's 21, about 4.5 times the physical 4.71, standing in for aerosols:
+   * composition.md, "Per-body data"), for diagnosis.
+   *
+   * @param {number|string|null} gain A positive number, or null (or '') for the body's own
+   * @returns {number|null} The override now
+   */
+  setSkyGain(gain) {
+    const g = gain === null || gain === '' ? NaN : Number(gain)
+    this.skyGainOverride = Number.isFinite(g) && g > 0 ? g : null
+    return this.skyGainOverride
+  }
+
+
+  /**
+   * Show or hide the performance panel: three's Stats graph (FPS, MS, MB;
+   * click it to cycle) under the render info and the tone map control
+   * (perf/RenderPanel.js).  The elements are created on the first show and
+   * then only hidden, so they cost nothing until asked for; their module
+   * (perf/RenderPanel.js, with three's Stats) loads then too.  It sits bottom-right above the fullscreen
+   * control, the corner the HUD leaves free (the info list can run long down
+   * the left), over the canvas; only its own boxes take pointer events.
+   * While it shows, renderer.info is reset once a frame, not per render.
    *
    * @returns {boolean} whether the panel is now showing.
    */
   togglePerfPanel() {
     this._perfVisible = !this._perfVisible
-    if (this._perfVisible && !this._stats) {
-      this._stats = new Stats
-      const style = this._stats.dom.style
-      style.top = 'auto'
-      style.left = 'auto'
-      style.bottom = '3.5em'
-      style.right = '0.5em'
-      style.zIndex = '1000'
-      this._stats.dom.id = 'perf-panel'
-      document.body.appendChild(this._stats.dom)
+    if (this._perfVisible && !this._perfPanelLoading) {
+      this._perfPanelLoading = import('./perf/RenderPanel.js').then(({createPerfPanel}) => {
+        const {root, stats, panel} = createPerfPanel({
+          doc: document, renderer: this.renderer, hdr: this.hdr, toneMap: this.toneMap,
+          onToneMap: (key) => this.setToneMap(key),
+          onColorSpace: (space) => this.setOutputColorSpace(space),
+          decode: this.textureDecode,
+          onDecode: (on) => this.setTextureDecode(on),
+          skyGain: this.skyGainOverride,
+          onSkyGain: (gain) => this.setSkyGain(gain),
+        })
+        this._perfRoot = root
+        this._stats = stats
+        this._renderPanel = panel
+        this._showPerfPanel()
+      }).catch((err) => {
+        // Let the next press try again (a preview mid-deploy answered 503).
+        // A browser may keep the failed import for the page's life: then a
+        // reload does.
+        this._perfPanelLoading = null
+        this._perfVisible = false
+        console.warn('Performance panel failed to load (press ` to retry, or reload):', err)
+      })
     }
-    if (this._stats) {
-      this._stats.dom.style.display = this._perfVisible ? 'block' : 'none'
-    }
+    this._showPerfPanel()
     return this._perfVisible
+  }
+
+
+  /** Apply _perfVisible to the panel, once it's loaded, and to renderer.info. */
+  _showPerfPanel() {
+    if (this._perfRoot) {
+      this._perfRoot.style.display = this._perfVisible ? 'flex' : 'none'
+    }
+    // Counted per frame while showing (renderLoop); per render otherwise,
+    // as three does, unless ?perf=1 counts them itself.
+    this.renderer.info.autoReset = !this._perfVisible && !perf.enabled
   }
 
 
@@ -2019,7 +2166,7 @@ export default class ThreeUi {
     // In an eclipse the air is lit by what it sees of the Sun (sun/eclipse.js),
     // and in totality by the light scattered in from outside the shadow
     // (Sun.md, "Eclipses").
-    u.uSunIntensity.value = skyGain(atmos) * eclipsedSky(this.sceneManager?.objects?.sun, atmTarget,
+    u.uSunIntensity.value = (this.skyGainOverride ?? skyGain(atmos)) * eclipsedSky(this.sceneManager?.objects?.sun, atmTarget,
         camDist < R + atmos.height.scalar)
     // The sky in exposure units: its planet's sunlight at the renderer's
     // exposure (HDR.md).  The Sun is at the world group's origin.

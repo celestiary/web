@@ -35,21 +35,24 @@ function fakeGl() {
   gl.bindBuffer = (target, buffer) => {
     gl.bound = buffer
   }
+  // Chrome's READ-usage buffer shadow copies, as its GPU client keeps them
+  // (gles2_implementation.cc, AllocateShadowCopiesForReadback, and
+  // readback_buffer_shadow_tracker.cc): a fence gives every READ buffer
+  // written since the last fence a shadow copy, and warns ("READ-usage
+  // buffer was written, then fenced, but written again before being read
+  // back") for one that still has its last.  Only bufferData frees a shadow
+  // (GetOrCreateBuffer); WebGL's getBufferSubData is GetBufferSubDataCHROMIUM,
+  // a plain copy that never uses or frees it.
+  gl.writtenSinceFence = new Set()
+  gl.shadowed = new Set()
+  gl.rewrittenUnread = 0
   gl.bufferData = (target, bytes) => {
     gl.bound.data = new Float32Array(bytes / 4)
-    // An allocation is a write too, as Chrome counts them
-    gl.written(gl.bound)
+    gl.shadowed.delete(gl.bound)
+    gl.writtenSinceFence.add(gl.bound)
   }
-  // Pack buffers written and not read back since (Chrome warns, and drops
-  // its shadow copy, when one is written again)
-  // Chrome's rule: written, then a fence, then written again unread
-  gl.unread = new Map()
-  gl.rewrittenUnread = 0
   gl.written = (buffer) => {
-    if (gl.unread.get(buffer) === 'fenced') {
-      gl.rewrittenUnread++
-    }
-    gl.unread.set(buffer, 'written')
+    gl.writtenSinceFence.add(buffer)
   }
   gl.readPixels = (x, y, w, h, format, type, dest) => {
     gl.calls.push(typeof dest === 'number' ? 'readPixels-pbo' : 'readPixels')
@@ -57,11 +60,13 @@ function fakeGl() {
     gl.written(gl.bound)
   }
   gl.fenceSync = () => {
-    for (const [buffer, state] of gl.unread) {
-      if (state === 'written') {
-        gl.unread.set(buffer, 'fenced')
+    for (const buffer of gl.writtenSinceFence) {
+      if (gl.shadowed.has(buffer)) {
+        gl.rewrittenUnread++
       }
+      gl.shadowed.add(buffer)
     }
+    gl.writtenSinceFence.clear()
     const sync = {id: ++gl.fences}
     gl.live.add(sync)
     return sync
@@ -71,7 +76,6 @@ function fakeGl() {
   gl.getBufferSubData = (target, offset, dest) => {
     gl.calls.push('getBufferSubData')
     dest.set(gl.bound.data)
-    gl.unread.delete(gl.bound)
   }
   return gl
 }
@@ -120,8 +124,7 @@ describe('AsyncReadback', () => {
     const reading = rb.poll(5)
     expect(reading.meta).toEqual({n: 2})
     expect(reading.pixels[0]).toBe(2)
-    // Both finished buffers read: none is written again unread (Chrome's
-    // "READ-usage buffer was written, then fenced, but written again")
+    // Both finished buffers read out, so neither is left in flight
     expect(gl.calls.filter((c) => c === 'getBufferSubData').length).toBe(2)
     expect(rb.inFlight).toBe(1)
     gl.signalledUpTo = 3
@@ -129,7 +132,7 @@ describe('AsyncReadback', () => {
     expect(rb.poll(7)).toBeNull()
   })
 
-  it('never writes a buffer again before reading it back, however late the reads come', () => {
+  it('never leaves Chrome a shadow copy to discard, however late the reads come', () => {
     const gl = fakeGl()
     const rb = new AsyncReadback(gl, {width: SIZE, height: SIZE})
     // A GPU that signals two meterings at a time: each poll finds two done

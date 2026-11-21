@@ -91,6 +91,56 @@ It runs at the end of the atmosphere pass, on every path through it (the
 pass-through when there's no atmosphere too).  A lit surface with no sky over
 it therefore shows `N(k·L)` exactly as before.
 
+### Trying other tone maps
+
+For diagnosing colour (a frame against a photograph), the final map can be
+swapped from the performance panel's *Tone map* control (the backtick key;
+DESIGN.md [performance panel](../../DESIGN.md#performance-panel)) or with
+`?tonemap=<key>` in the URL: `neutral` (the default), `aces`, `agx`,
+`reinhard`, `cineon`, `linear` or `greyscale`.  `toneMaps.js` holds them:
+three's operators (r187) without their exposure multiply, since the buffer
+holds `k·L` already.  The pass's three paths to the screen call
+`finalToneMap`, which in the first load is one line, PBR Neutral
+(`Atmosphere.js` `DEFAULT_TONE_MAP_GLSL`); the first ask for another map
+imports `toneMaps.js`, which swaps that line for every operator, picked by a
+`uToneMap` uniform, and the pass recompiles once (`installToneMaps`).  So the
+default costs neither bytes nor a branch.  `greyscale` is PBR Neutral's output as its Rec. 709
+luminance, to judge brightness apart from hue.
+
+- **Only the final map changes.**  `renderer.toneMapping` stays the scene
+  pass's exposure-only `CustomToneMapping`: setting it to one of three's
+  operators would clamp the HDR buffer to [0, 1] (they saturate) and take the
+  exposure twice.
+- **Display-referred content is still `N⁻¹`'d** (below), so under another
+  map the stars, the Milky Way's display parts, labels and lines show a
+  little off their intended values, and the night sky's light is still added
+  after the map in display values.  The overlay pass (labels, orbits, grids)
+  is drawn after the tone map and keeps its colours, even in `greyscale`.
+- **Stored values throughout**: as everywhere else, nothing decodes or
+  encodes sRGB around the map ([colour spaces](#colour-spaces-stored-values)),
+  so `aces` and `agx`, whose matrices assume linear sRGB primaries, act on
+  sRGB-encoded values here.  That is part of what the control lets one judge.
+- The meter reads the linear composite (`uDebug` 7), not the tone-mapped
+  frame, so the exposure doesn't change with the map.
+- **The output colour space** has a control beside it (*Output*, or
+  `?colorspace=srgb`): `SRGBColorSpace` sets `renderer.outputColorSpace` and
+  the atmosphere pass's `uSrgbOut`, so the pass encodes its display values to
+  sRGB in `screenOut`, and three's materials drawn to the screen (the overlay
+  pass) encode by three's own `colorspace_fragment`.  Textures are still not
+  decoded, so this half alone encodes stored values a second time: the frame
+  comes out brighter and flatter.  The colour-correct pair also decodes the
+  textures: *decode colour textures (sRGB)* (or `?decode=1`,
+  `js/perf/textureDecode.js`) marks the colour maps of the lit materials
+  (`map`, `emissiveMap`, Earth's night lights) `SRGBColorSpace`, which three
+  uploads as `SRGB8_ALPHA8` and the GPU decodes on every sample, and gives
+  Cesium's imagery layers gamma 1/2.2, which its globe shader applies as
+  `pow(colour, 2.2)`.  Not normal, bump or roughness maps (data), labels or
+  points (display values), a 3D tileset's colours, or a Cesium guest page's.
+  It runs again every 30 frames while on, for maps and layers that load
+  later.  With both on, the surface is lit in linear light and encoded at
+  the end; the exposure's calibration (Planet.md) still assumes stored
+  values, so the frame is darker until the meter adapts.
+
 ### Display-referred content: `N⁻¹`
 
 The stars, galaxy, labels and lines would otherwise go through `N` for the
@@ -1372,18 +1422,26 @@ pipeline stall.  It alone set the 5th-percentile frame rate of 10-15.
 - Every frame polls the fences in issue order with `getSyncParameter`,
   which doesn't wait.  WebGL updates a fence's status between tasks, so the
   soonest a read can be ready is the next frame.  The newest signalled
-  read is copied out (`getBufferSubData`, `STREAM_READ` usage: Chrome
-  serves it from a shadow copy once the fence is seen signalled).  Older
-  signalled reads are copied out too, into the same array, the newest last:
-  dropped unread, a buffer was written again before being read back, and
-  Chrome warned each time ("READ-usage buffer was written, then fenced, but
-  written again before being read back. This discarded the shadow copy"),
-  3-4 a second on the user's Mac with New York drawn (a GPU a few frames
-  behind, so two readings signalled at one poll), and then read that buffer
-  without its shadow copy.  And each buffer's storage is allocated at its
-  first read, not up front: allocated up front (a write, to Chrome), the
-  second and third buffers were fenced by the first read's fence before
-  their own first read wrote them, two warnings at every load.
+  read is copied out (`getBufferSubData`), and the older signalled reads
+  too, into the same array, the newest last, so each buffer is free again.
+- **Chrome's shadow copies.**  For a buffer with a `READ` usage
+  (`STREAM_READ`), Chrome's GPU client gives each fence a shadow copy of
+  every such buffer written since the fence before, and warns when a buffer
+  it fences still has its last ("READ-usage buffer was written, then fenced,
+  but written again before being read back. This discarded the shadow copy
+  that was created to accelerate readback").  WebGL's `getBufferSubData`
+  doesn't use the shadow (it is `GetBufferSubDataCHROMIUM`, a plain copy) and
+  doesn't free it; only `bufferData` does (`GetOrCreateBuffer`).  Source:
+  Chromium's `gles2_implementation.cc` (`AllocateShadowCopiesForReadback`,
+  `GetBufferSubDataCHROMIUM`) and `readback_buffer_shadow_tracker.cc`.  So
+  each buffer's storage is given again (`bufferData`) right before each of
+  its reads, which frees the copy and leaves the fence nothing to discard.
+  Before that, every read after a buffer's first warned, about 3 a second
+  (one a metering), whether the reads were taken out or not: two earlier
+  fixes (reading the older signalled reads out; allocating at the first
+  read) assumed reading the buffer released its copy, and the test's
+  stand-in context assumed it too.  `meterReadback.test.js`'s stand-in now
+  keeps Chrome's rule.
 - **A ring of three buffers** (`METER_RING_SIZE`), so a reading may be up to
   three meterings (12 frames) late without a metering waiting on the one
   before.  With every buffer in flight the metering is skipped, never
