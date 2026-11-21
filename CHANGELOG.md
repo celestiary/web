@@ -39,6 +39,16 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### Colours as they really are: pictures decoded, the screen encoded
+
+Surfaces are now lit in linear light and the frame is encoded for the screen, as a camera's would be: the planets come out at their measured albedos (Mercury and Mars no longer a magnitude and half a magnitude too bright), their colours no longer over-saturated, and labels and lines show their true colours.  The naked-eye star field is calibrated as before.
+
+- Date: 2026-11-21
+- PR: [#374](https://github.com/celestiary/web/pull/374)
+- Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
+- Permalink: [Open this view](https://celestiary.org/#saturn)
+- Kind: fix
+
 ### The Sun as SOHO and SDO show it: flares, eruptions and the corona
 
 Add `?sun=euv` to the address and the Sun is drawn as a space observatory's instruments show it, not
