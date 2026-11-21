@@ -439,6 +439,11 @@ export function newAtmospherePass() {
       tTransmittance: {value: null},
       uUseTransmittanceLUT: {value: 0.0},
       tInScatter: {value: null},
+      // The Mie's colour, per channel over red's (precomputeInScatter, for
+      // a chromatic aerosol), and 1 while there is one: the mesh's
+      // onBeforeRender takes it from tInScatter's texture.
+      tInScatterMie: {value: null},
+      uMieTable: {value: 0.0},
       // The multiply-scattered in-scatter atlas, and the multiple-scattering
       // factor Ψ(r, μ_sun) the march integrates (precomputeMultiScatter).
       tInScatterMs: {value: null},
@@ -523,6 +528,12 @@ export function newAtmospherePass() {
   })
   const mesh = new Mesh(geo, mat)
   mesh.frustumCulled = false
+  mesh.onBeforeRender = () => {
+    const u = mat.uniforms
+    const mie = u.tInScatter.value?.userData?.mieColour ?? null
+    u.tInScatterMie.value = mie
+    u.uMieTable.value = mie ? 1 : 0
+  }
   return mesh
 }
 
@@ -542,7 +553,9 @@ void main() {
 // chromatic one (Earth's) Bruneton 2017's reconstruction from the Rayleigh's,
 // Mie_c = a · (S_c / S_r) · (β_R,r / β_R,c) · (β_M,c / β_M,r): the path's
 // transmittance colour weighted by the gas's density (composition.md,
-// "Per-body data").  The fallback march (`scatter`, used only before the
+// "Per-body data").  That stands only where the tables hold no Mie colour
+// of their own: Earth's do (precomputeInScatter; composition.md, "The Mie's
+// colour"), and the march computes it.  The fallback march (`scatter`, used only before the
 // tables are made) leaves the ozone out.
 const FULLSCREEN_FRAG = `
 precision highp float;
@@ -575,6 +588,8 @@ uniform vec3      uMiePeakWeight;
 uniform sampler2D tTransmittance;
 uniform float     uUseTransmittanceLUT;
 uniform sampler2D tInScatter;
+uniform sampler2D tInScatterMie;
+uniform float     uMieTable;
 uniform sampler2D tInScatterMs;
 uniform sampler2D tMultiScatter;
 uniform float     uUseInScatterLUT;
@@ -827,10 +842,10 @@ float bruneton_encode_mu_v(float r, float mu_v, float rG, float rA, bool ground)
 // a; the phase functions apply at lookup), and the multiply-scattered
 // in-scatter (ms, rgb, isotropic) from its own atlas at the same place,
 // with in its a the broad lobes' extra single scattering of the delta-M
-// beam (AtmospherePrecompute precomputeInScatterMs).
+// beam (AtmospherePrecompute precomputeInScatterMs).  mie: the Mie per channel.
 // Atlas: 64 r-slices × 32 μ_sun steps = 2048px wide, 512 μ_view steps tall.
 // Manual r-slice blend; GPU handles μ_sun/μ_view bilinear within each slice.
-vec4 sampleInScatter(float r, float mu_view, float mu_sun, bool ground, out vec4 ms) {
+vec4 sampleInScatter(float r, float mu_view, float mu_sun, bool ground, out vec4 ms, out vec3 mie) {
   float r_t    = clamp((r - uGroundRadius) / (uAtmosphereRadius - uGroundRadius), 0.0, 1.0);
   float r_f    = r_t * (R_SLICES - 1.0);
   float r0     = floor(r_f);
@@ -858,7 +873,13 @@ vec4 sampleInScatter(float r, float mu_view, float mu_sun, bool ground, out vec4
   vec2 uv0 = vec2((r0 + mu_s_t) / R_SLICES, mu_v_t);
   vec2 uv1 = vec2((r1 + mu_s_t) / R_SLICES, mu_v_t);
   ms = mix(texture2D(tInScatterMs, uv0), texture2D(tInScatterMs, uv1), rBlend);
-  return mix(texture2D(tInScatter, uv0), texture2D(tInScatter, uv1), rBlend);
+  vec4 inS = mix(texture2D(tInScatter, uv0), texture2D(tInScatter, uv1), rBlend);
+  if (uMieTable > 0.5) {
+    mie = inS.a * mix(texture2D(tInScatterMie, uv0).rgb, texture2D(tInScatterMie, uv1).rgb, rBlend);
+  } else {
+    mie = mieColour(inS);
+  }
+  return inS;
 }
 
 vec2 rsi(vec3 r0, vec3 rd, float sr);
@@ -920,12 +941,13 @@ vec2 meanDensity(float h0, float h1, vec2 d0, vec2 d1) {
 // direct beam through the true one; and in ms.a the broad lobes' extra of
 // the delta-M beam.  With no narrow lobe (MIE_PEAK 0: Earth) the two are
 // one, and only one is computed.
-void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec4 ms, out vec3 T, out vec3 Ts) {
+void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec4 ms, out vec3 T, out vec3 Ts, out vec3 mie) {
   int   n  = segmentSteps(eye, dir, tMax);
   float ds = tMax / float(n);
   vec2  scaleH = vec2(uRayleighScaleHeight, uMieScaleHeight);
   vec3  totalR = vec3(0.0);
   float totalM = 0.0;
+  vec3  totalMrgb = vec3(0.0);
   float extraM = 0.0;
   vec3  kMieS = uMieCoeff * (1.0 - uMieAlbedo * uMiePeakWeight);
   vec3  sMieS = uMieCoeff * uMieAlbedo * (1.0 - uMiePeakWeight);
@@ -984,6 +1006,7 @@ void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec4 ms, out
     vec3 ws    = gs * sunTs;
     totalR += dR * ws;
     totalM += dM * w.r;
+    totalMrgb += dM * w;
     extraM += dM * (ws.r - w.r);
     ms.rgb += (uRayleigh * dR + sMieS * dM) * psi * gs;
     T *= exp(-sigma * ds);
@@ -991,6 +1014,7 @@ void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec4 ms, out
 #else
     totalR += dR * w;
     totalM += dM * w.r;
+    totalMrgb += dM * w;
     ms.rgb += (uRayleigh * dR + sMieS * dM) * psi * g;
     T *= exp(-sigma * ds);
 #endif
@@ -1000,6 +1024,7 @@ void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec4 ms, out
 #endif
   inS = vec4(uRayleigh * totalR, uMieCoeff.r * totalM);
   ms.a = uMieCoeff.r * extraM;
+  mie = uMieChroma > 0.5 ? uMieCoeff * totalMrgb : vec3(inS.a);
 }
 
 vec2 rsi(vec3 r0, vec3 rd, float sr) {
@@ -1256,6 +1281,7 @@ void main() {
 
     vec4  inS;
     vec4  inSMs;
+    vec3  inSMie;
     vec3  transmittance;
     // The delta-M beam's (marchSegment): for the narrow lobe's path, below.
     vec3  transmittanceS;
@@ -1264,7 +1290,7 @@ void main() {
     // The delta-M scaled Mie extinction (AtmospherePrecompute).
     vec3  kMieS = uMieCoeff * (1.0 - uMieAlbedo * uMiePeakWeight);
     if (shortRay) {
-      marchSegment(eyePos, rayDir, tMax, inS, inSMs, transmittance, transmittanceS);
+      marchSegment(eyePos, rayDir, tMax, inS, inSMs, transmittance, transmittanceS, inSMie);
     } else if (eyeBelow) {
       // From below the sphere: the ray to where it leaves the sphere, then
       // the table from there.  A ray under the horizon (a gap, or a body
@@ -1283,10 +1309,13 @@ void main() {
       vec4  msAbove;
       vec3  tBelow;
       vec3  tBelowS;
-      marchSegment(eyePos, rayDir, tExit, inSBelow, msBelow, tBelow, tBelowS);
-      vec4  inSAbove = sampleInScatter(uGroundRadius, mu_exit, mu_sExit, false, msAbove);
+      vec3  mieBelow;
+      vec3  mieAbove;
+      marchSegment(eyePos, rayDir, tExit, inSBelow, msBelow, tBelow, tBelowS, mieBelow);
+      vec4  inSAbove = sampleInScatter(uGroundRadius, mu_exit, mu_sExit, false, msAbove, mieAbove);
       vec3  odAbove  = texture2D(tTransmittance, transmittanceUV(uGroundRadius, mu_exit, uGroundRadius, uAtmosphereRadius)).rgb;
       inS = inSBelow + vec4(tBelowS * inSAbove.rgb, tBelow.r * inSAbove.a);
+      inSMie = mieBelow + tBelow * mieAbove;
       // The table's delta-M single scattering (its a and the extra in
       // msAbove.a) through the segment's delta-M transmittance, less the
       // direct beam's through the true one.
@@ -1311,7 +1340,7 @@ void main() {
       float mu_horiz = -sqrt(max(0.0, 1.0 - uGroundRadius * uGroundRadius / (r_e * r_e)));
       float mu_lut = atHorizon ? max(mu_v, mu_horiz) : mu_v;
       bool  ground = underHorizon && !atHorizon;
-      inS = sampleInScatter(r_e, mu_lut, mu_s, ground, inSMs);
+      inS = sampleInScatter(r_e, mu_lut, mu_s, ground, inSMs, inSMie);
       // Extinction via the transmittance LUT along the view ray, to where
       // its ray ends.  Trust the LUT: at zenith from sea level the
       // visible-band optical depth is ~0.15, giving ~86% transmittance for
@@ -1340,7 +1369,7 @@ void main() {
       pPeak = miePeakPhase(mu, uMiePeakPolarity, peakDepth(eyePos + rayDir * t_entry, transmittance, transmittanceS));
     }
     vec3 pMie   = (uMiePeakWeight * pPeak + (1.0 - uMiePeakWeight) * pBroad) * uMieAlbedo;
-    vec3 scattered = uSunIntensity * (pRlh * inS.rgb + pMie * mieColour(inS)
+    vec3 scattered = uSunIntensity * (pRlh * inS.rgb + pMie * inSMie
         + (1.0 - uMiePeakWeight) * pBroad * uMieAlbedo * inSMs.a + inSMs.rgb);
 
     // The transmittance is the physical one, whole: the stars behind the
@@ -1348,16 +1377,10 @@ void main() {
     // exposure units (HDR.md, "Physical stars"); #86's PR B removed the
     // eye-adaptation boost, its altitude weight, the 0.08 floor and the
     // exemption of bodies beyond the atmosphere (the daytime Moon).
-    // TODO(future): tune the surface-vs-atmosphere blend coloring.  From
-    // space looking at the day side, the LUT inscatter mixes additively
-    // with the surface texture: where atmospheric column is thick (limb)
-    // the inscatter hue dominates; where thin (overhead/disc centre) the
-    // surface shows.  The transition reads OK but the saturation/hue
-    // balance over land vs ocean isn't perfectly tuned, and the coastal
-    // hand-off looks slightly washed.  Plausible knobs: per-channel
-    // inscatter scaling, a soft saturation curve on (color + scene*T),
-    // or eventually proper aerial-perspective integration over the
-    // segment from surface depth back to the camera.
+    // The disc from orbit: its colour at an oblique view and a low Sun is
+    // its air's, measured against a CPU march (composition.md, "The disc
+    // from low orbit"); what's left is the ground's light through the air
+    // (its known gaps).
     // Gap-pixel hard occlusion: when isGap is true we KNOW the geometric
     // ground is in front of whatever the depth buffer recorded — i.e. a
     // sub-pixel rasterization gap let the background (sun, stars, distant
@@ -1398,8 +1421,9 @@ void main() {
       vec4 msNear;
       vec3 tNear;
       vec3 tNearS;
-      marchSegment(eyePos, rayDir, min(cloudData.x, tMax), inSNear, msNear, tNear, tNearS);
-      vec3 skyNear = uSunIntensity * (pRlh * inSNear.rgb + pMie * mieColour(inSNear)
+      vec3 mieNear;
+      marchSegment(eyePos, rayDir, min(cloudData.x, tMax), inSNear, msNear, tNear, tNearS, mieNear);
+      vec3 skyNear = uSunIntensity * (pRlh * inSNear.rgb + pMie * mieNear
           + (1.0 - uMiePeakWeight) * pBroad * uMieAlbedo * msNear.a + msNear.rgb) * uSkyExposure;
       sky = skyNear + tNear * cloud.rgb * uCloudExposure + cloud.a * max(sky - skyNear, vec3(0.0));
       transmittance *= cloud.a;

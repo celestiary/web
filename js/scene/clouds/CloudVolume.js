@@ -32,7 +32,7 @@ import {
   eddingtonGamma, phaseTable,
 } from './cloudPhysics.js'
 import {SUN_BELOW_HORIZON_GLSL} from '../atmos/rayEnd.js'
-import {mieParams, ozoneParams} from '../atmos/AtmospherePrecompute.js'
+import {groundAlbedo, mieParams, ozoneParams} from '../atmos/AtmospherePrecompute.js'
 import {CLOUD_HEIGHT_M, FAR_FIELD_FADE_M, VOLUME_FADE_M, fadeOver} from './CloudShell.js'
 
 
@@ -253,9 +253,9 @@ export default class CloudVolume {
     u.uRayleigh.value.set(...atmos.rayleigh)
     u.uMieCoeff.value.copy(mieParams(atmos).extinction)
     u.uOzone.value.copy(ozoneParams(atmos).absorption)
-    // The ground under the cloud reflects what the cloud passes (the
-    // body's albedo stands for the ground's).
-    u.uGroundAlbedo.value = node.props.albedo ?? 0
+    // The ground under the cloud reflects what the cloud passes
+    // (AtmospherePrecompute groundAlbedo).
+    u.uGroundAlbedo.value.copy(groundAlbedo(atmos, node.props.albedo))
     // The targets, at the frame's fraction.
     renderer.getDrawingBufferSize(this._size)
     const scale = this.options.scale
@@ -620,7 +620,7 @@ function newMarchMaterial(params, groundRadius, coverage) {
       uRayleigh: {value: new Vector3()},
       uMieCoeff: {value: new Vector3()},
       uOzone: {value: new Vector3()},
-      uGroundAlbedo: {value: 0},
+      uGroundAlbedo: {value: new Vector3()},
       uTargetSize: {value: new Vector2(1, 1)},
       uFrame: {value: 0},
       uSteps: {value: MAX_STEPS},
@@ -874,7 +874,7 @@ uniform float uAtmosphereRadius;
 uniform vec3  uRayleigh;
 uniform vec3  uMieCoeff;
 uniform vec3  uOzone;
-uniform float uGroundAlbedo;
+uniform vec3 uGroundAlbedo;
 uniform vec2  uTargetSize;
 uniform float uFrame;
 uniform int   uSteps;

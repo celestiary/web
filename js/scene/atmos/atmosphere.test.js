@@ -4,7 +4,8 @@ import BODY_DIRS from '../../bodyDirs.json'
 import {descriptorUrl} from '../../bodyBundle.js'
 import {ASTRO_UNIT_METER, DISPLAY_GAIN} from '../../shared.js'
 import {PHYSICAL_SKY_GAIN, exposureAt, skyExposure, skyGain} from '../exposure.js'
-import {mieParams, ozoneParams} from './AtmospherePrecompute.js'
+import {groundAlbedo, mieParams, ozoneParams} from './AtmospherePrecompute.js'
+import TEXTURE_MEANS from '../textureMeans.json'
 import {EARTH, channelCoefficients} from '../../../tools/atmos/bandAverage.mjs'
 
 
@@ -403,6 +404,118 @@ describe('Earth\'s air by its optical depths (a CPU integral, as the transmittan
     expect(ratio[1]).toBeLessThan(0.4)
     expect(ratio[0]).toBeLessThan(0.75)
     expect(ratio[2]).toBeGreaterThan(0.94)
+  })
+})
+
+
+describe('the ground under the air', () => {
+  it('is Earth\'s drawn ground for its tables, not its geometric albedo, which holds its air and clouds', () => {
+    const earth = loadPlanet('earth')
+    // The decoded Blue Marble's mean, per channel (tools/textureMeans.py).
+    expect(earth.atmosphere.groundAlbedo).toEqual(TEXTURE_MEANS.earth)
+    expect(groundAlbedo(earth.atmosphere, earth.albedo).toArray()).toEqual(TEXTURE_MEANS.earth)
+  })
+
+  it('falls back to the body\'s albedo, one number in every channel', () => {
+    expect(groundAlbedo({}, 0.15).toArray()).toEqual([0.15, 0.15, 0.15])
+    expect(groundAlbedo({groundAlbedo: 0.2}, 0.5).toArray()).toEqual([0.2, 0.2, 0.2])
+    expect(groundAlbedo(undefined, undefined).toArray()).toEqual([0, 0, 0])
+  })
+})
+
+
+describe('the Mie\'s colour (a CPU single scattering of Earth\'s data)', () => {
+  const atm = loadPlanet('earth').atmosphere
+  const R = 6.371e6
+  const top = R + scalar(atm.height)
+  const hR = scalar(atm.rayleighScaleHeight)
+  const hM = scalar(atm.mieScaleHeight)
+  const oz = ozoneParams(atm)
+  const tent = (h) => Math.max(1 - (Math.abs(h - oz.profile.y) /
+      (h < oz.profile.y ? oz.profile.y - oz.profile.x : oz.profile.z - oz.profile.y)), 0)
+  const ext = (h, c) => (atm.rayleigh[c] * Math.exp(-h / hR)) + (atm.mieCoeff[c] * Math.exp(-h / hM)) +
+    (oz.absorption.getComponent(c) * tent(h))
+  const dot = (a, b) => (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2])
+  const at = (p, d, t) => [p[0] + (d[0] * t), p[1] + (d[1] * t), p[2] + (d[2] * t)]
+  const unit = (a) => a.map((v) => v / Math.hypot(...a))
+  // The far and near crossings of a sphere at the origin (NaN: none).
+  const hits = (p, d, r) => {
+    const b = dot(p, d)
+    const q = Math.sqrt((b * b) - dot(p, p) + (r * r))
+    return [-b - q, -b + q]
+  }
+  const sunDepth = (p, s, c) => {
+    const [g0] = hits(p, s, R)
+    if (g0 > 0) {
+      return Infinity
+    }
+    const t1 = hits(p, s, top)[1]
+    let tau = 0
+    for (let i = 0; i < 60; i++) {
+      tau += ext(Math.hypot(...at(p, s, (i + 0.5) * t1 / 60)) - R, c) * t1 / 60
+    }
+    return tau
+  }
+  /**
+   * The Rayleigh's and the Mie's single scattering along a ray, without
+   * their phase functions, per channel, as the in-scatter table holds them.
+   *
+   * @returns {{rayleigh: Array<number>, mie: Array<number>}}
+   */
+  function single(eye, dir, sun) {
+    const d = unit(dir)
+    const s = unit(sun)
+    const [a0, a1] = hits(eye, d, top)
+    const [g0] = hits(eye, d, R)
+    const t0 = Math.max(a0, 0)
+    const t1 = g0 > 0 ? g0 : a1
+    const n = 300
+    const dt = (t1 - t0) / n
+    const out = {rayleigh: [0, 0, 0], mie: [0, 0, 0]}
+    for (let c = 0; c < 3; c++) {
+      let tau = 0
+      for (let i = 0; i < n; i++) {
+        const p = at(eye, d, t0 + ((i + 0.5) * dt))
+        const h = Math.hypot(...p) - R
+        const e = ext(h, c) * dt
+        const w = Math.exp(-(tau + (e / 2)) - sunDepth(p, s, c)) * dt
+        out.rayleigh[c] += atm.rayleigh[c] * Math.exp(-h / hR) * w
+        out.mie[c] += atm.mieCoeff[c] * Math.exp(-h / hM) * w
+        tau += e
+      }
+    }
+    return out
+  }
+  // Bruneton 2017's reconstruction (the pass's mieColour), over the Mie.
+  const reconstructionOverTrue = ({rayleigh: r, mie: m}) => [0, 1, 2].map((c) =>
+    m[0] * (r[c] / r[0]) * (atm.rayleigh[0] / atm.rayleigh[c]) * (atm.mieCoeff[c] / atm.mieCoeff[0]) / m[c])
+  const elevated = (deg) => [Math.cos(deg * Math.PI / 180), Math.sin(deg * Math.PI / 180), 0]
+
+  it('is bluer by the reconstruction than it is through the disc from orbit, the aerosol being under the gas', () => {
+    // The Aydar Lake view's centre (composition.md, "The disc from low
+    // orbit"): from 400 km, 67° from the zenith at the ground, the Sun 22° up.
+    const ratio = reconstructionOverTrue(single([-19460, 5861000, 3391000], [0.001559, 0, -1],
+        [-0.5973, 0.6238, -0.5042]))
+    expect(ratio[1]).toBeCloseTo(1.15, 1)
+    expect(ratio[2]).toBeCloseTo(1.65, 1)
+  })
+
+  it('is redder by the reconstruction than it is by the setting Sun', () => {
+    // From the ground, 2° up toward the Sun 5.5° up.
+    const ratio = reconstructionOverTrue(single([0, R + 2, 0], elevated(2), elevated(5.5)))
+    expect(ratio[1]).toBeCloseTo(0.82, 1)
+    expect(ratio[2]).toBeCloseTo(0.60, 1)
+  })
+
+  it('is the tables\' own for a chromatic aerosol, and marched along a segment', () => {
+    const pass = readFileSync('./js/scene/atmos/Atmosphere.js', 'utf8')
+    const pre = readFileSync('./js/scene/atmos/AtmospherePrecompute.js', 'utf8')
+    expect(pre).toContain('#if MIE_COLOUR')
+    expect(pre).toContain('rt.texture.userData.mieColour = mie.texture')
+    expect(pass).toContain('u.tInScatter.value?.userData?.mieColour')
+    expect(pass).toContain('mie = uMieChroma > 0.5 ? uMieCoeff * totalMrgb : vec3(inS.a);')
+    expect(pass).toContain('uSunIntensity * (pRlh * inS.rgb + pMie * inSMie')
+    expect(pass).not.toContain('pMie * mieColour(')
   })
 })
 

@@ -2,6 +2,7 @@
 // change via GPU render-to-texture; results are consumed by Atmosphere.js.
 import {
   FloatType,
+  HalfFloatType,
   Mesh,
   OrthographicCamera,
   PlaneGeometry,
@@ -208,8 +209,44 @@ void main() {
  * @returns {WebGLRenderTarget}  2048×512 RGBA FloatType atlas
  */
 export function precomputeInScatter(renderer, atmos, rGround, transmittanceRT) {
+  const rt = renderInScatter(renderer, atmos, rGround, transmittanceRT, false)
+  if (mieParams(atmos).chroma) {
+    // The Mie's colour, for an aerosol whose extinction is per channel
+    // (Earth's): the in-scatter's Mie per channel over red's, so the pass
+    // multiplies a by it in place of the reconstruction from the Rayleigh's
+    // (mieColour), which takes the two to have travelled the same air.  The
+    // aerosol's 1.2 km scale height puts it under nearly the whole column,
+    // the gas's 8 km above most of it: through the disc from orbit the
+    // reconstruction gave the Mie 1.65 times its blue, and at sunset by the
+    // Sun 0.60 of it (composition.md, "The Mie's colour").  A ratio, so half
+    // floats hold it; on the main atlas's texture, which the pass reads it
+    // from (newAtmospherePass), and disposed with it.
+    const mie = renderInScatter(renderer, atmos, rGround, transmittanceRT, true)
+    rt.texture.userData.mieColour = mie.texture
+    const dispose = rt.dispose.bind(rt)
+    rt.dispose = () => {
+      mie.dispose()
+      dispose()
+    }
+  }
+  return rt
+}
+
+
+/**
+ * The in-scatter atlas, or with `mieColour` its Mie's colour (Mie per
+ * channel over red's, in rgb, half floats), for precomputeInScatter.
+ *
+ * @param {object} renderer
+ * @param {object} atmos
+ * @param {number} rGround
+ * @param {WebGLRenderTarget} transmittanceRT
+ * @param {boolean} mieColour
+ * @returns {WebGLRenderTarget}
+ */
+function renderInScatter(renderer, atmos, rGround, transmittanceRT, mieColour) {
   const W = 2048; const H = 512 // 64 r-slices × 32 mu_sun, 512 mu_view
-  const rt = new WebGLRenderTarget(W, H, {type: FloatType})
+  const rt = new WebGLRenderTarget(W, H, {type: mieColour ? HalfFloatType : FloatType})
 
   const mat = new ShaderMaterial({
     uniforms: {
@@ -227,6 +264,7 @@ export function precomputeInScatter(renderer, atmos, rGround, transmittanceRT) {
     },
     vertexShader: INSCATTER_VERT,
     fragmentShader: INSCATTER_FRAG,
+    defines: {MIE_COLOUR: mieColour ? 1 : 0},
     depthTest: false,
     depthWrite: false,
   })
@@ -300,6 +338,14 @@ float bruneton_decode_mu_v(float r, float t, float rG, float rA) {
 `
 
 
+// The Sun behind the planet: jOd stores density-weighted path lengths in
+// metres, so the blocked Sun's must drive exp(-k*jOd) to zero for the
+// smallest coefficient: Earth's Rayleigh red is about 6e-6 /m, and 1e6 m let
+// e^-5.8 = 0.3% of the Sun through every blocked step, which the metered
+// exposure (HDR.md) showed as a red sky with the Sun 35° under the horizon.
+// 1e12 m is τ > 1e4 for any coefficient over 1e-8 /m (Mars's Rayleigh is
+// 1.2e-7); exp underflows to 0, no NaN.  (Kept out of the shader's string,
+// whose comments ship.)
 const INSCATTER_FRAG = `
 precision highp float;
 
@@ -371,6 +417,7 @@ void main() {
 
   vec3  totalRlh = vec3(0.0);
   float totalMie = 0.0;
+  vec3  totalMieRgb = vec3(0.0);
   // The ray's transmittance so far, per channel.
   vec3  T = vec3(1.0);
   // The delta-M beam's (composition.md, "The dust's forward peak"): the
@@ -397,14 +444,7 @@ void main() {
     vec3  jOd;
     vec2  pPlanet = rsi(iPos, sunDir, uGroundRadius);
     if (pPlanet.x > 0.0 && pPlanet.x < pPlanet.y) {
-      // Sun is behind the planet body — completely opaque.
-      // jOd stores density-weighted path lengths in metres, so this must
-      // drive exp(-k*jOd) to zero for the smallest coefficient: Earth's
-      // Rayleigh red is 5.8e-6 /m, and 1e6 m let e^-5.8 = 0.3% of the Sun
-      // through every blocked step, which the metered exposure (HDR.md)
-      // showed as a red sky with the Sun 35° under the horizon.  1e12 m
-      // is τ > 1e4 for any coefficient over 1e-8 /m (Mars's Rayleigh is
-      // 1.2e-7); exp underflows to 0, no NaN.
+      // Sun behind the planet: opaque (the note above INSCATTER_FRAG).
       jOd = vec3(1.0e12);
     } else {
       jOd = texture2D(tTransmittance,
@@ -423,14 +463,20 @@ void main() {
     vec3  ws    = Ts * sunTs * stepIntegral(sigmaScaled, iStepSize);
     totalRlh  += dRlh * ws;
     totalMie  += dMie * w.r;   // red's Mie (the pass gives it its colour)
+    totalMieRgb += dMie * w;
     T         *= exp(-sigma * iStepSize);
     Ts        *= exp(-sigmaScaled * iStepSize);
     iTime     += iStepSize;
   }
 
+#if MIE_COLOUR
+  vec3 mieRgb = uMieCoeff * totalMieRgb;
+  gl_FragColor = vec4(min(mieRgb / max(mieRgb.r, 1.0e-30), vec3(1.0e4)), 1.0);
+#else
   // RGB = kRlh * totalRlh  (apply phase + sunIntensity at lookup time)
   // A   = kMie * totalMie
   gl_FragColor = vec4(uRayleigh * totalRlh, uMieCoeff.r * totalMie);
+#endif
 }
 `
 
@@ -643,16 +689,37 @@ function renderLut(renderer, width, height, uniforms, fragmentShader) {
  * @param {object} atmos
  * @param {number} rGround
  * @param {WebGLRenderTarget} transmittanceRT
- * @param {number} groundAlbedo The body's albedo (its JSON)
+ * @param {number} bodyAlbedo The body's albedo (its JSON), for a body whose
+ *   atmosphere gives no `groundAlbedo` (groundAlbedo, below)
  * @returns {WebGLRenderTarget} 64×64 RGBA FloatType: Ψ in rgb, over
  *   u = altitude, v = μ_sun·0.5 + 0.5
  */
-export function precomputeMultiScatter(renderer, atmos, rGround, transmittanceRT, groundAlbedo) {
+export function precomputeMultiScatter(renderer, atmos, rGround, transmittanceRT, bodyAlbedo) {
   return renderLut(renderer, 64, 64, {
     ...atmosUniforms(atmos, rGround),
-    uGroundAlbedo: {value: groundAlbedo},
+    uGroundAlbedo: {value: groundAlbedo(atmos, bodyAlbedo)},
     tTransmittance: {value: transmittanceRT.texture},
   }, MULTISCATTER_FRAG)
+}
+
+
+/**
+ * The albedo of the ground under the air, per channel: the Lambertian
+ * reflector the multiple scattering (precomputeMultiScatter) and the
+ * volumetric clouds' light from below (CloudVolume) take under every point.
+ * The atmosphere's `groundAlbedo` (one number or [r, g, b]) where it gives
+ * one, else the body's `albedo`.  That is a geometric albedo, the whole
+ * disc's, its air and clouds in it: as the ground's it counts them twice
+ * (composition.md, "The ground under the air").  Earth's is its drawn
+ * ground's mean, the decoded Blue Marble's (textureMeans.json).
+ *
+ * @param {object} atmos A body's reified atmosphere props
+ * @param {number} bodyAlbedo The body's albedo (its JSON)
+ * @returns {Vector3}
+ */
+export function groundAlbedo(atmos, bodyAlbedo) {
+  const a = atmos?.groundAlbedo ?? bodyAlbedo ?? 0
+  return Array.isArray(a) ? new Vector3(...a) : new Vector3(a, a, a)
 }
 
 
@@ -718,7 +785,7 @@ uniform vec3      uMiePolarity;
 uniform float     uMieBackPolarity;
 uniform float     uMieForwardWeight;
 uniform vec3      uMiePeakWeight;
-uniform float     uGroundAlbedo;
+uniform vec3      uGroundAlbedo;
 uniform sampler2D tTransmittance;
 
 #define MS_DIRS  64
