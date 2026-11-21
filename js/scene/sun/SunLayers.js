@@ -208,6 +208,8 @@ export default class SunLayers {
     this.occulter = 0
     // Each layer on or off (the perf overlay's `sun` toggle; probes).
     this.enabled = {glare: true, corona: true, flares: true, cmes: true, prominences: true}
+    // A diagnostic multiplier on the glare's veil (the render panel's), 1 as the model has it.
+    this.glareGain = 1
     this._v = [new Vector3, new Vector3, new Vector3, new Vector3, new Vector3]
     this._q = [new Quaternion, new Quaternion]
     this._m4 = new Matrix4
@@ -676,7 +678,7 @@ export default class SunLayers {
     // view axis, fading out from 90° to 100°; a source behind the head
     // veils nothing, though the frame's edge may be 80° from it.
     const field = glareFieldWeight(offAxis)
-    u.uFieldWeight.value = field
+    u.uFieldWeight.value = field * this.glareGain
     // The veil is the eye's: an instrument's view has none.
     this.glare.visible = this.enabled.glare && this.view === VIEW_EYE &&
       field > 0 && reach > 0.1 && offAxis - halfDiag < reach &&

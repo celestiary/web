@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'bun:test'
 import {TONE_MAP_GLSL, TONE_MAP_IDS, installToneMaps} from '../scene/toneMaps.js'
 import {DEFAULT_TONE_MAP_GLSL} from '../scene/atmos/Atmosphere.js'
-import {OUTPUT_COLOR_SPACES, TONE_MAPS, capabilityRows, colorSpaceName, infoSections, toneMappingName} from './RenderPanel.js'
+import {OUTPUT_COLOR_SPACES, TONE_MAPS, cameraRows, capabilityRows, colorSpaceName, infoSections, toneMappingName} from './RenderPanel.js'
 
 
 describe('RenderPanel', () => {
@@ -54,22 +54,40 @@ describe('RenderPanel', () => {
     ])
   })
 
-  it('builds the info sections', () => {
+  it('builds the info sections: the output only (the frame\'s are the perf overlay\'s)', () => {
     const renderer = {
       info: {memory: {geometries: 12, textures: 34}},
       outputColorSpace: 'srgb-linear', toneMapping: 5, toneMappingExposure: 0.5,
     }
-    const sections = infoSections({
-      renderer, render: {calls: 5, triangles: 600, points: 7, lines: 8},
-      fps: 60, intervalMs: 16.667, cpuMs: 3.2, hdr: true, toneMap: 'agx',
-    })
+    const sections = infoSections({renderer, hdr: true, toneMap: 'agx'})
+    expect(sections.map((s) => s.title)).toEqual(['Output'])
     const value = (title, name) => sections.find((s) => s.title.startsWith(title)).rows.find((r) => r[0] === name)[1]
-    expect(value('Frame', 'FPS')).toBe('60.0')
-    expect(value('Frame', 'frame time')).toBe('16.67 ms')
-    expect(value('Memory', 'textures')).toBe('34')
-    expect(value('Render', 'triangles')).toBe('600')
     expect(value('Output', 'outputColorSpace')).toBe('LinearSRGBColorSpace')
     expect(value('Output', 'final tone map')).toBe('AgX')
     expect(value('Output', 'scene pass toneMapping')).toBe('CustomToneMapping')
+  })
+
+  it('reads the observer, the exposure and the glare', () => {
+    const ui = {
+      instrument: {name: 'a camera', psf: {glareModel: 1}}, _appInstrument: null,
+      renderer: {toneMappingExposure: 0.25}, _exposureGoal: 0.5, _meterGain: 0.5, _meterGainGoal: 0.4,
+      _renderedGain: 0.5, exposureCompensation: () => -1,
+    }
+    const sun = {enabled: {glare: true}, glare: {visible: true}, glareGain: 1}
+    const row = (rows, name) => rows.find((r) => r[0] === name)[1]
+    let rows = cameraRows(ui, sun)
+    expect(row(rows, 'instrument')).toBe('a camera')
+    expect(row(rows, 'exposure')).toBe('0.2500')
+    expect(row(rows, 'metered gain')).toBe('0.5000 (goal 0.4000)')
+    expect(row(rows, 'EV')).toBe('-1')
+    expect(row(rows, 'glare model')).toContain('camera')
+    expect(row(rows, 'glare')).toBe('on, drawn')
+    rows = cameraRows({...ui, instrument: {name: 'Rubin', psf: {}}, _appInstrument: {}, exposureCompensation: () => 0},
+        {...sun, glareGain: 2})
+    expect(row(rows, 'instrument')).toBe('Rubin (an app\'s)')
+    expect(row(rows, 'EV')).toBe('0 (auto)')
+    expect(row(rows, 'glare model')).toContain('eye')
+    expect(row(rows, 'glare')).toBe('on, drawn, x2 (diagnostic)')
+    expect(row(cameraRows(ui, null), 'glare')).toBe('no Sun')
   })
 })

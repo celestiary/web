@@ -231,11 +231,9 @@ export default class ThreeUi {
       this.scene.add(controllerGrip);
     */
 
-    // three's Stats panel (FPS / MS / MB): built on first toggle, so startup
-    // and the tests never touch the DOM for it.  See togglePerfPanel.
-    this._stats = null
-    // The panel's controls and render info (perf/RenderPanel.js), loaded with
-    // its first showing, and the element holding it and the Stats graph.
+    // The render panel's controls (perf/RenderPanel.js): built on first
+    // toggle, so startup and the tests never touch the DOM for it, and the
+    // element holding it.  See togglePerfPanel.
     this._renderPanel = null
     this._perfRoot = null
     this._perfPanelLoading = null
@@ -625,17 +623,7 @@ export default class ThreeUi {
       }
       return
     }
-    // Timing runs only while the panel is showing.  Visibility flips from
-    // key events, never mid-frame, so begin() and end() always pair.
-    const stats = this._perfVisible ? this._stats : null
-    this._frameStats = stats
-    stats?.begin()
-    // The panel's render counts are the frame's, summed over its renders.
     this._frameRenderPanel = this._perfVisible ? this._renderPanel : null
-    if (this._frameRenderPanel) {
-      this.renderer.info.reset()
-      this._frameRenderPanel.frameBegin()
-    }
     perf.frameBegin()
     perf.begin('update')
     this.camera.updateMatrixWorld()
@@ -784,7 +772,6 @@ export default class ThreeUi {
       }
     }
     perf.frameEnd()
-    this._frameStats?.end()
     this._frameRenderPanel?.frameEnd()
   }
 
@@ -949,14 +936,13 @@ export default class ThreeUi {
 
 
   /**
-   * Show or hide the performance panel: three's Stats graph (FPS, MS, MB;
-   * click it to cycle) under the render info and the tone map control
-   * (perf/RenderPanel.js).  The elements are created on the first show and
-   * then only hidden, so they cost nothing until asked for; their module
-   * (perf/RenderPanel.js, with three's Stats) loads then too.  It sits bottom-right above the fullscreen
-   * control, the corner the HUD leaves free (the info list can run long down
-   * the left), over the canvas; only its own boxes take pointer events.
-   * While it shows, renderer.info is reset once a frame, not per render.
+   * Show or hide the performance panels together: the render panel (the
+   * tone map and the rendering's controls, perf/RenderPanel.js) and the perf
+   * overlay (perf.js show: started here without `?perf=1`, and taken off
+   * again on the next press), which has the frame's graphs and render info.
+   * The render panel is created on the first show and then only hidden; its
+   * module loads then too.  It sits bottom-right above the fullscreen
+   * control, over the canvas; only its own box takes pointer events.
    *
    * @returns {boolean} whether the panel is now showing.
    */
@@ -964,15 +950,15 @@ export default class ThreeUi {
     this._perfVisible = !this._perfVisible
     if (this._perfVisible && !this._perfPanelLoading) {
       this._perfPanelLoading = import('./perf/RenderPanel.js').then(({createPerfPanel}) => {
-        const {root, stats, panel} = createPerfPanel({
+        const {root, panel} = createPerfPanel({
           doc: document, renderer: this.renderer, hdr: this.hdr, toneMap: this.toneMap,
           onToneMap: (key) => this.setToneMap(key),
           onColorSpace: (space) => this.setOutputColorSpace(space),
           skyGain: this.skyGainOverride,
           onSkyGain: (gain) => this.setSkyGain(gain),
+          ui: this,
         })
         this._perfRoot = root
-        this._stats = stats
         this._renderPanel = panel
         this._showPerfPanel()
       }).catch((err) => {
@@ -981,6 +967,7 @@ export default class ThreeUi {
         // reload does.
         this._perfPanelLoading = null
         this._perfVisible = false
+        this._showPerfPanel()
         console.warn('Performance panel failed to load (press ` to retry, or reload):', err)
       })
     }
@@ -989,14 +976,12 @@ export default class ThreeUi {
   }
 
 
-  /** Apply _perfVisible to the panel, once it's loaded, and to renderer.info. */
+  /** Apply _perfVisible to the render panel, once it's loaded, and to the perf overlay. */
   _showPerfPanel() {
     if (this._perfRoot) {
       this._perfRoot.style.display = this._perfVisible ? 'flex' : 'none'
     }
-    // Counted per frame while showing (renderLoop); per render otherwise,
-    // as three does, unless ?perf=1 counts them itself.
-    this.renderer.info.autoReset = !this._perfVisible && !perf.enabled
+    perf.show(this, this._perfVisible)
   }
 
 

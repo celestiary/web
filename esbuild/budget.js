@@ -118,7 +118,11 @@ export const STATIC_BUDGET = {
   // by a uniform, the CAMERA instrument, ThreeUi's user observer under an
   // app's instrument, and the Settings' Observer row and its `K` flag, 1.6 KB
   // minified.  Shader code and settings the first frame reads.
-  totalMinifiedKB: 2488,
+  // 2,488 and a fraction, so 2,490, with the disc from orbit (#375;
+  // composition.md, "The ground under the air", "The Mie's colour"): the
+  // coloured aerosol's second atlas and the per-channel Mie in the march,
+  // about 0.5 KB, and the backtick key's hooks for the panels.
+  totalMinifiedKB: 2490,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -191,7 +195,10 @@ export const RUNTIME_BUDGET = {
   // of the event model; a CI run took 1,029.6): 1,033.  Its CMEs' chunk
   // isn't in this: it is fetched only where a CME can show, which the
   // homepage isn't (when it was, at first, it was the 29th request here).
-  ready: {requests: 28, kb: 1033},
+  // #375's physical air (the ozone in the tables), the camera's glare
+  // function and the backtick key's hooks took a CI run to 1,034.4: 1,036,
+  // for the runs' spread.
+  ready: {requests: 28, kb: 1036},
   // After #259: 39 requests, 3,918 KB.  Raised from #258's 29 requests:
   // the catalogue's faint tiers are 12 packs where stars.dat was one file,
   // by design (a deep link needs only its field's; DESIGN.md "The star

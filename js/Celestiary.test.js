@@ -382,7 +382,7 @@ describe('Celestiary permalink restore', () => {
   afterAll(() => clearTimeout(app._permalinkTimer))
 
   it('binds the backtick key to the performance panel toggle', () => {
-    expect(app.keys.msgs['`']).toBe('Toggle performance panel')
+    expect(app.keys.msgs['`']).toBe('Toggle performance panels')
     app.keys.onKeyDown({key: '`'})
     expect(app.ui.perfToggles).toBe(1)
     expect(app.keys.toggleStates['`']()).toBe(true)
