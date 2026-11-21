@@ -461,6 +461,10 @@ export function newAtmospherePass() {
       // encodes it at its end (the sky guest, design/SkyGuest.md, "Drawn in
       // place").  0, the app's own: display values, as the canvas shows them.
       uLinearOut: {value: 0.0},
+      // 1: encode the screen's values to sRGB, for diagnosis (the performance
+      // panel's output colour space, SRGBColorSpace; HDR.md, "Colour spaces").
+      // 0, the app's: stored values, as they are.
+      uSrgbOut: {value: 0.0},
       // The night sky's own light (HDR.md, "The night sky's own light";
       // nightSky.js, eye.js), drawn here so it can be tone-mapped by the
       // eye's response to extended light and added over the scene's display,
@@ -560,6 +564,7 @@ uniform float     uHdr;
 uniform float     uSkyExposure;
 uniform float     uDebug;
 uniform float     uLinearOut;
+uniform float     uSrgbOut;
 #if CLOUDS
 uniform sampler2D tClouds;
 uniform sampler2D tCloudData;
@@ -708,6 +713,10 @@ vec3 overNight(vec3 display, vec3 night) {
 // The screen's display values, as written: as they are, or decoded from
 // sRGB for a host's linear buffer (uLinearOut).
 vec4 screenOut(vec3 display) {
+  if (uSrgbOut > 0.5) {
+    vec3 e = clamp(display, 0.0, 1.0);
+    return vec4(mix(12.92 * e, 1.055 * pow(e, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, e)), 1.0);
+  }
   if (uLinearOut < 0.5) {
     return vec4(display, 1.0);
   }

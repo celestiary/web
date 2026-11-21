@@ -32,6 +32,13 @@ export const TONE_MAPS = [
 ]
 
 
+/** The output colour spaces the panel offers: three's values. */
+export const OUTPUT_COLOR_SPACES = [
+  {value: 'srgb-linear', label: 'LinearSRGBColorSpace (default)', title: 'Stored values to the screen as they are'},
+  {value: 'srgb', label: 'SRGBColorSpace', title: 'Encoded to sRGB on the way to the screen'},
+]
+
+
 /** How often the text is redrawn, ms: it never touches the frame it describes. */
 export const UPDATE_MS = 500
 /** Frames the FPS and interval average over. */
@@ -141,9 +148,10 @@ export default class RenderPanel {
    * @param {boolean} p.hdr
    * @param {string} p.toneMap The final tone map's key to start with
    * @param {function(string): void} p.onToneMap Called with a key on a change
+   * @param {function(string): void} [p.onColorSpace] Called with 'srgb' or 'srgb-linear' on a change
    * @param {function(): number} [p.now] Milliseconds
    */
-  constructor({doc, renderer, hdr, toneMap, onToneMap, now = () => performance.now()}) {
+  constructor({doc, renderer, hdr, toneMap, onToneMap, onColorSpace = () => undefined, now = () => performance.now()}) {
     this.doc = doc
     this.renderer = renderer
     this.hdr = hdr
@@ -168,28 +176,28 @@ export default class RenderPanel {
       maxHeight: 'calc(100vh - 9em)', overflow: 'auto', userSelect: 'text', boxSizing: 'border-box',
     })
     this.root.setAttribute('data-testid', 'render-info')
-    const label = el('label', {title: 'The final tone map, in the atmosphere pass (js/scene/toneMaps.js)'},
-        {display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '4px'})
-    this.select = el('select', {}, {flex: '1', font: 'inherit'})
-    this.select.setAttribute('data-testid', 'render-info-tonemap')
-    for (const t of TONE_MAPS) {
-      const o = el('option', {value: t.key, textContent: t.label, title: t.what})
-      this.select.append(o)
-    }
-    this.select.value = toneMap
-    this.select.addEventListener('change', () => {
-      this.toneMap = this.select.value
-      onToneMap(this.toneMap)
-      // The app ignores keys while an input has focus (Keys.onKeyDown).
-      this.select.blur()
-      this.draw()
+    const toneMapRow = this._select({
+      text: 'Tone map', testId: 'render-info-tonemap', value: toneMap,
+      title: 'The final tone map, in the atmosphere pass (js/scene/toneMaps.js)',
+      options: TONE_MAPS.map((t) => ({value: t.key, label: t.label, title: t.what})),
+      onChange: (key) => {
+        this.toneMap = key
+        onToneMap(key)
+      },
     })
-    label.append(el('span', {textContent: 'Tone map'}, {color: '#8ac'}), this.select)
+    const spaceRow = this._select({
+      text: 'Output', testId: 'render-info-colorspace', value: renderer.outputColorSpace,
+      title: 'The renderer\'s output colour space.  Linear (the app\'s): stored values to the screen as they ' +
+        'are.  sRGB: the atmosphere pass and three\'s materials drawn to the screen encode to sRGB; textures ' +
+        'are still not decoded (HDR.md, "Colour spaces")',
+      options: OUTPUT_COLOR_SPACES,
+      onChange: (space) => onColorSpace(space),
+    })
     this.info = el('div')
     const caps = el('details')
     caps.append(el('summary', {textContent: 'Capabilities'}, {color: '#8ac', cursor: 'pointer'}))
     caps.append(this._table(capabilityRows(renderer.capabilities)))
-    this.root.append(label, this.info, caps)
+    this.root.append(toneMapRow, spaceRow, this.info, caps)
   }
 
 
@@ -236,6 +244,31 @@ export default class RenderPanel {
       parts.push(this.el('div', {textContent: s.title}, {color: '#8ac', marginTop: '3px'}), this._table(s.rows))
     }
     this.info.replaceChildren(...parts)
+  }
+
+
+  /**
+   * A labelled select; on a change it calls back, blurs (the app ignores
+   * keys while an input has focus, Keys.onKeyDown) and redraws.
+   *
+   * @returns {HTMLLabelElement}
+   */
+  _select({text, testId, title, options, value, onChange}) {
+    const {el} = this
+    const label = el('label', {title}, {display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '4px'})
+    const select = el('select', {}, {flex: '1', font: 'inherit'})
+    select.setAttribute('data-testid', testId)
+    for (const o of options) {
+      select.append(el('option', {value: o.value, textContent: o.label, title: o.title ?? ''}))
+    }
+    select.value = value
+    select.addEventListener('change', () => {
+      onChange(select.value)
+      select.blur()
+      this.draw()
+    })
+    label.append(el('span', {textContent: text}, {color: '#8ac', width: '4.5em'}), select)
+    return label
   }
 
 

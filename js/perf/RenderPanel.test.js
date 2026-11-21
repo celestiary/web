@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'bun:test'
 import {TONE_MAP_GLSL, TONE_MAP_IDS, installToneMaps} from '../scene/toneMaps.js'
 import {DEFAULT_TONE_MAP_GLSL} from '../scene/atmos/Atmosphere.js'
-import {TONE_MAPS, capabilityRows, colorSpaceName, infoSections, toneMappingName} from './RenderPanel.js'
+import {OUTPUT_COLOR_SPACES, TONE_MAPS, capabilityRows, colorSpaceName, infoSections, toneMappingName} from './RenderPanel.js'
 
 
 describe('RenderPanel', () => {
@@ -29,6 +29,11 @@ describe('RenderPanel', () => {
     installToneMaps(material, line)
     expect(material.needsUpdate).toBe(false)
     expect(() => installToneMaps({uniforms: {}, fragmentShader: 'x'}, line)).toThrow()
+  })
+
+  it('offers three\'s two output colour spaces, linear first', () => {
+    expect(OUTPUT_COLOR_SPACES.map((o) => o.value)).toEqual(['srgb-linear', 'srgb'])
+    expect(OUTPUT_COLOR_SPACES.map((o) => colorSpaceName(o.value))).toEqual(['LinearSRGBColorSpace', 'SRGBColorSpace'])
   })
 
   it('names three\'s constants', () => {

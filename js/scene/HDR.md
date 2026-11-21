@@ -122,6 +122,15 @@ luminance, to judge brightness apart from hue.
   sRGB-encoded values here.  That is part of what the control lets one judge.
 - The meter reads the linear composite (`uDebug` 7), not the tone-mapped
   frame, so the exposure doesn't change with the map.
+- **The output colour space** has a control beside it (*Output*, or
+  `?colorspace=srgb`): `SRGBColorSpace` sets `renderer.outputColorSpace` and
+  the atmosphere pass's `uSrgbOut`, so the pass encodes its display values to
+  sRGB in `screenOut`, and three's materials drawn to the screen (the overlay
+  pass) encode by three's own `colorspace_fragment`.  Textures are still not
+  decoded, so this half alone encodes stored values a second time: the frame
+  comes out brighter and flatter.  The colour-correct pair would also decode
+  the textures (`texture.colorSpace = SRGBColorSpace`), which no control does
+  yet; Cesium's layers decode on their own terms (CESIUM.md).
 
 ### Display-referred content: `N⁻¹`
 

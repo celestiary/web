@@ -5,6 +5,7 @@ import {
   FloatType,
   HalfFloatType,
   LinearSRGBColorSpace,
+  SRGBColorSpace,
   Matrix3,
   NeutralToneMapping,
   Object3D,
@@ -140,9 +141,14 @@ export default class ThreeUi {
     // The final tone map: PBR Neutral, or another for diagnosis
     // (`?tonemap=aces`, or the performance panel's control; toneMaps.js).
     this.toneMap = 'neutral'
-    const toneMapParam = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('tonemap')
+    const params = new URLSearchParams(typeof location === 'undefined' ? '' : location.search)
+    const toneMapParam = params.get('tonemap')
     if (toneMapParam && toneMapParam !== 'neutral') {
       this.setToneMap(toneMapParam)
+    }
+    // And the output colour space: stored values, or `?colorspace=srgb`.
+    if (params.get('colorspace') === 'srgb') {
+      this.setOutputColorSpace(SRGBColorSpace)
     }
     this._atmScene.add(this._atmMesh)
     this._pWorldAtm = new Vector3()
@@ -872,6 +878,26 @@ export default class ThreeUi {
 
 
   /**
+   * Set the output colour space, for diagnosis.  The app's is
+   * LinearSRGBColorSpace: stored values go to the screen as they are
+   * (HDR.md, "Colour spaces").  SRGBColorSpace encodes them to sRGB: the
+   * atmosphere pass in its screenOut, and three's materials drawn to the
+   * screen (the overlay pass) by three's own colorspace_fragment.  Textures
+   * are still not decoded, so this alone brightens and flattens the frame.
+   *
+   * @param {string} space SRGBColorSpace or LinearSRGBColorSpace; another is ignored
+   * @returns {string} The output colour space now
+   */
+  setOutputColorSpace(space) {
+    if (space === SRGBColorSpace || space === LinearSRGBColorSpace) {
+      this.renderer.outputColorSpace = space
+      this._atmMesh.material.uniforms.uSrgbOut.value = space === SRGBColorSpace ? 1 : 0
+    }
+    return this.renderer.outputColorSpace
+  }
+
+
+  /**
    * Show or hide the performance panel: three's Stats graph (FPS, MS, MB;
    * click it to cycle) under the render info and the tone map control
    * (perf/RenderPanel.js).  The elements are created on the first show and
@@ -890,6 +916,7 @@ export default class ThreeUi {
         const {root, stats, panel} = createPerfPanel({
           doc: document, renderer: this.renderer, hdr: this.hdr, toneMap: this.toneMap,
           onToneMap: (key) => this.setToneMap(key),
+          onColorSpace: (space) => this.setOutputColorSpace(space),
         })
         this._perfRoot = root
         this._stats = stats
