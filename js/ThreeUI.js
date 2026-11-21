@@ -76,6 +76,8 @@ const NIGHT_SKY_SKIP_VALUE = Math.sqrt(0.5 / 255 / 6.25)
 // Under a frame cap, a frame this early is still drawn, ms: the display's
 // intervals jitter, and a 60 Hz frame at 33.2 ms shouldn't wait for 50.
 const FRAME_CAP_SLACK_MS = 2
+/** While the colour textures are decoded (setTextureDecode), how often maps loaded since are, in frames. */
+const DECODE_EVERY_FRAMES = 30
 // A hidden canvas's opacity: under a display step (0.001 of 255 rounds to
 // 0), but not 0, which a compositor may take as not drawn at all, and then
 // the exposure meter's reads, fenced on the GPU, may not finish until it
@@ -149,6 +151,13 @@ export default class ThreeUi {
     // And the output colour space: stored values, or `?colorspace=srgb`.
     if (params.get('colorspace') === 'srgb') {
       this.setOutputColorSpace(SRGBColorSpace)
+    }
+    // And the colour textures decoded from sRGB, `?decode=1` (perf/textureDecode.js).
+    this.textureDecode = false
+    this._textureDecoder = null
+    this._decodeFrames = 0
+    if (params.get('decode') === '1') {
+      this.setTextureDecode(true)
     }
     this._atmScene.add(this._atmMesh)
     this._pWorldAtm = new Vector3()
@@ -749,6 +758,10 @@ export default class ThreeUi {
     }
     perf.frameEnd()
     this._frameStats?.end()
+    if (this.textureDecode && this._textureDecoder && (++this._decodeFrames % DECODE_EVERY_FRAMES) === 0) {
+      this._textureDecoder.setTextureDecode(this.scene, true)
+      this._textureDecoder.setCesiumDecode(this.layers, true)
+    }
     this._frameRenderPanel?.frameEnd()
   }
 
@@ -898,6 +911,27 @@ export default class ThreeUi {
 
 
   /**
+   * Decode the bodies' colour textures from sRGB, or stop, for diagnosis
+   * (perf/textureDecode.js, loaded with the first ask): celestiary's own
+   * colour maps by their colour space, Cesium's imagery by its gamma.  While on, renderLoop
+   * applies it again every DECODE_EVERY_FRAMES, for maps that load later.
+   *
+   * @param {boolean} on
+   * @returns {Promise<boolean>} Whether decoding is on, once applied
+   */
+  async setTextureDecode(on) {
+    this.textureDecode = on
+    if (!on && !this._textureDecoder) {
+      return false
+    }
+    this._textureDecoder ??= await import('./perf/textureDecode.js')
+    this._textureDecoder.setTextureDecode(this.scene, this.textureDecode)
+    this._textureDecoder.setCesiumDecode(this.layers, this.textureDecode)
+    return this.textureDecode
+  }
+
+
+  /**
    * Show or hide the performance panel: three's Stats graph (FPS, MS, MB;
    * click it to cycle) under the render info and the tone map control
    * (perf/RenderPanel.js).  The elements are created on the first show and
@@ -917,6 +951,8 @@ export default class ThreeUi {
           doc: document, renderer: this.renderer, hdr: this.hdr, toneMap: this.toneMap,
           onToneMap: (key) => this.setToneMap(key),
           onColorSpace: (space) => this.setOutputColorSpace(space),
+          decode: this.textureDecode,
+          onDecode: (on) => this.setTextureDecode(on),
         })
         this._perfRoot = root
         this._stats = stats

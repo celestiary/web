@@ -149,9 +149,14 @@ export default class RenderPanel {
    * @param {string} p.toneMap The final tone map's key to start with
    * @param {function(string): void} p.onToneMap Called with a key on a change
    * @param {function(string): void} [p.onColorSpace] Called with 'srgb' or 'srgb-linear' on a change
+   * @param {boolean} [p.decode] Whether the colour textures are decoded to start with
+   * @param {function(boolean): void} [p.onDecode] Called on a change
    * @param {function(): number} [p.now] Milliseconds
    */
-  constructor({doc, renderer, hdr, toneMap, onToneMap, onColorSpace = () => undefined, now = () => performance.now()}) {
+  constructor({
+    doc, renderer, hdr, toneMap, onToneMap, onColorSpace = () => undefined, decode = false,
+    onDecode = () => undefined, now = () => performance.now(),
+  }) {
     this.doc = doc
     this.renderer = renderer
     this.hdr = hdr
@@ -197,7 +202,19 @@ export default class RenderPanel {
     const caps = el('details')
     caps.append(el('summary', {textContent: 'Capabilities'}, {color: '#8ac', cursor: 'pointer'}))
     caps.append(this._table(capabilityRows(renderer.capabilities)))
-    this.root.append(toneMapRow, spaceRow, this.info, caps)
+    const decodeRow = el('label', {
+      title: 'Decode the bodies\' colour maps from sRGB (texture.colorSpace = SRGBColorSpace), so surfaces are lit ' +
+        'in linear light, and Cesium\'s imagery by gamma 1/2.2; with Output at sRGB, the colour-managed ' +
+        'pipeline (js/perf/textureDecode.js)',
+    }, {display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '4px', cursor: 'pointer'})
+    const decodeBox = el('input', {type: 'checkbox', checked: decode}, {margin: '0'})
+    decodeBox.setAttribute('data-testid', 'render-info-decode')
+    decodeBox.addEventListener('change', () => {
+      onDecode(decodeBox.checked)
+      decodeBox.blur()
+    })
+    decodeRow.append(decodeBox, el('span', {textContent: 'decode colour textures (sRGB)'}))
+    this.root.append(toneMapRow, spaceRow, decodeRow, this.info, caps)
   }
 
 
