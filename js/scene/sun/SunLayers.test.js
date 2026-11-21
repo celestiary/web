@@ -43,6 +43,30 @@ describe('the activity view\'s field', () => {
 describe('the view the layers are drawn in', () => {
   const star = () => ({props: {radius: {scalar: 6.957e8}}, color: [1, 1, 1], teff: 5772})
 
+  it('a link\'s view holds near the Sun, and gives way to the page\'s once the camera has left', () => {
+    const R = 6.957e8
+    const layers = new SunLayers(star(), {activity: true})
+    layers.setLinkView(VIEW_EUV)
+    expect(layers.view).toBe(VIEW_EUV)
+    // The arrival starts far off: the view waits for it.
+    layers.linkViewAt(215 * R)
+    expect(layers.view).toBe(VIEW_EUV)
+    layers.linkViewAt(34 * R)
+    layers.linkViewAt(100 * R)
+    expect(layers.view).toBe(VIEW_EUV)
+    // Out by Earth: the eye's Sun again, and it stays so on the way back.
+    layers.linkViewAt(215 * R)
+    expect(layers.view).toBe(VIEW_EYE)
+    layers.linkViewAt(34 * R)
+    expect(layers.view).toBe(VIEW_EYE)
+    // A link without a view is the page's own, which the camera's distance leaves alone.
+    const asked = new SunLayers(star(), {activity: true, view: VIEW_EUV})
+    asked.setLinkView(null)
+    asked.linkViewAt(34 * R)
+    asked.linkViewAt(215 * R)
+    expect(asked.view).toBe(VIEW_EUV)
+  })
+
   it('is the eye\'s unless asked, and switches the disc\'s and the corona\'s shaders together', () => {
     const layers = new SunLayers(star(), {activity: true})
     const disc = layers.photosphereUniforms()

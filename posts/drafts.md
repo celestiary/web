@@ -719,3 +719,156 @@ A star's name now shows only while the star itself can be seen: under a city's s
 
 https://celestiary.org/#sun/earth@40.5159,-74.0352,-30m;t=9793.733225jd;cq=-0.4268,0.4502,0.2162,-0.7539;fov=45deg;s=apoLF;time:pause;info:closed
 ```
+
+### Rubin's dwarf planet candidate, and the telescope that found it
+
+- ID: 2026-10-28-rubin-s-dwarf-planet-candidate-and-the
+- Status: draft
+- X:
+- Facebook:
+- Date: 2026-12-05
+- Entry: 2026-10-28-rubin-s-dwarf-planet-candidate-and-the
+- Image: posts/images/2026-10-28-rubin-s-dwarf-planet-candidate-and-the.png
+- Alt:
+- Render: node tools/home/cards.mjs --gpu --id 2026-10-28-rubin-s-dwarf-planet-candidate-and-the --hash 'sun/ed138' --png posts/images
+- Notes:
+- Length: X 266/280, Facebook 266/500 SHORT
+
+```text
+Rubin's dwarf planet candidate, and the telescope that found it.
+
+2026 ED138, the first dwarf planet candidate in the Rubin Observatory's images, is in the Sun's system on JPL's orbit: about 1,000 km across, 46 au from the Sun, beyond Pluto.
+
+https://celestiary.org/#sun/ed138
+```
+
+#### Facebook
+
+```text
+Rubin's dwarf planet candidate, and the telescope that found it.
+
+2026 ED138, the first dwarf planet candidate in the Rubin Observatory's images, is in the Sun's system on JPL's orbit: about 1,000 km across, 46 au from the Sun, beyond Pluto.
+
+https://celestiary.org/#sun/ed138
+```
+
+### Rubin's discovery image, on the sky where it was taken
+
+- ID: 2026-11-20-rubin-s-discovery-image-on-the-sky-where-it-was
+- Status: draft
+- X:
+- Facebook:
+- Date: 2026-12-08
+- Entry: 2026-11-20-rubin-s-discovery-image-on-the-sky-where-it-was
+- Image: posts/images/2026-11-20-rubin-s-discovery-image-on-the-sky-where-it-was.png
+- Alt:
+- Render: node tools/home/cards.mjs --gpu --id 2026-11-20-rubin-s-discovery-image-on-the-sky-where-it-was --hash 'sun/ed138@-30.2445,-70.7494,1.689km;from=sun/earth;t=9630.807563jd;cq=0.7319,0.5529,0.1076,-0.3834;fov=2deg;s=LTF;time:pause;apps:open,view=rubin;apps.rubin:image=1' --png posts/images
+- Notes:
+- Length: X 261/280, Facebook 374/500
+
+```text
+Rubin's discovery image, on the sky where it was taken.
+
+Turn on "Rubin's image" in the Rubin app and NOIRLab's picture of the field where Rubin found 2026 ED138 lies over the stars it shows, placed by those stars to under an arcsecond.
+
+https://celestiary.org/#sun/ed138@-30.2445,-70.7494,1.689km;from=sun/earth;t=9630.807563jd;cq=0.7319,0.5529,0.1076,-0.3834;fov=2deg;s=LTF;time:pause;apps:open,view=rubin;apps.rubin:image=1
+```
+
+#### Facebook
+
+```text
+Rubin's discovery image, on the sky where it was taken.
+
+Turn on "Rubin's image" in the Rubin app and NOIRLab's picture of the field where Rubin found 2026 ED138 lies over the stars it shows, placed by those stars to under an arcsecond. Zoom in from the telescope's 3.5° field and it sharpens to Rubin's own resolution; the object's path crosses it.
+
+https://celestiary.org/#sun/ed138@-30.2445,-70.7494,1.689km;from=sun/earth;t=9630.807563jd;cq=0.7319,0.5529,0.1076,-0.3834;fov=2deg;s=LTF;time:pause;apps:open,view=rubin;apps.rubin:image=1
+```
+
+### Rubin surveys the sky, visit by visit
+
+- ID: 2026-11-20-rubin-surveys-the-sky-visit-by-visit
+- Status: draft
+- X:
+- Facebook:
+- Date: 2026-12-10
+- Entry: 2026-11-20-rubin-surveys-the-sky-visit-by-visit
+- Image: posts/images/2026-11-20-rubin-surveys-the-sky-visit-by-visit.png
+- Alt:
+- Render: node tools/home/cards.mjs --gpu --id 2026-11-20-rubin-surveys-the-sky-visit-by-visit --hash 'sun/ed138@-30.2446,-70.7494,2.684km;from=sun/earth;t=9630.783523jd;cq=-0.1325,0.8944,0.4018,-0.1454;fov=30deg;s=LTF;time:pause;apps:open,view=rubin;apps.rubin:optics=0,cadence=1' --png posts/images
+- Notes:
+- Length: X 63/280, Facebook 450/500
+
+```text
+Rubin surveys the sky, visit by visit.
+
+https://celestiary.org/#sun/ed138@-30.2446,-70.7494,2.684km;from=sun/earth;t=9630.783523jd;cq=-0.1325,0.8944,0.4018,-0.1454;fov=30deg;s=LTF;time:pause;apps:open,view=rubin;apps.rubin:optics=0,cadence=1
+```
+
+#### Facebook
+
+```text
+Rubin surveys the sky, visit by visit.
+
+The Rubin Observatory app's new Survey cadence switch has the telescope work as a survey night does, rather than staring at 2026 ED138: 30-second visits to 3.5° fields, a few seconds' slew between neighbours, each field visited again about 33 minutes later, and the object's field among them. With it on, Watch the night rides the telescope from field to field, about a visit a second.
+
+https://celestiary.org/#sun/ed138@-30.2446,-70.7494,2.684km;from=sun/earth;t=9630.783523jd;cq=-0.1325,0.8944,0.4018,-0.1454;fov=30deg;s=LTF;time:pause;apps:open,view=rubin;apps.rubin:optics=0,cadence=1
+```
+
+### Fly a concept mission to the Sun's surface, and read its sensors
+
+- ID: 2026-11-20-fly-a-concept-mission-to-the-sun-s-surface-and
+- Status: draft
+- X:
+- Facebook:
+- Date: 2026-12-12
+- Entry: 2026-11-20-fly-a-concept-mission-to-the-sun-s-surface-and
+- Image: posts/images/2026-11-20-fly-a-concept-mission-to-the-sun-s-surface-and.png
+- Alt:
+- Render: node tools/home/cards.mjs --gpu --id 2026-11-20-fly-a-concept-mission-to-the-sun-s-surface-and --hash 'sun@65,-90,328.421067Gm;t=9979.535155jd;cq=-0.5373,0,0,0.8434;fov=45deg;s=F;time:pause;apps:open,view=suntan' --png posts/images
+- Notes:
+- Length: X 90/280, Facebook 494/500
+
+```text
+Fly a concept mission to the Sun's surface, and read its sensors.
+
+https://celestiary.org/#sun@65,-90,328.421067Gm;t=9979.535155jd;cq=-0.5373,0,0,0.8434;fov=45deg;s=F;time:pause;apps:open,view=suntan
+```
+
+#### Facebook
+
+```text
+Fly a concept mission to the Sun's surface, and read its sensors.
+
+The new Suntan app in the drawer follows Parker Solar Probe's seven Venus flybys to the Sun, settles a relay into an orbit that turns with the Sun's surface and drops a lander to the photosphere. Step through the mission's events, find and ride either craft, and read its simulated sunlight, temperatures, solar wind and magnetic field as it goes. Search for "Suntan" to open it, from the homepage too.
+
+https://celestiary.org/#sun@65,-90,328.421067Gm;t=9979.535155jd;cq=-0.5373,0,0,0.8434;fov=45deg;s=F;time:pause;apps:open,view=suntan
+```
+
+### The Sun as SOHO and SDO show it: flares, eruptions and the corona
+
+- ID: 2026-11-20-the-sun-as-soho-and-sdo-show-it-flares
+- Status: draft
+- X:
+- Facebook:
+- Date: 2026-12-15
+- Entry: 2026-11-20-the-sun-as-soho-and-sdo-show-it-flares
+- Image: public/images/home/eruption.webp
+- Alt: Four moments of a coronal mass ejection leaving the Sun, in an EUV imager's false colour
+- Notes:
+- Length: X 91/280, Facebook 495/500
+
+```text
+The Sun as SOHO and SDO show it: flares, eruptions and the corona.
+
+https://celestiary.org/#sun@-50.7478,-141.4986,23.604464Gm;t=8873.409722jd;cq=0.376,-0.4341,0.206,0.7923;fov=5.5deg;s=alpoGxF;time:rate=64;layers:sun=euv
+```
+
+#### Facebook
+
+```text
+The Sun as SOHO and SDO show it: flares, eruptions and the corona.
+
+Open The Sun erupts on the homepage and the Sun is drawn as a space observatory's instruments show it, not as the eye does, with a coronal mass ejection lifting off as you arrive: its disc in extreme ultraviolet, with bright active regions, dark filaments, flares that saturate, and prominences round the limb; and round it a coronagraph's field, with the corona's streamers and coronal mass ejections.
+
+https://celestiary.org/#sun@-50.7478,-141.4986,23.604464Gm;t=8873.409722jd;cq=0.376,-0.4341,0.206,0.7923;fov=5.5deg;s=alpoGxF;time:rate=64;layers:sun=euv
+```

@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'bun:test'
 import {existsSync, statSync} from 'node:fs'
 import {HOME_CARDS, HOME_HISTORY_KEY, cardImage, isHomeEntry, isHomepage} from './home.js'
-import {decodePermalink, pathFromFragment} from './permalink.js'
+import {decodeLayersToken, decodePermalink, decodeTimeToken, pathFromFragment} from './permalink.js'
 import {parseTargetPath} from './targetPath.js'
 
 
@@ -83,8 +83,8 @@ describe('the homepage decision', () => {
 
 
 describe('the homepage\'s cards', () => {
-  it('are tonight\'s sky first, then Earth, the occultation and Gaia\'s stars', () => {
-    expect(HOME_CARDS.map((c) => c.id)).toEqual(['tonight', 'earth', 'occultation', 'gaia'])
+  it('are tonight\'s sky first, then Earth, the Sun\'s eruption and Gaia\'s stars', () => {
+    expect(HOME_CARDS.map((c) => c.id)).toEqual(['tonight', 'earth', 'eruption', 'gaia'])
     // Tonight's sky isn't a link: it's the visitor's.
     expect(HOME_CARDS[0].link).toBe(null)
   })
@@ -99,11 +99,19 @@ describe('the homepage\'s cards', () => {
     }
   })
 
-  it('the occultation and Gaia cards are the views from testing (#192)', () => {
-    expect(HOME_CARDS[2].link).toBe(
-        'sun/jupiter@41.2054,-82.3901,169m;from=sun/earth;t=9774.891jd;cq=0.3372,-0.7003,-0.112,0.6191;fov=0.91deg;s=oL')
+  it('the Gaia card is the view from testing (#192)', () => {
     expect(HOME_CARDS[3].link).toBe(
         'sun@27.7228,47.4569,30373373.135557Tm;t=9779.5692jd;cq=-0.436,0.7975,0.0666,0.4116;fov=45deg;ev=1.33;s=alovTF')
+  })
+
+  it('the eruption card opens the Sun\'s activity view, the clock running fast, before a CME lifts off', () => {
+    const card = HOME_CARDS[2]
+    const pl = decodePermalink(card.link)
+    expect(pathFromFragment(card.link)).toBe('sun')
+    expect(decodeLayersToken(pl.tokens.layers).sun).toBe('euv')
+    expect(decodeTimeToken(pl.tokens.time)).toEqual({paused: false, rate: 64})
+    // 2024-04-17 21:50 UTC: 25 minutes before the frame the model was fitted at (Sun.md).
+    expect(pl.d2000 + 2451545).toBeCloseTo(2460418.409722, 5)
   })
 
   it('the Gaia card is about the Sun, not an Earth too small to see, from the same view', () => {
