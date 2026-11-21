@@ -181,11 +181,14 @@ export default class ThreeUi {
     this.meterReadings = 0
     // The user's exposure compensation, stops (setExposureCompensation).
     this._evStops = 0
-    // The observer (observer/instrument.js): the naked eye, dark adapted,
-    // or the instrument an app sets while it runs (setInstrument).  What
-    // the star field takes from it goes to the shaders through hdr.js
-    // absoluteUniforms, once here (the field's magnification is the
+    // The observer (observer/instrument.js): the user's (setObserver: the
+    // naked eye, dark adapted, or a camera), or the instrument an app sets
+    // while it runs (setInstrument), which overrides it.  What the star
+    // field and the Sun's glare take from it go to the shaders through
+    // hdr.js absoluteUniforms, once here (the field's magnification is the
     // camera's, each frame in the shader).
+    this.observer = NAKED_EYE
+    this._appInstrument = null
     this.instrument = NAKED_EYE
     // Whether the instrument's field range holds the field (setFieldLimit).
     this.fieldLimit = true
@@ -541,13 +544,35 @@ export default class ThreeUi {
 
   /**
    * Make an instrument the observer (HDR.md, "The instrument"): an app's,
-   * while it runs (the Rubin app's RUBIN), or the naked eye again.  The
-   * star field's numbers follow it, and the field is held to its range.
+   * while it runs (the Rubin app's RUBIN), or, with null, the user's
+   * observer again (setObserver).  The star field's numbers and the Sun's
+   * glare follow it, and the field is held to its range.
+   *
+   * @param {?object} instrument An Instrument; null for the user's observer
+   */
+  setInstrument(instrument) {
+    this._appInstrument = instrument ?? null
+    this._applyInstrument()
+  }
+
+
+  /**
+   * The user's observer (the Observer setting, `K` in a link's `s=`):
+   * the naked eye, or a camera, whose veil round the Sun is a lens's
+   * (Sun.md, "Glare").  It is the observer whenever no app has set its
+   * own instrument (setInstrument), and again once that app stops.
    *
    * @param {?object} instrument An Instrument; null for NAKED_EYE
    */
-  setInstrument(instrument) {
-    this.instrument = instrument ?? NAKED_EYE
+  setObserver(instrument) {
+    this.observer = instrument ?? NAKED_EYE
+    this._applyInstrument()
+  }
+
+
+  /** The app's instrument, or the user's observer: its numbers to the shaders. */
+  _applyInstrument() {
+    this.instrument = this._appInstrument ?? this.observer ?? NAKED_EYE
     this._setObserverUniforms()
     this.setStarGain(instrumentStarGain(this.instrument, this._starMag))
     this.setFov(this.camera.fov)
@@ -1240,6 +1265,7 @@ export default class ThreeUi {
     absoluteUniforms.uEyePointRad.value = this.instrument.pointPoolRad
     absoluteUniforms.uPoolRadiusDeg.value = psf.poolRadiusDeg
     absoluteUniforms.uCoreShare.value = psf.coreShare
+    absoluteUniforms.uGlareModel.value = psf.glareModel ?? 0
     let maxPoint = STAR_MAX_SIZE_PX
     try {
       const gl = this.renderer.getContext()

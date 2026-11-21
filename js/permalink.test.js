@@ -673,6 +673,16 @@ describe('the i setting (Earth\'s clouds)', () => {
 })
 
 
+describe('the K setting (a camera the observer)', () => {
+  it('is off by default (the eye), and a flag in s= when on', () => {
+    expect(SETTINGS_DEFAULTS.K).toBe(false)
+    expect(encodeSettings({...SETTINGS_DEFAULTS, K: true})).toBe('K')
+    expect(decodeSettings('K').K).toBe(true)
+    expect(decodeSettings('oL').K).toBe(false)
+  })
+})
+
+
 describe('the T setting (tracking)', () => {
   it('is off by default, and a flag in s= when on', () => {
     expect(SETTINGS_DEFAULTS.T).toBe(false)

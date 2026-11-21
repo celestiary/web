@@ -113,7 +113,12 @@ export const STATIC_BUDGET = {
   // channel and the Mie's colour from it (mieColour), about 2 KB minified,
   // less the fallback march's ozone, left out.  Shader code the first frame
   // draws with, so not a chunk of its own.
-  totalMinifiedKB: 2486,
+  // 2,487, so 2,488, with a camera as the observer (#375; Sun.md, "Glare"):
+  // a lens's glare function beside the eye's in the Sun's glare pass, picked
+  // by a uniform, the CAMERA instrument, ThreeUi's user observer under an
+  // app's instrument, and the Settings' Observer row and its `K` flag, 1.6 KB
+  // minified.  Shader code and settings the first frame reads.
+  totalMinifiedKB: 2488,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,

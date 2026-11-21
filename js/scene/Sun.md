@@ -691,6 +691,51 @@ count it twice.  The observer's glare function is the instrument's
 (`observer/instrument.js` `NAKED_EYE.psf.glare`; HDR.md, [the
 instrument](HDR.md#the-instrument)).
 
+**A camera's** ([#375](https://github.com/celestiary/web/pull/375)): the
+eye's veil is the default, and a camera is the Settings' Observer row (`K`
+in a link's `s=`, [design/URLs.md](../../design/URLs.md)).  Against ISS
+photographs the eye's veil showed a brown haze over Earth's limb with the
+Sun 20° off, which no camera has: a good lens scatters far less than the
+eye's media.  `glare.js` `cameraGlareFunction`, per steradian as the eye's:
+
+    L_veil / E = 1/θ³ + 0.2/θ²      (θ in degrees, 0.1° to 100°)
+
+Its shape is a polished optic's surface scatter, Harvey's BRDF ∝ θ^-s with
+s of 2 to 3 (Harvey 1976; Stover, *Optical Scattering*, 1995): steeper near
+the source, θ^-2 beyond a few degrees.  Its level is the veiling glare index
+(ISO 9358:1994; ISO 18844 for whole cameras), the veil in a black spot 1° in
+radius in a uniform field 30° in radius over the field's luminance
+(`veilingGlareIndex`): 0.32% for these terms, a good multicoated lens (good
+lenses measure 0.3 to 2%; McCann & Rizzi, *The Art and Science of HDR
+Imaging*, 2011, find cameras' glare limits a scene to 2 to 3 log units;
+Talvala et al. 2007 measure cameras' glare spread functions).  The eye's
+function gives 5.6% there.  So the camera's veil is under the eye's by
+
+| θ | eye (CIE) | camera | eye / camera |
+|---|---|---|---|
+| 1° | 15.2 | 1.2 | 13 |
+| 10° | 0.068 | 0.003 | 23 |
+| 30° | 0.0090 | 2.6e-4 | 35 |
+
+per steradian: tens of times, not the hundreds to thousands first guessed
+(a factor of 100 at 10° would be a VGI of 0.03%, under any measured lens).
+The coefficients are recalled, not read from the papers (the sandbox
+reaches no journal), and the fit is one lens's class, not a model of the
+ISS's: a measured glare spread function of a known camera would replace
+them.  `CAMERA` (`observer/instrument.js`) is the eye with this veil: its
+stars' PSF, limit and light are the eye's, since the star shaders carry the
+eye's PSF and the limit is the dark-adapted eye's calibration, which a
+camera's own response (#208) would replace together.
+
+The pass compiles both functions (`GLARE_FRAGMENT`) and picks one by
+`uGlareModel` (`hdr.js` `absoluteUniforms`, set from the instrument's
+`psf.glareModel` by `ThreeUi._setObserverUniforms`), so the setting
+changes nothing but a uniform; `_glareView` sizes the pass's reach by the
+same function (`glareFunctionOf`).  The user's setting is the default
+observer (`ThreeUi.setObserver`); an app's instrument (Rubin's) overrides
+it while it runs (`setInstrument`), and the app's stop puts the user's
+back.  Rubin's own glare is still the eye's (`RUBIN` copies its PSF).
+
 ## The solar wind
 
 A diagram, not light: the wind's own brightness at 1 AU is ~1e-15 of the

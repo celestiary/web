@@ -855,7 +855,8 @@ read −7.1 at #198's 0.44° view of HIP 46635, where the limit was 3.1
 What the star field takes from the observer lives in one module,
 `observer/instrument.js` ([#235](https://github.com/celestiary/web/issues/235)),
 whose instances are the naked eye, dark adapted (`NAKED_EYE`), the
-app's observer, and Rubin's camera (`RUBIN`, [#337](https://github.com/celestiary/web/issues/337)),
+app's observer, a camera (`CAMERA`, the user's other observer: the eye's
+star field with a lens's glare round the Sun), and Rubin's camera (`RUBIN`, [#337](https://github.com/celestiary/web/issues/337)),
 which the Rubin app makes the observer while it runs.  The
 seam is there so that binoculars, a telescope or a camera can be another
 instance, with brightness and image size separate by construction: the
@@ -906,8 +907,13 @@ what it needs through
 `absoluteUniforms` whenever it changes (`_setObserverUniforms`: `uEyePointRad`,
 `uPoolRadiusDeg`, `uCoreShare`, and `uMaxStarSizePx`, the quad's largest
 side held to the GPU's point-size range); `setStarMagnitudeOffset` sets
-`uStarGain` from `instrumentStarGain`; the Sun's glare shader takes its
-function from `NAKED_EYE.psf.glareGlsl`.  The field's magnification
+`uStarGain` from `instrumentStarGain`; the Sun's glare shader compiles the
+eye's and a camera's functions (`NAKED_EYE.psf.glareGlsl`,
+`CAMERA.psf.glareGlsl`) and picks the instrument's by `uGlareModel`
+(`psf.glareModel`).  The user's observer, the eye or a camera (`CAMERA`:
+the eye with a lens's veil round a disc, [Sun.md](Sun.md#glare); the
+Settings' Observer row, `K` in `s=`), is `ThreeUi.observer`
+(`setObserver`); an app's instrument overrides it while the app runs.  The field's magnification
 (`instrumentMagnification`: a field narrower than 45° is a telescope's)
 is the camera's, each frame, in the shader.  The field range holds the
 camera's field: `setFov` (so `,` `.` `/`, a link's `fov=` and a flight's

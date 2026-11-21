@@ -3108,6 +3108,16 @@ export default class Celestiary {
     () => this.scene.getSetting('i'),
     'Surfaces')
 
+    // === Observer === The eye (the default) or a camera, whose veil round
+    // the Sun is a lens's (Sun.md, "Glare"): `K` in a link's `s=`.  A row
+    // with no key, as the networks' are.
+    k.addAction(() => {
+      this.scene.toggleObserverCamera()
+    },
+    'Observer: a camera (a lens\'s glare round the Sun), not the eye',
+    () => this.scene.getSetting('K'),
+    'Observer')
+
     // === Orbits ===
     k.map('o', () => {
       this.scene.toggleOrbits()

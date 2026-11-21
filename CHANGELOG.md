@@ -41,7 +41,7 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ### Earth's air as it really is: a blue limb, orange sunsets
 
-Earth's sky is now drawn from the measured air, at its physical brightness: a clear day's haze, the ozone layer and the standard atmosphere, in place of a sky turned up four and a half times.  From orbit the limb goes from black through a thin deep blue to the surface, as the astronauts' photographs show, with the land and clouds no longer veiled; from the ground the noon sky has the luminance a clear day has, and sunsets glow orange.
+Earth's sky is now drawn from the measured air, at its physical brightness: a clear day's haze, the ozone layer and the standard atmosphere, in place of a sky turned up four and a half times.  From orbit the limb goes from black through a thin deep blue to the surface, as the astronauts' photographs show, with the land and clouds no longer veiled; from the ground the noon sky has the luminance a clear day has, and sunsets glow orange.  A new Observer setting makes a camera the observer in place of the eye: with the Sun near the field its glare is a good lens's, tens of times fainter than the eye's, so the air over Earth's limb is seen as photographs show it, not through the eye's haze.
 
 - Date: 2026-11-21
 - PR: [#375](https://github.com/celestiary/web/pull/375)

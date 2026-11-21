@@ -44,7 +44,7 @@ import {
 } from './corona.js'
 import {ECLIPSED_DISC, occluderSeen, visibleFraction} from './eclipse.js'
 import {balmerPerNm} from './emission.js'
-import {glareFieldWeight, glareFunction, glareRadiusDeg} from './glare.js'
+import {glareFieldWeight, glareFunctionOf, glareRadiusDeg} from './glare.js'
 import {MS_PER_DAY, activityLevel, cyclesAt, sunspotNumber} from './solarCycle.js'
 import {newSolarWind} from './SolarWind.js'
 import {cmesAt, flaresAt, prominencesAt} from './solarEvents.js'
@@ -297,6 +297,8 @@ export default class SunLayers {
         uDiscValue: {value: 0},
         uSunColor: {value: color},
         uFieldWeight: {value: 1},
+        // The observer's (ThreeUi._setObserverUniforms): shared, not copied.
+        uGlareModel: absoluteUniforms.uGlareModel,
       },
       vertexShader: GLARE_VERTEX,
       fragmentShader: GLARE_FRAGMENT,
@@ -665,7 +667,8 @@ export default class SunLayers {
     // Shown if its reach, where it falls under the floor, gets into the
     // frame: the angle from the view's axis to the Sun, less the field's
     // half-diagonal.
-    const reach = scale > 0 ? glareRadiusDeg(VISIBLE_FLOOR / scale) : 0
+    const fn = glareFunctionOf(absoluteUniforms.uGlareModel.value)
+    const reach = scale > 0 ? glareRadiusDeg(VISIBLE_FLOOR / scale, fn) : 0
     const halfDiag = Math.atan(Math.tan(camera.fov * Math.PI / 360) * Math.hypot(1, camera.aspect)) * 180 / Math.PI
     b.set(0, 0, -1)
     const offAxis = Math.acos(Math.min(Math.max(dir.dot(b), -1), 1)) * 180 / Math.PI
@@ -677,7 +680,7 @@ export default class SunLayers {
     // The veil is the eye's: an instrument's view has none.
     this.glare.visible = this.enabled.glare && this.view === VIEW_EYE &&
       field > 0 && reach > 0.1 && offAxis - halfDiag < reach &&
-      glareFunction(0.1) * scale > VISIBLE_FLOOR
+      fn(0.1) * scale > VISIBLE_FLOOR
   }
 
 
