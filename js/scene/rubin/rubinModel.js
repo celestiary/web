@@ -54,7 +54,6 @@ export const BEAM_LENGTH_M = 400
  * structure's rings (radius 6) and the beam of the view.
  */
 export const SEAT_M = Object.freeze({x: 0, y: 2.8, z: 7.3})
-const BEAM_COLOR = 0x9fe8ff
 const BEAM_WIDTH_PX = 1.5
 const BEAM_OPACITY = 0.6
 const SEGMENTS = 48
@@ -141,6 +140,7 @@ export function assembleTelescope(root, {axisY = MODEL_AXIS_Y, poseElDeg = MODEL
  * @param {Function} deps.newWideLineStrip wideLines.js's, handed in (rubin.js)
  * @param {?Function} [deps.loadModel] model.js's; without it the mount is
  *   empty (a test)
+ * @param {object} [deps.colors] The theme's (theme.js sceneColors.rubin): the beam's
  * @returns {{group: Group, azimuth: Object3D, elevation: Object3D, dome: Object3D, shutter: Mesh,
  *   beam: Mesh, seat: Object3D, building: Mesh, materials: MeshStandardMaterial[],
  *   ready: Promise<?object>}} The
@@ -150,7 +150,7 @@ export function assembleTelescope(root, {axisY = MODEL_AXIS_Y, poseElDeg = MODEL
  *   material, for the night glow (the telescope's join the list when it
  *   loads), and the telescope's arrival (assembleTelescope's, or null)
  */
-export function newRubinModel({newWideLineStrip, loadModel = null}) {
+export function newRubinModel({newWideLineStrip, loadModel = null, colors = {}}) {
   const group = new Group
   group.name = 'rubin model'
   const paint = new MeshStandardMaterial(PAINT)
@@ -187,7 +187,7 @@ export function newRubinModel({newWideLineStrip, loadModel = null}) {
   // The beam out along the pointing, from the tube's top, shown while
   // tracking.
   const beam = newWideLineStrip(new Float32Array([0, MODEL_TUBE_TOP_M, 0, 0, MODEL_TUBE_TOP_M + BEAM_LENGTH_M, 0]),
-      {name: 'rubin beam', color: BEAM_COLOR, width: BEAM_WIDTH_PX, opacity: BEAM_OPACITY,
+      {name: 'rubin beam', color: colors.beam, width: BEAM_WIDTH_PX, opacity: BEAM_OPACITY,
         material: {depthWrite: false, transparent: true}})
   beam.visible = false
   elevation.add(beam)

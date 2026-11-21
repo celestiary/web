@@ -92,7 +92,17 @@ export const STATIC_BUDGET = {
   // loaded when a CME is first in view, with what they share with the first
   // load handed to them (SunLayers CME_DEPS): importing it had split two
   // more files out of the first load for the same bytes.
-  totalMinifiedKB: 2477,
+  // 2,484, so 2,485, with the colour theme (js/theme.js; design/UI.md, "The
+  // theme"): every designed colour in one module, 2.3 KB minified, most of
+  // it the lazy features' colours (the networks', the regimes', the orbit
+  // diagram's) moving into the first load; index.css's colour tokens written
+  // from it (35 more, and `var(--x)` where a hex was: 2.2 KB); the imports
+  // across the chunks.  Lazy features that import nothing of the first load
+  // (Suntan, Rubin) are handed their colours, and Style.jsx (in the page's
+  // entry) has its two written in by `yarn theme`: importing the theme from
+  // either had split it into a file of its own.  Folding the off-palette
+  // tokens into the palette will take some of it back.
+  totalMinifiedKB: 2485,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -116,7 +126,8 @@ export const STATIC_BUDGET = {
   // control (#361 step 2, as above).  764, so 765, with the Suntan craft's
   // exposure and link (as above).
   // 769, so 770 (5 KB more), with the Sun's activity view (#358, above).
-  totalGzipKB: 770,
+  // 771 with the colour theme (as above).
+  totalGzipKB: 771,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,

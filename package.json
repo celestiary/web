@@ -34,6 +34,7 @@
     "bodies": "node tools/bodies/build.mjs",
     "stars": "bun tools/stars/build.mjs",
     "changelog": "node tools/changelog/json.mjs",
+    "theme": "bun tools/theme/css.mjs",
     "satellites": "NODE_USE_ENV_PROXY=1 node tools/satellites/fetch.mjs",
     "networks": "NODE_USE_ENV_PROXY=1 node tools/networks/fetch.mjs",
     "layer-host": "node tools/layer/serve.mjs",

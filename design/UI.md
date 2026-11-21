@@ -27,9 +27,46 @@ landed; the epic is [#279](https://github.com/celestiary/web/issues/279).
 `js/index.css` declares the system's tokens as CSS custom properties on
 `:root`, under the same names (`--accent`, `--ink-3`, `--surface-sheet`,
 `--space-16`, `--radius-card`, `--row`).  New CSS uses them, never raw
-values; the homepage's rules keep their literals until they are next
-touched (the values are the same).  Numbers are set in IBM Plex Mono
-(`--font-mono`, loaded with Inter in `public/index.html`).
+values.  Numbers are set in IBM Plex Mono (`--font-mono`, loaded with Inter
+in `public/index.html`).  The colour tokens come from the theme (below);
+spacing, radii, rows and type stay in the CSS.
+
+## The theme
+
+Every designed colour is in `js/theme.js`, the chrome's and the scene's
+together, so the panel's numbers can be keyed to the scene's lines
+(principle 3) and a whole theme can be swapped (phase 2's red theme is a
+second object with the same keys).
+
+- **`uiColors`**: the chrome's, as CSS strings.  `yarn theme`
+  (`tools/theme/css.mjs`) writes them into `index.css`'s `:root` between
+  its `theme: begin` and `theme: end` markers, each key as a property
+  (`inkLink` is `--ink-link`), with an `-rgb` triple for the few CSS takes
+  with an alpha (`rgba(var(--accent-rgb), 0.5)`).  MUI's palette reads them
+  (`Style.jsx`), and so does JSX that styles in code (`alpha()` makes an
+  rgba).  `tools/theme/css.test.js` fails when `index.css` has drifted from
+  the theme, or holds a colour literal outside the block.
+- **`sceneColors`**: the scene's overlays (labels, orbit lines, grids,
+  regimes, Lagrange marks, periodic orbits, the networks, the diagrams), as
+  0xRRGGBB numbers, which three's `Color` and `setHex` take; `css()` gives
+  the CSS form for a canvas or the DOM.  A lazy feature that may import
+  nothing of the first load's (Suntan, Rubin) is handed its colours by
+  Scene with its other dependencies (`deps.colors`): importing the theme
+  split it into a file of its own, a request more on every load.
+- **Values are sRGB, as a designer gives them.**  How a colour reaches the
+  screen is the renderer's business (`js/scene/HDR.md`, colour spaces).
+- **Not in it**: physical colours (an albedo, a star's blackbody, a
+  model's paint), which are data; a satellite group's colour, which its
+  data file gives (`public/data/earth/satellites/index.json`); the loading
+  screen's inline CSS in `public/index.html`, which draws before any
+  script; and the developer tools' own (`js/perf`, the AR debug HUD).
+  `tools/theme/literals.test.js` fails on a colour literal anywhere else
+  in `js/`, but for an allowlist of such cases, each with its reason.
+- **Off the palette, for now**: values that were literals near a token
+  (`#d8deec`, `#dde8f7` and others by `--ink`; MUI's default blue for a
+  selected toggle; ad-hoc greys for the layers menu, the search list and
+  the drawer) came in as they were, marked in the theme, so that folding
+  them into the palette is a visible change of its own.
 
 ## The info panel, in tiers
 

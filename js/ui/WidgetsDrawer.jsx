@@ -20,6 +20,7 @@ import DockIcon from '@mui/icons-material/ViewSidebarOutlined'
 import PinIcon from '@mui/icons-material/PushPin'
 import PinOutlinedIcon from '@mui/icons-material/PushPinOutlined'
 import StopIcon from '@mui/icons-material/Close'
+import {uiColors} from '../theme.js'
 
 
 const DRAWER_WIDTH = 360
@@ -27,7 +28,7 @@ export const DOCK_WIDTH = 56
 // On a phone the drawer is a sheet over the bottom of the screen, this much
 // of its height, and the scene fits above it.
 const SHEET_HEIGHT_FRACTION = 0.5
-const PANEL_BG = '#121212'
+const PANEL_BG = uiColors.drawerSurface
 
 
 /**

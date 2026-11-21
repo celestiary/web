@@ -1,3 +1,6 @@
+import {alpha, css, sceneColors, uiColors} from '../theme.js'
+
+
 /**
  * A SPARC galaxy's rotation curve against its baryons' (Galaxies.md,
  * "Rotation curves"): the observed circular velocity, and the one its gas
@@ -33,7 +36,10 @@ export function baryonicVelocity(row, upsilon = UPSILON_36) {
 
 
 /** The plot's series colours: categorical slots 1 and 2 for a dark surface, checked for colour vision deficiency. */
-export const CURVE_COLORS = Object.freeze({observed: '#3987e5', baryons: '#d95926'})
+export const CURVE_COLORS = Object.freeze({
+  observed: css(sceneColors.rotationCurve.observed),
+  baryons: css(sceneColors.rotationCurve.baryons),
+})
 
 
 /**
@@ -63,8 +69,8 @@ export function rotationCurveSvg(curve, {width = 240, height = 150} = {}) {
     }
     return out
   }
-  const muted = 'rgba(255, 255, 255, 0.55)'
-  const grid = 'rgba(255, 255, 255, 0.12)'
+  const muted = alpha(uiColors.inkBright, 0.55)
+  const grid = uiColors.line
   const parts = [`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" role="img" ` +
     `aria-label="Rotation curve: observed velocity and the baryons' velocity against radius" ` +
     `style="font: 10px sans-serif">`]

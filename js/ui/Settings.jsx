@@ -7,6 +7,7 @@ import FormControlLabel from '@mui/material/FormControlLabel'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import Dialog from './Dialog'
+import {uiColors} from '../theme.js'
 
 
 /** Display labels for non-printable / multi-char keys.  Lookup by `event.key`
@@ -89,7 +90,7 @@ function Group({group, onChange}) {
   }
   return (
     <Box sx={{mb: '0.75em'}}>
-      <Stack direction='row' alignItems='center' sx={{borderBottom: '1px solid rgba(255,255,255,0.15)'}}>
+      <Stack direction='row' alignItems='center' sx={{borderBottom: `1px solid ${uiColors.settingsDivider}`}}>
         {toggleEntries.length > 0 ? (
           <Checkbox
             size='small'

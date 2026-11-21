@@ -35,15 +35,6 @@ export const SUNTAN_CRAFT = Object.freeze({
   lander: Object.freeze({kind: 'craft', id: 'lander', name: 'Suntan lander', body: 'sun'}),
 })
 
-/** Colours by leg, then by phase. */
-export const SUNTAN_COLORS = Object.freeze({
-  psp: 0xd08040,
-  transfer: 0xffe040,
-  sync: 0x40ff90,
-  relay: 0x40ff90,
-  descent: 0xff4060,
-})
-
 
 /** */
 export default class SuntanTrack extends Group {
@@ -53,7 +44,8 @@ export default class SuntanTrack extends Group {
    *   newWideLineStrip, newRings, newLabels, and bodyLine.js's BodyLine
    *   and MAX_FINE_STEPS (handed in, not imported, as install.js says: the
    *   first load has them, and importing them here split them into a chunk
-   *   of their own, a request more on every page's load)
+   *   of their own, a request more on every page's load); and colors, the
+   *   theme's (theme.js sceneColors.suntan), by leg, then by phase
    * @param {number} [layer]
    */
   constructor(mission, deps, layer = null) {
@@ -70,7 +62,7 @@ export default class SuntanTrack extends Group {
     // km inside it, so close up the line jumped about the craft, and missed.
     this.lines = []
     for (const leg of mission.legs) {
-      const color = SUNTAN_COLORS[leg.id] ?? SUNTAN_COLORS[leg.phase]
+      const color = deps.colors[leg.id] ?? deps.colors[leg.phase]
       if (leg.id === 'surface' || color === undefined) {
         continue
       }
@@ -80,13 +72,13 @@ export default class SuntanTrack extends Group {
       this.lines.push(new LegLine(leg, mesh, n, deps))
     }
     this._body = new Vector3()
-    this.relay = deps.newRings(SUNTAN_COLORS.relay, 1)
+    this.relay = deps.newRings(deps.colors.relay, 1)
     this.relay.name = 'suntan.relay'
-    this.lander = deps.newRings(SUNTAN_COLORS.descent, 1)
+    this.lander = deps.newRings(deps.colors.descent, 1)
     this.lander.name = 'suntan.lander'
     // A sheet each, so each name hides with its mark.
-    this.relay.label = deps.newLabels([{text: 'Suntan relay', color: SUNTAN_COLORS.relay}])
-    this.lander.label = deps.newLabels([{text: 'Suntan lander', color: SUNTAN_COLORS.descent}])
+    this.relay.label = deps.newLabels([{text: 'Suntan relay', color: deps.colors.relay}])
+    this.lander.label = deps.newLabels([{text: 'Suntan lander', color: deps.colors.descent}])
     this.add(this.paths, this.relay, this.lander, this.relay.label.sprites, this.lander.label.sprites)
     // Each craft's node, where it is at the clock's time, for a go to it
     // and for riding it (Scene._craftNode, goTo): the camera's platform
