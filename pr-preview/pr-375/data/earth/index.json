@@ -53,6 +53,7 @@
     "mieCoeff_unit": "1/m",
     "mieScaleHeight": "1.2e3 m",
     "mieAlbedo": 0.93,
+    "groundAlbedo": [0.0976, 0.0934, 0.0878],
     "miePolarity": 0.7,
     "ozone": {
       "absorption": [2.471e-6, 1.794e-6, 0],
