@@ -49,7 +49,7 @@ threads and puffs: a billowing front, a dark cavity, and in most of them a brigh
 prominence that erupted, which you can fly round and watch rise. It is the Sun the app already simulated by date; ordinary light hides all of this. The view gives way to the ordinary Sun once you fly away.
 
 - Date: 2026-11-20
-- PR: [#358](https://github.com/celestiary/web/pull/358)
+- PR: [#358](https://github.com/celestiary/web/pull/358), [#371](https://github.com/celestiary/web/pull/371)
 - Epic: [#164](https://github.com/celestiary/web/issues/164) Stars up close: a dynamic Sun, and every star from its physical parameters
 - Permalink: [Open this view](https://celestiary.org/#sun@-50.7478,-141.4986,23.604464Gm;t=8873.409722jd;cq=0.376,-0.4341,0.206,0.7923;fov=5.5deg;s=alpoGxF;time:rate=64;layers:sun=euv)
 - Image: ![Four moments of a coronal mass ejection leaving the Sun, in an EUV imager's false colour](public/images/home/eruption.webp)
