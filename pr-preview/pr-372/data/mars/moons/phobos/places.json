@@ -1,0 +1,32 @@
+{
+  "_attribution": "IAU Gazetteer of Planetary Nomenclature, USGS Astrogeology Science Center and the IAU Working Group for Planetary System Nomenclature (WGPSN); planetarynames.wr.usgs.gov. Public domain.",
+  "_body": "phobos",
+  "_source": "https://asc-planetarynames-data.s3.us-west-2.amazonaws.com/PHOBOS_nomenclature_center_pts.zip",
+  "_sourceModified": "2026-10-09",
+  "_newestApproval": "2011-07-28",
+  "_generator": "tools/places/build.mjs",
+  "_lngConvention": "east-positive (+E), -180..+180",
+  "_latConvention": "planetocentric",
+  "places": [
+    {"n": "Laputa Regio", "t": 0, "lat": 0, "lng": 95, "k": "regio"},
+    {"n": "Stickney", "t": 0, "lat": 1, "lng": -49, "k": "crater"},
+    {"n": "Kepler Dorsum", "t": 0, "lat": -45, "lng": 4, "k": "dorsum"},
+    {"n": "Gulliver", "t": 0, "lat": 62, "lng": -163, "k": "crater"},
+    {"n": "Hall", "t": 0, "lat": -80, "lng": 150, "k": "crater"},
+    {"n": "Drunlo", "t": 1, "lat": 36.5, "lng": -92, "k": "crater"},
+    {"n": "Lagado Planitia", "t": 1, "lat": 19, "lng": 129, "k": "planitia"},
+    {"n": "Clustril", "t": 1, "lat": 60, "lng": -91, "k": "crater"},
+    {"n": "Reldresal", "t": 1, "lat": 41, "lng": -39, "k": "crater"},
+    {"n": "Grildrig", "t": 1, "lat": 81, "lng": 165, "k": "crater"},
+    {"n": "Todd", "t": 1, "lat": -9, "lng": -153, "k": "crater"},
+    {"n": "Roche", "t": 1, "lat": 53, "lng": 177, "k": "crater"},
+    {"n": "D'Arrest", "t": 1, "lat": -39, "lng": -179, "k": "crater"},
+    {"n": "Limtoc", "t": 1, "lat": -11, "lng": -54, "k": "crater"},
+    {"n": "Öpik", "t": 1, "lat": -7, "lng": 63, "k": "crater"},
+    {"n": "Shklovsky", "t": 1, "lat": 24, "lng": 112, "k": "crater"},
+    {"n": "Sharpless", "t": 1, "lat": -27.5, "lng": -154, "k": "crater"},
+    {"n": "Wendell", "t": 1, "lat": -1, "lng": -132, "k": "crater"},
+    {"n": "Flimnap", "t": 1, "lat": 60, "lng": 10, "k": "crater"},
+    {"n": "Skyresh", "t": 1, "lat": 52.5, "lng": 40, "k": "crater"}
+  ]
+}
