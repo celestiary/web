@@ -151,11 +151,13 @@ export default class RenderPanel {
    * @param {function(string): void} [p.onColorSpace] Called with 'srgb' or 'srgb-linear' on a change
    * @param {boolean} [p.decode] Whether the colour textures are decoded to start with
    * @param {function(boolean): void} [p.onDecode] Called on a change
+   * @param {number|null} [p.skyGain] The sky gain in place of the body's, or null
+   * @param {function(string): void} [p.onSkyGain] Called with the field's text on a change ('' for the body's)
    * @param {function(): number} [p.now] Milliseconds
    */
   constructor({
     doc, renderer, hdr, toneMap, onToneMap, onColorSpace = () => undefined, decode = false,
-    onDecode = () => undefined, now = () => performance.now(),
+    onDecode = () => undefined, skyGain = null, onSkyGain = () => undefined, now = () => performance.now(),
   }) {
     this.doc = doc
     this.renderer = renderer
@@ -214,7 +216,29 @@ export default class RenderPanel {
       decodeBox.blur()
     })
     decodeRow.append(decodeBox, el('span', {textContent: 'decode colour textures (sRGB)'}))
-    this.root.append(toneMapRow, spaceRow, decodeRow, this.info, caps)
+    const gainRow = el('label', {
+      title: 'The sky\'s gain in place of its body\'s data (Earth\'s 21, about 4.5 times the physical 4.71, ' +
+        'standing in for aerosols; js/scene/atmos/composition.md, "Per-body data").  Empty: the body\'s.',
+    }, {display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '4px'})
+    const gainBox = el('input', {type: 'number', min: '0', step: '0.1', placeholder: 'body\'s',
+      value: skyGain === null ? '' : String(skyGain)}, {width: '6em', font: 'inherit'})
+    gainBox.setAttribute('data-testid', 'render-info-skygain')
+    gainBox.addEventListener('change', () => onSkyGain(gainBox.value))
+    const physical = el('button', {textContent: '4.71', title: 'The physical gain, π × DISPLAY_GAIN'},
+        {font: 'inherit', cursor: 'pointer'})
+    physical.addEventListener('click', () => {
+      gainBox.value = '4.71'
+      onSkyGain('4.71')
+      physical.blur()
+    })
+    const reset = el('button', {textContent: 'body\'s', title: 'The body\'s own gain'}, {font: 'inherit', cursor: 'pointer'})
+    reset.addEventListener('click', () => {
+      gainBox.value = ''
+      onSkyGain('')
+      reset.blur()
+    })
+    gainRow.append(el('span', {textContent: 'Sky gain'}, {color: '#8ac', width: '4.5em'}), gainBox, physical, reset)
+    this.root.append(toneMapRow, spaceRow, decodeRow, gainRow, this.info, caps)
   }
 
 

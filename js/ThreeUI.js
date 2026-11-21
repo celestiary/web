@@ -159,6 +159,10 @@ export default class ThreeUi {
     if (params.get('decode') === '1') {
       this.setTextureDecode(true)
     }
+    // And a sky gain in place of the body's (`?skygain=4.71`, the physical;
+    // the performance panel's; composition.md, "Per-body data").
+    this.skyGainOverride = null
+    this.setSkyGain(params.get('skygain'))
     this._atmScene.add(this._atmMesh)
     this._pWorldAtm = new Vector3()
     this._camWorldAtm = new Vector3()
@@ -932,6 +936,21 @@ export default class ThreeUi {
 
 
   /**
+   * Draw the sky at another gain than its body's data gives (`sunIntensity`;
+   * Earth's 21, about 4.5 times the physical 4.71, standing in for aerosols:
+   * composition.md, "Per-body data"), for diagnosis.
+   *
+   * @param {number|string|null} gain A positive number, or null (or '') for the body's own
+   * @returns {number|null} The override now
+   */
+  setSkyGain(gain) {
+    const g = gain === null || gain === '' ? NaN : Number(gain)
+    this.skyGainOverride = Number.isFinite(g) && g > 0 ? g : null
+    return this.skyGainOverride
+  }
+
+
+  /**
    * Show or hide the performance panel: three's Stats graph (FPS, MS, MB;
    * click it to cycle) under the render info and the tone map control
    * (perf/RenderPanel.js).  The elements are created on the first show and
@@ -953,6 +972,8 @@ export default class ThreeUi {
           onColorSpace: (space) => this.setOutputColorSpace(space),
           decode: this.textureDecode,
           onDecode: (on) => this.setTextureDecode(on),
+          skyGain: this.skyGainOverride,
+          onSkyGain: (gain) => this.setSkyGain(gain),
         })
         this._perfRoot = root
         this._stats = stats
@@ -2145,7 +2166,7 @@ export default class ThreeUi {
     // In an eclipse the air is lit by what it sees of the Sun (sun/eclipse.js),
     // and in totality by the light scattered in from outside the shadow
     // (Sun.md, "Eclipses").
-    u.uSunIntensity.value = skyGain(atmos) * eclipsedSky(this.sceneManager?.objects?.sun, atmTarget,
+    u.uSunIntensity.value = (this.skyGainOverride ?? skyGain(atmos)) * eclipsedSky(this.sceneManager?.objects?.sun, atmTarget,
         camDist < R + atmos.height.scalar)
     // The sky in exposure units: its planet's sunlight at the renderer's
     // exposure (HDR.md).  The Sun is at the world group's origin.
