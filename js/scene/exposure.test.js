@@ -16,7 +16,10 @@ import {readFileSync} from 'fs'
 import {EYE_GLSL} from './eye.js'
 import {EYE_PSF_GLSL} from './sun/glare.js'
 import {galaxyGlsl} from './galaxyModel.js'
-import {HDR_MAX_VALUE, HDR_MIN_NORMAL, emitted, neutral} from './hdr.js'
+import {HDR_MAX_VALUE, HDR_MIN_NORMAL, emitted} from './hdr.js'
+import {DARK_SKY_MAG, surfaceBrightnessValue} from './eye.js'
+import {LIMIT_SCREEN} from './observer/instrument.js'
+import {SCREEN_STEP, screenOf} from './screen.js'
 import {NIGHT_SKY_GLSL} from './nightSky.js'
 
 
@@ -88,7 +91,9 @@ describe('metered exposure', () => {
   it('caps a dark frame at the floor\'s gain, and asks nothing of an empty one', () => {
     expect(meteredGain(m(METER_FLOOR, METER_FLOOR, 1e-7), 1)).toBeCloseTo(METER_GAIN_MAX, 6)
     expect(meteredGain(m(1e-12, 1e-12, 1e-6), 1)).toBeCloseTo(METER_GAIN_MAX, 6)
-    expect(METER_GAIN_MAX).toBeCloseTo(4e6, 0)
+    // The dark gain puts the limit star at LIMIT_SCREEN on the screen: 1.13e6
+    // through the tone map and sRGB's encoding (4e6 through the tone map alone).
+    expect(METER_GAIN_MAX / 1e6).toBeCloseTo(1.13, 2)
     // Nothing drawn yet (a texture loading): the gain stays as it is.
     expect(meteredGain(m(1e-12, 1e-12, 0), 1)).toBeNull()
     // A star field the meter's samples mostly miss: dark, not empty.
@@ -245,10 +250,13 @@ describe('metered exposure', () => {
     expect(limitingMagnitude(1)).toBeGreaterThan(-13)
     expect(starGainForLimit(LIMITING_MAGNITUDE)).toBeCloseTo(1, 12)
     expect(starGainForLimit(LIMITING_MAGNITUDE + 2.5)).toBeCloseTo(10, 9)
-    // The eye's patch follows: a star at the limit shows LIMIT_VALUE at the
-    // dark-adapted gain, and the patch is the dark-adapted eye's 10 arcmin.
+    // The dark gain follows: a star at the limit over the dark-adapted eye's
+    // 10 arcmin patch shows LIMIT_VALUE at it, which is LIMIT_SCREEN on the
+    // screen, through the tone map and sRGB's encoding.
     const value = DISPLAY_GAIN * Math.PI * illuminanceRatio(LIMITING_MAGNITUDE) / (EYE_POINT_RAD * EYE_POINT_RAD) * METER_GAIN_MAX
     expect(value).toBeCloseTo(LIMIT_VALUE, 12)
+    expect(screenOf(LIMIT_VALUE)).toBeCloseTo(LIMIT_SCREEN, 12)
+    expect(LIMIT_SCREEN * 255).toBeCloseTo(20.4, 1)
     expect(EYE_POINT_RAD * 180 / Math.PI * 60).toBeCloseTo(10, 0)
     // Sirius is 7.9e-11 of the Sun; the Sun is magnitude −26.74.
     expect(illuminanceRatio(-1.46)).toBeCloseTo(7.73e-11, 13)
@@ -307,18 +315,19 @@ describe('the eye\'s PSF round a star (the wing)', () => {
     expect(wingLight / whole).toBeLessThan(0.48)
   })
 
-  it('the saturated core and the halo follow the light by the function, not a σ law: Sirius 9 px in an 86 px quad at the dark gain', () => {
+  it('the saturated core and the halo follow the light by the function, not a σ law: Sirius 6 px in an 88 px quad at the dark gain', () => {
     const sirius = at1080(-1.46)
     const vega = at1080(0.03)
     const six = at1080(6)
     // The white radius (where the kernel passes 0.76): Sirius's is the
-    // wing's, 9 px (0.36°); a mag 6 star has none.
-    expect(sirius.coreRadiusPx).toBeGreaterThan(8)
-    expect(sirius.coreRadiusPx).toBeLessThan(10)
+    // wing's, 6 px (0.24°; 9 px at the 4e6 of before the screen was
+    // encoded); a mag 6 star has none.
+    expect(sirius.coreRadiusPx).toBeGreaterThan(5)
+    expect(sirius.coreRadiusPx).toBeLessThan(7)
     expect(sirius.sizePx).toBeGreaterThan(80)
     expect(sirius.sizePx).toBeLessThan(100)
-    expect(vega.coreRadiusPx).toBeGreaterThan(5)
-    expect(vega.coreRadiusPx).toBeLessThan(7)
+    expect(vega.coreRadiusPx).toBeGreaterThan(3)
+    expect(vega.coreRadiusPx).toBeLessThan(4.5)
     expect(six.coreRadiusPx).toBe(0)
     expect(six.sizePx).toBeGreaterThan(7)
     expect(six.sizePx).toBeLessThan(11)
@@ -337,13 +346,20 @@ describe('the eye\'s PSF round a star (the wing)', () => {
     expect(at1080(-1.46, 10 ** 1.6).wingRadiusPx).toBeGreaterThan(STAR_MAX_SIZE_PX / 2)
   })
 
-  it('the wing is drawn to its floor, 2.5 of 255, and the core to a display step', () => {
-    expect(STAR_WING_FLOOR).toBeCloseTo(0.01, 9)
+  it('the wing is drawn to its floor, the eye\'s threshold over the dark sky, and the core to under a screen step', () => {
+    // The floor is 0.39 of the dark sky at the dark gain (eye.js
+    // thresholdContrast for 20-60′, 0.3-0.5), which moves with that gain.
+    const sky = surfaceBrightnessValue(DARK_SKY_MAG) * METER_GAIN_MAX
+    expect(STAR_WING_FLOOR / sky).toBeGreaterThan(0.3)
+    expect(STAR_WING_FLOOR / sky).toBeLessThan(0.5)
     expect(STAR_VISIBLE_VALUE).toBeCloseTo(0.004, 9)
+    // On the screen the core's floor rounds to black, as the wing's does on its own.
+    expect(screenOf(STAR_VISIBLE_VALUE) / SCREEN_STEP).toBeLessThan(0.5)
+    expect(screenOf(STAR_WING_FLOOR) / SCREEN_STEP).toBeLessThan(0.5)
     const s = at1080(2)
     expect(starKernel(s.wingRadiusPx, s).wing).toBeCloseTo(STAR_WING_FLOOR, 3)
     // A faint star's quad is its wing's: a magnitude 6 star's wing is over
-    // the floor to 3.7 px, its core to 3 px.
+    // the floor to 3.7 px, its core to 2.7 px.
     const six = at1080(6)
     expect(six.wingRadiusPx).toBeGreaterThan(3)
     expect(six.wingRadiusPx).toBeLessThan(4.5)
@@ -680,11 +696,11 @@ describe('pre-exposure: the buffer holds emitted radiance at the gain the frame 
       const six = starSprite(mag(6), METER_GAIN_MAX, {heightPx})
       inRange(six.value)
       inRange(six.peak)
-      expect(six.value).toBeGreaterThan(0.1)
+      expect(six.value).toBeGreaterThan(LIMIT_VALUE)
       const sirius = starSprite(mag(-1.46), METER_GAIN_MAX, {heightPx})
       inRange(sirius.value)
       inRange(sirius.peak)
-      expect(sirius.value).toBeGreaterThan(100)
+      expect(sirius.value).toBeGreaterThan(30)
       expect(sirius.value).toBeLessThan(1000)
       // The limit star itself, and the faintest that shows at all (a
       // display step, 1 of 255, is 0.004 in exposure units): both normal.
@@ -710,16 +726,16 @@ describe('pre-exposure: the buffer holds emitted radiance at the gain the frame 
   it('at the keyed exposure the same stars are subnormal, and invisible: why frameCanBeEmpty stays for the loading frame', () => {
     // The loading frame renders at gain 1; a star field there is under
     // half-float's smallest normal value (a GPU may flush it to zero) and
-    // under a display step through the tone map, so the meter can't tell
+    // under a screen step through the tone map and the encoding, so the meter can't tell
     // it from nothing drawn and the scene has to say (frameCanBeEmpty).
     for (const m of [6, 1.7, 0]) {
       const star = starSprite(mag(m), 1, {heightPx: 1080})
       expect(star.peak).toBeLessThan(HDR_MIN_NORMAL)
       expect(star.peak).toBeLessThan(STAR_VISIBLE_VALUE)
-      expect(neutral([star.peak, star.peak, star.peak])[0] * 255).toBeLessThan(0.02)
+      expect(screenOf(star.peak) / SCREEN_STEP).toBeLessThan(0.02)
     }
     // Sirius alone peaks over the floor on a screen (1.2e-4, the kernel's
-    // 2.5× over its 4.4e-5), still 1/35 of a display step.
+    // 2.5× over its 4.4e-5), far under a screen step.
     const sirius = starSprite(mag(-1.46), 1, {heightPx: 1080}).peak
     expect(sirius).toBeGreaterThan(HDR_MIN_NORMAL)
     expect(sirius).toBeLessThan(STAR_VISIBLE_VALUE / 30)
@@ -728,7 +744,7 @@ describe('pre-exposure: the buffer holds emitted radiance at the gain the frame 
     const alnilam = starSprite(mag(1.7), 1, {heightPx: 1080}).peak
     expect(emitted([alnilam, alnilam, alnilam])).toEqual([0, 0, 0])
     expect(emitted([HDR_MIN_NORMAL, 0.12, 1.5])).toEqual([HDR_MIN_NORMAL, 0.12, 1.5])
-    expect(neutral([HDR_MIN_NORMAL, HDR_MIN_NORMAL, HDR_MIN_NORMAL])[0] * 255).toBeLessThan(1 / 60)
+    expect(screenOf(HDR_MIN_NORMAL) / SCREEN_STEP).toBeLessThan(1e-3)
   })
 
   it('the meter divides its readback by the gain the frame rendered with: not the goal, not the eased meter gain', () => {
@@ -811,13 +827,15 @@ describe('the star sprite', () => {
   it('at the dark-adapted gain: the limit a pixel just over black, a bright star a round core in a halo', () => {
     const faint = starSprite(mag(LIMITING_MAGNITUDE), METER_GAIN_MAX)
     expect(faint.peak).toBeCloseTo(LIMIT_VALUE, 2)
+    // Which is LIMIT_SCREEN on the screen: 20 of 255, just over black.
+    expect(screenOf(faint.peak) * 255).toBeCloseTo(LIMIT_SCREEN * 255, 0)
     expect(faint.coreRadiusPx).toBe(0)
     expect(faint.sizePx).toBeGreaterThanOrEqual(1)
     expect(faint.sizePx).toBeLessThan(6)
     const six = starSprite(mag(6), METER_GAIN_MAX)
     expect(six.peak).toBeGreaterThan(faint.peak)
     expect(six.peak).toBeLessThan(0.5)
-    const first = starSprite(mag(1), METER_GAIN_MAX)
+    const first = starSprite(mag(0), METER_GAIN_MAX)
     expect(first.peak).toBeGreaterThan(1)
     expect(first.coreRadiusPx).toBeGreaterThan(1)
     expect(first.coreRadiusPx).toBeLessThan(first.sizePx / 2)
@@ -838,7 +856,7 @@ describe('the star sprite', () => {
       const star = starSprite(mag(m), METER_GAIN_MAX)
       expect(star.flat).toBe(true)
       // The quad is odd-sized about that pixel: 1 px, or a ring or two of
-      // the wing over its floor (1.4 of 255 for the limit star's first).
+      // the wing over its floor.
       expect(star.sizePx % 2).toBe(1)
       expect(star.sizePx).toBeLessThanOrEqual(7)
       expect(star.sigma).toBe(0)
@@ -847,7 +865,7 @@ describe('the star sprite', () => {
       expect(starKernel(0, star).wing).toBe(0)
     }
     // Over white the Gaussian core takes over, at the kernel's least width.
-    const bright = starSprite(mag(2), METER_GAIN_MAX)
+    const bright = starSprite(mag(1), METER_GAIN_MAX)
     expect(bright.flat).toBe(false)
     expect(bright.peak).toBeGreaterThan(1)
     expect(bright.sigma).toBe(0.6)
@@ -1074,11 +1092,13 @@ describe('a telescope\'s field', () => {
     expect(limitingMagnitude(METER_GAIN_MAX, 1, 90, 879)).toBeCloseTo(LIMITING_MAGNITUDE, 12)
     expect(limitingMagnitude(METER_GAIN_MAX, 1, 0.91)).toBeCloseTo(15.1, 1)
     // #198's view of HIP 46635 (0.4389° over 877 px), at the gain the lit
-    // crescent held it to (15.1 over Earth's keyed exposure): 3.1, not −7.1.
+    // crescent held it to (15.1 over Earth's keyed exposure): 4.5, not −7.1
+    // (3.1 at the 4e6 of before the screen was encoded: a star at a given
+    // gain shows brighter through the encoding).
     const g = 15.1
     const limit = limitingMagnitude(g, 1, 0.4389, 877)
     expect(limit - limitingMagnitude(g)).toBeCloseTo(5 * Math.log10(fieldMagnification(0.4389)), 9)
-    expect(limit).toBeCloseTo(3.1, 1)
+    expect(limit).toBeCloseTo(4.5, 1)
     expect(starSprite(mag(limit), g, {fovDegrees: 0.4389, heightPx: 877}).value).toBeCloseTo(LIMIT_VALUE, 9)
     // Where the pixel is coarser than the patch, the pixel is the patch.
     const coarse = {fovDegrees: 45, heightPx: 100}

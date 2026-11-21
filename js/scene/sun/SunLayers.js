@@ -81,8 +81,9 @@ import {named} from '../../utils.js'
 export const CHROMOSPHERE = Object.freeze({baseNm: 0.05, baseMm: 1.0, spiculeNm: 0.006, spiculeMm: 3.0})
 // The rays' and plumes' contrast in the corona's density (a model).
 export const RAY_CONTRAST = 0.45
-// What's under this, in exposure units, isn't drawn: a hundredth of a
-// display step through the tone map's toe.
+// What's under this, in exposure units, isn't drawn: under a screen step
+// through the tone map and the encoding (screen.js; a third of one for a
+// saturated colour, whose weakest channel alone the toe takes).
 export const VISIBLE_FLOOR = 1e-4
 // The sheet's tilt turns once round in this many months (a model).
 const SHEET_TURN_MONTHS = 132

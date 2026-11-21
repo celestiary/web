@@ -1,4 +1,5 @@
 import {DISPLAY_GAIN, INITIAL_FOV} from '../../shared.js'
+import {sceneOfScreen} from '../screen.js'
 import {EYE_PSF_GLSL, GLARE_GLSL, GLARE_MAX_DEG, eyePsf, eyePsfShare, glareFunction} from '../sun/glare.js'
 
 
@@ -17,9 +18,9 @@ import {EYE_PSF_GLSL, GLARE_GLSL, GLARE_MAX_DEG, eyePsf, eyePsfShare, glareFunct
  *   star setting (`sm=`, starMagnitude.js) is a sensitivity in magnitudes
  *   on top of it: a longer exposure, more aperture.
  * - **The detection threshold**: the limiting magnitude at the dark gain,
- *   and what a star at it shows in exposure units; from them the detector's
- *   pool round a point (the eye's rods: 10′), which the pooled radiance is
- *   over.
+ *   and what a star at it shows on the screen; with the detector's pool
+ *   round a point (the eye's rods: 10′), which the pooled radiance is
+ *   over, they set the dark gain.
  * - **The PSF**: the pool's radius, within which a point's light is pooled
  *   and drawn as the core; the share of the light the PSF puts there; and
  *   the wing, the scattering round a point per steradian by the angle from
@@ -54,38 +55,53 @@ export const EYE_PUPIL_M = 0.007
 /** The eye's integration time, seconds (Bloch's law: the rods' summation, about 0.1 s). */
 export const EYE_INTEGRATION_S = 0.1
 /**
- * The exposure the dark-adapted eye reaches, over Earth's keyed exposure:
- * a scene of 8e-3 cd/m² (a moonlit landscape) shown as a sunlit one.  The
- * metered exposure's ceiling (exposure.js METER_GAIN_MAX): the eye adapts
- * to 1e-6 cd/m², so this is well within its range; it is set so that a
- * star of magnitude 6.5 just shows (LIMIT_VALUE).
- */
-export const EYE_DARK_GAIN = 4e6
-/**
  * The limiting magnitude (HDR.md, "Physical stars"): the naked eye's at a
  * dark site, dark adapted.  The one parameter the star field is
  * calibrated on: a star of this magnitude shows LIMIT_VALUE at the dark
  * gain, brighter ones 2.5× more light per magnitude, fainter ones less,
- * down into black smoothly (no pop); the eye's patch, over which a star's
- * light is pooled, follows from it (EYE_PATCH_SR).
+ * down into black smoothly (no pop); the dark gain follows from it and
+ * the eye's patch (EYE_DARK_GAIN).
  */
 export const LIMITING_MAGNITUDE = 6.5
 /**
- * What a star at the limit shows, in exposure units: 12 of 255 through
- * Neutral's toe, just visible.
+ * What a star at the limit shows on the screen, a screen value (screen.js):
+ * 0.08, 20 of 255, just visible.  The calibration is on the screen, so that
+ * the light the display emits for the limit star is what it was meant to
+ * be whatever the output transform: it is what the limit star's 0.12
+ * showed through the tone map alone, before the frame was sRGB-encoded.
  */
-export const LIMIT_VALUE = 0.12
+export const LIMIT_SCREEN = 0.08
 /**
- * The eye's patch, steradians: the solid angle a point's light is pooled
- * over, so that a star at LIMITING_MAGNITUDE shows LIMIT_VALUE at the
- * dark-adapted gain (a star's value is DISPLAY_GAIN·π·ratio/Ω·gain,
- * stars.vert).  8.2e-6 sr, a 9.7 arcmin square: the dark-adapted eye's
- * resolution of a point (rod acuity, ~20/200, 10 arcmin), which is why
- * the calibration is physical.
+ * What a star at the limit shows, in exposure units at the dark gain: the
+ * scene value whose screen value is LIMIT_SCREEN, 0.034 in Neutral's toe
+ * (0.12 while the screen took the tone map's output unencoded).
  */
-export const EYE_PATCH_SR = DISPLAY_GAIN * Math.PI * illuminanceRatio(LIMITING_MAGNITUDE) * EYE_DARK_GAIN / LIMIT_VALUE
-/** The eye's patch's side, radians. */
-export const EYE_POINT_RAD = Math.sqrt(EYE_PATCH_SR)
+export const LIMIT_VALUE = sceneOfScreen(LIMIT_SCREEN)
+/**
+ * The eye's patch's side, radians: the side of the square a point's light
+ * is pooled over, 9.7′, the dark-adapted eye's resolution of a point (rod
+ * acuity, ~20/200, 10 arcmin), inside the rods' complete summation
+ * (Ricco's area, about half a degree: eye.js RICCO_DIAMETER_RAD), so a
+ * point and its patch are one detection.  A physical input: the dark gain
+ * is derived from it (EYE_DARK_GAIN).  It is the 9.69′ that the
+ * calibration before the screen was encoded (the limit star at 0.12 at a
+ * gain of 4e6) gave.
+ */
+export const EYE_POINT_RAD = 9.69 / 60 * Math.PI / 180
+/** The eye's patch, steradians: 7.9e-6. */
+export const EYE_PATCH_SR = EYE_POINT_RAD * EYE_POINT_RAD
+/**
+ * The exposure the dark-adapted eye reaches, over Earth's keyed exposure:
+ * the gain at which a star at LIMITING_MAGNITUDE, its light over the patch,
+ * shows LIMIT_VALUE (a star's value is DISPLAY_GAIN·π·ratio/Ω·gain,
+ * stars.vert), so LIMIT_SCREEN on the screen.  1.13e6: a scene of 2.8e-2
+ * cd/m² (a moonlit landscape) shown as a sunlit one.  The metered
+ * exposure's ceiling (exposure.js METER_GAIN_MAX).  It was 4e6 while the
+ * screen took the tone map's output unencoded: the encoding lifts the toe,
+ * and the gain comes down by what keeps the limit star's light on the
+ * screen, 3.54 (about √12.92, sRGB's linear slope, under its square).
+ */
+export const EYE_DARK_GAIN = LIMIT_VALUE * EYE_PATCH_SR / (DISPLAY_GAIN * Math.PI * illuminanceRatio(LIMITING_MAGNITUDE))
 /**
  * The rods' pool round a point, as the eye's angle in degrees: half the
  * patch's side, 4.8′.  Inside it a star's light is pooled and drawn as the

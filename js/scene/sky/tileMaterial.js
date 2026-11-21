@@ -1,5 +1,4 @@
 import {DoubleSide, SRGBColorSpace, ShaderMaterial} from 'three'
-import {srgbDecode} from '../srgb.js'
 
 
 // The material of an image tile on the celestial sphere, shared by Rubin's
@@ -15,6 +14,10 @@ export const FAR_PLANE_INSIDE = 0.999999
 export const TILE_RENDER_ORDER = 10
 /** With `keyBlack`, the picture's value (0 to 1, sRGB) from which a tile is opaque. */
 export const KEY_BLACK_FULL = 2 / 255
+// Decoded, as the texel is sampled: in sRGB's linear segment (under 0.04045),
+// so exactly over 12.92.  Not srgb.js's srgbDecode: this module is in lazy
+// chunks that import nothing of the first load's (AGENTS.md).
+const KEY_BLACK_FULL_LINEAR = KEY_BLACK_FULL / 12.92
 
 
 /**
@@ -54,7 +57,7 @@ uniform float uKeyBlack;
 varying vec2 vUv;
 void main() {
   vec4 texel = texture2D(map, vUv);
-  float lit = smoothstep(0.0, ${srgbDecode(KEY_BLACK_FULL).toExponential(6)}, max(texel.r, max(texel.g, texel.b)));
+  float lit = smoothstep(0.0, ${KEY_BLACK_FULL_LINEAR.toExponential(6)}, max(texel.r, max(texel.g, texel.b)));
   gl_FragColor = vec4(texel.rgb, texel.a * uOpacity * mix(1.0, lit, uKeyBlack));
 }`,
     transparent: true,

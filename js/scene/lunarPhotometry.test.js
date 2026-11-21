@@ -195,6 +195,11 @@ describe('the colour map\'s scale', () => {
     expect(moonProps.texture_gain).toBeCloseTo(MOON_TEXTURE_GAIN, 3)
     expect(CESIUM_BODIES.moon.textureGain).toBe(moonProps.texture_gain)
     expect(moonProps.photometry).toBe('lunar')
+    // The map is a linear stretch of I/F (maria 0.17, highlands 0.37, as the
+    // Moon's albedos are, 2.1:1), so it is read as stored: decoded from sRGB
+    // the ratio would be 4.5.
+    expect(moonProps.texture_encoding).toBe('linear')
+    expect(CESIUM_BODIES.moon.imageryEncoding).toBe('linear')
   })
 })
 

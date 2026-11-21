@@ -239,15 +239,17 @@ Why these pieces:
   Cesium's own 8-bit buffers (with `highDynamicRange` off, its globe-depth
   framebuffer is `UNSIGNED_BYTE`, and its final draw is a copy of it), so
   they can't hold exposure units above 1: each body's frame holds its
-  imagery's stored values × Lambert, at most 1, with its distance in alpha,
-  and a fullscreen pass decodes it into `_sceneRT`'s linear HDR units
+  imagery's albedo × Lambert in linear light, at most 1, encoded for the 8
+  bits (a globe's by sRGB, a tileset's by a log: [colour](#colour-the-imagery-decoded)),
+  with its distance in alpha, and a fullscreen pass decodes it into
+  `_sceneRT`'s linear HDR units
   ([HDR.md](js/scene/HDR.md#cesium-in-the-same-units)).
 - **One path for every body.** What Cesium loads is the data's fork: Earth
   is a globe (terrain and imagery layers), the Moon and Mars are ion 3D
   tilesets with their imagery baked in, so a globe is lit by Cesium's own
   lighting with its extras off (`litSurfaceOnly`, and
   `depthTestAgainstTerrain` for its depth), a tileset by `sunlitShader`.
-  After that every body is the same: stored × Lambert, the distance stage,
+  After that every body is the same: albedo × Lambert, the distance stage,
   one decode (× `bodyGain`: `DISPLAY_GAIN` × `textureGain` /
   `imageryScale`, times the renderer's exposure over the body's keyed one,
   `ThreeUi.exposureOf`, so the metered gain and the easing between
@@ -334,7 +336,7 @@ terminator matches celestiary's no matter how celestiary's sidereal phase
 relates to real time.
 
 The Sun's falloff never reaches Cesium: its light is a direction at a
-fixed intensity, its frame holds stored value × the lighting law (at most
+fixed intensity, its frame holds albedo × the lighting law (at most
 1), and the decode scales that by the body's gain and by `exposureOf`, the
 body's irradiance (`irradianceAt`) times the renderer's exposure over
 π·`DISPLAY_GAIN`, which is 1 at the body's own keyed exposure whatever the
@@ -343,6 +345,51 @@ light](js/scene/Planet.md#the-suns-light-the-inverse-square)) left every
 Cesium body as it was: Earth and the Moon are within 0.003 AU of 1 AU, and
 Mars, at its own keyed exposure, is unchanged too; `yarn parity` before and
 after agrees within its noise.
+
+### Colour: the imagery decoded
+
+Celestiary lights a picture in linear light, its sRGB decoded on each
+sample, and a calibrated linear map (the Moon's I/F) as stored (HDR.md,
+[colour spaces](js/scene/HDR.md#colour-spaces)).  Cesium's layers do the
+same with the same data, so the two sides of the swap agree:
+
+- **A globe (Earth).**  Cesium uploads imagery as plain RGBA8 and, with
+  `highDynamicRange` off, lights it as stored; an imagery layer's `gamma`
+  (`pow(colour, 1/gamma)` in `GlobeFS`) is the only decode it offers, and
+  Cesium's own `czm_srgbToLinear` is a 2.2 power too.  A 2.2 power is
+  sRGB's curve above its linear toe but 8× too dark at a stored 0.02 (the
+  Blue Marble's ocean is 2, 5, 20 of 255), and the lit result, linear in 8
+  bits, would have had 4-7 codes for a dark forest.  So our Cesium patch
+  (`celestiary/globe-imagery-srgb`, [Patching Cesium](#patching-cesium))
+  adds `globe.imagerySrgb`: each imagery sample is decoded by sRGB's own
+  curve before the layers are blended and lit, and the lit colour is
+  encoded back by sRGB's curve for the frame.  `createWidget` turns it on;
+  the decode pass inverts the encoding (`frameEncoding` 2, three's
+  `sRGBTransferEOTF`).  Every layer goes through it: the Blue Marble, ion's
+  Bing, the Black Marble lights.  Mipmapping and filtering still average the
+  stored values (Cesium has no sRGB texture format): a texel's own colour
+  is exact, a minified average slightly dark where the imagery is
+  contrasty.
+- **A tileset (Mars, the Moon).**  Cesium hands `sunlitShader` the
+  baked-in imagery decoded by its 2.2 power; the shader undoes that exactly
+  (`czm_linearToSrgb`, back to the stored value), then for a picture (Mars)
+  decodes it by sRGB's curve, and for the Moon (`imageryEncoding:
+  'linear'`, its descriptor's `texture_encoding`) keeps the stored value,
+  the I/F stretch.  The lit value is log-encoded as before (Precision,
+  below).
+- **The gains are the descriptors'.**  `textureGain` is the body's
+  `texture_gain`, which takes celestiary's decoded map to the body's albedo
+  (Planet.md, [albedo](js/scene/Planet.md#albedo)): Mars 1.887, the Moon
+  0.4448 (as before), Earth none.  `imageryScale` (the Moon's 0.815) is ion's
+  copy against celestiary's texture, measured on the Moon's linear map, and
+  stands.
+- **The night lights** are the same imagery path: their frame, unlit, is
+  the Black Marble decoded and encoded back (so as stored), and
+  `newLightsMaterial` decodes it as celestiary decodes its night texture.
+- **New York** writes the same contract (the city's colour, below).
+- **A guest page** (`?cesium=iframe`) older than `GUEST_VERSION` 4 draws the
+  stored-value frame of before, and its frames are read linear
+  (`frameEncoding` 0) until it is redeployed.
 
 ### Activation
 
@@ -567,8 +614,9 @@ the first zoom, come with a closer or a larger view.)
 - Earth: celestiary's Bruneton pass runs over Cesium's globe, as it does
   over Mars's tiles: one atmosphere, in celestiary's exposure units, on both
   sides of the swap ([HDR.md](js/scene/HDR.md#cesium-in-the-same-units)).
-  Cesium's globe draws only its lit surface: stored value × Lambert
-  (`litSurfaceOnly`: light intensity 1, `lambertDiffuseMultiplier` 1,
+  Cesium's globe draws only its lit surface: albedo × Lambert, its imagery
+  decoded from sRGB ([colour](#colour-the-imagery-decoded); `litSurfaceOnly`:
+  light intensity 1, `lambertDiffuseMultiplier` 1,
   `vertexShadowDarkness` 0), no ground atmosphere, fog or water effect,
   and the composite applies `DISPLAY_GAIN`.
 - **Terrain depth.**  The pass needs to know where Cesium's terrain is and
@@ -677,13 +725,13 @@ by dark: `dayAlpha` 0, `nightAlpha` 1.  It can't work here, for two reasons
   `1 − clamp(5·N·L, 0, 1)`, and then multiplies the *blend* by its lighting:
   `clamp(N·L · lambertDiffuseMultiplier + vertexShadowDarkness, 0, 1)`
   (0.3 more on the plain ellipsoid).  The night alpha only picks which
-  imagery is there to be lit; and the lit surface here is `stored × Lambert`
+  imagery is there to be lit; and the lit surface here is `albedo × Lambert`
   with no ambient (`litSurfaceOnly`), 0 on the night side.  The lights are
   multiplied away, or, with an ambient to carry them, tinted and capped by
   it, and the day side's Lambert is bent with them.
 - Cesium's frame reaches celestiary through 8 bits ([HDR.md](js/scene/HDR.md#cesium-in-the-same-units)),
   the lit surface up to 1, where the lights are 4.5e-5 of a lit white: a
-  light that is bright after the night's gain (up to 4e6) is under a level
+  light that is bright after the night's gain (up to `EYE_DARK_GAIN`, 1.1e6) is under a level
   of the day's.  They can't share the frame's channels, and the alpha holds the
   terrain's distance.
 
@@ -692,14 +740,16 @@ alpha 0 (`addNightLights`): the day frame skips it (Cesium draws no layer at
 alpha 0), and its tiles load all the same.  After the body's day frame is
 decoded into the scene buffer, a second Cesium frame renders the globe with
 lighting off, every other layer at alpha 0 and the night layer at 1, on a
-black base: the layer's stored values, opaque where the globe is.  Only its
+black base: the layer's values, decoded and encoded back by the globe's
+`imagerySrgb` (so as stored), opaque where the globe is.  Only its
 colour clears from `_cesiumRT`, so the day frame's stencil still limits it,
 and it runs after the day decode, not before: the decode wrote the terrain's
 depth, which the stencil shell's depth test would otherwise hit from inside
 the shell (below 64 km).  A second decode adds it to `_sceneRT`
 (`newLightsMaterial`, blending One, One, no depth): `texel × nightFactor ×
-nightLightRadiance() × toneMappingExposure`, with the stored value read as
-celestiary reads it (no sRGB decode), and `nightFactor` from the same
+nightLightRadiance() × toneMappingExposure`, with the texel decoded from
+sRGB as celestiary decodes its night texture (Planet.md, "Brightness"), and
+`nightFactor` from the same
 smoothstep on each pixel's N·L, taken from the view ray against the body's
 sphere, as celestiary's surface does from its sphere's normal.  So the lights
 join the scene before the atmosphere pass, which dims them by the same
@@ -937,7 +987,7 @@ unchanged.
 ### Precision: a log encoding, and the Moon's earthshine
 
 **A tileset's frame is log-encoded** (`encoding.js`, `sunlitShader`, the
-decode's `uLogEncoded`).  The frame holds stored value × light, 0 to 1, and
+decode's `uEncoding` 1).  The frame holds albedo × light, 0 to 1, and
 reaches celestiary through Cesium's 8-bit buffers.  Linear, the night side
 and the terminator's last degrees of Sun had a few codes.
 
@@ -1013,7 +1063,8 @@ Moon](js/scene/HDR.md#a-star-beside-the-moon)).
   Moon takes both cosines from its normal-mapped normal the same way
   (`lunarSurface.js`, three's `geometryNormal`).
 - `textureGain` is 0.4448, earth/moons/moon/index.json's `texture_gain`: the stored values
-  to normal albedo, so the near side's disc at full is the geometric
+  (a linear stretch of I/F, not decoded: `imageryEncoding: 'linear'`) to
+  normal albedo, so the near side's disc at full is the geometric
   albedo, 0.121.  The frame still holds stored value × light; the decode's
   `bodyGain` carries the albedo scale.
 - `imageryScale` is 0.815 (it was 0.78): celestiary's Moon lost its
@@ -1348,23 +1399,28 @@ frame's encoding:
 
 | | The decode expects (Earth) | The guest wrote (`composite: true`, as shipped) |
 |---|---|---|
-| rgb | stored value × the Sun's light (Lambert, at intensity 1), linear in the light, 0 to 1: a white Lambertian wall facing the Sun is 1 | its preset lights (the Sun at 5.8-6.6 in three's units, a white wall at 2.1; a sky light at 1-1.6; its baked sky for reflections), on linear albedo, sRGB-encoded at the end, with lit windows, lamps and signals emitting into it; under the horizon, a moon of its own |
+| rgb | albedo × the Sun's light (Lambert, at intensity 1), linear in the light, 0 to 1, sRGB-encoded (the globe's `imagerySrgb`): a white Lambertian wall facing the Sun is 1 | its preset lights (the Sun at 5.8-6.6 in three's units, a white wall at 2.1; a sky light at 1-1.6; its baked sky for reflections), on linear albedo, sRGB-encoded at the end, with lit windows, lamps and signals emitting into it; under the horizon, a moon of its own |
 | alpha | anything over 0 where it draws; Cesium's distance stage replaces it with the encoded distance from Cesium's depth texture (`distance.js`) | its materials' alpha, 1 for the opaque city: right |
 | depth | Cesium's log depth (the stage and the decode turn it into celestiary's depth for the atmosphere pass's haze) | `logDepth: true`: Cesium's, from the renderer's constants: right |
 
 The decode multiplies rgb by `bodyGain` (`DISPLAY_GAIN` for Earth) and
 `exposureOf`.  So the guest's light was 2-3 times the scale and clipped in
-the 8 bits, its shading went through sRGB's curve (a wall at 15% of the
-Sun showed at 42% of its sunlit value), and its emission, under a code of
-the frame by day, became a sunlit white at night's gain (up to 4e6).
+the 8 bits, and its emission, under a code of the frame by day, became a
+sunlit white at night's gain (then up to 4e6).  (While the frame held stored
+values, unencoded, the guest's encoded output also put its shading through
+sRGB's curve: a wall at 15% of the Sun showed at 42% of its sunlit value.
+Its encoding is now the frame's.)
 
 What celestiary does now (`newYorkGuest.js`, a stopgap through the guest's
 public objects and three's node-material hooks, before its programs
 compile):
 
-- `inCelestiaryFrame`: each material's diffuse colour is sRGB-encoded
-  back to its stored value before it is lit, and the output is linear, so
-  the frame holds stored value × light, linear in the light.  Unlit
+- `inCelestiaryFrame`: each material's diffuse colour is three's, decoded
+  from sRGB, lit, and the output sRGB-encoded, so the frame holds albedo ×
+  light, encoded as the globe's around it ([colour](#colour-the-imagery-decoded)).
+  Its `stored` switch (off) puts back the old contract, the diffuse
+  encoded back to its stored value and the output linear, for
+  diagnosis.  Unlit
   materials scale with the daylight; `emissiveNode`s and emissive colours
   are multiplied by 0.
 - `inCelestiaryUnits`, after every `setSun` (which switches presets): the
@@ -1373,7 +1429,9 @@ compile):
   baked environment at 0.15, fading with the Sun; the guest's light switch
   (`cityUniforms.uInteriorGlow`) at 0.
 
-Measured headless (no ion: Blue Marble on the ellipsoid; 480x300, 3 km
+Measured headless under the stored-value contract, before the imagery was
+decoded (not re-measured since; the city's and the ground's values both
+change, the ground's more where it is dark): (no ion: Blue Marble on the ellipsoid; 480x300, 3 km
 over the Upper Bay looking up the island, 2026-06-21 16:00 UTC, the Sun 69°
 up, the meter off at the keyed exposure): over the 16,348 pixels the city
 covers, Cesium's frame reads a median luma of 0.209 (10th and 90th
@@ -1389,14 +1447,12 @@ six clipped orange.  At 800x500, 1.5 km over the Upper Bay, the city covers
 50,101 pixels at a median of 0.183 (0.068, 0.510) against the ground's
 0.269; the guest's own, 0.505.
 
-**What slop-newyork needs**, so celestiary can drop the stopgap (an option,
-say `units: 'stored'`, for a host that hands it a frame in stored values):
+**What slop-newyork needs**, so celestiary can drop the stopgap (an option
+for a host that hands it a frame of linear light, encoded):
 
-1. Light stored values: in its material pass (`prepareMaterials`), after
-   three's `setupDiffuseColor`, `diffuseColor.rgb =
-   sRGBTransferOETF(diffuseColor.rgb)` (vertex and instance colours
-   included), and output linear (`setLinearOutput(true)`), with no tone
-   map.
+1. Light linear albedo (three's own) and encode the output to sRGB, with
+   no tone map; the guest's output does this already, so what's left is the
+   light and the emission below.
 2. Take the host's light, not its presets': `setLight({direction,
    intensity, sky})`, the Sun at π × intensity (1 = the host's sunlit white,
    white: the host's atmosphere colours it), 0 below the horizon (no moon of
@@ -1625,6 +1681,7 @@ has it does.
 |---|---|---|---|
 | The ellipsoid's lighting follows the globe's settings | `celestiary/globe-daynight-lighting` | Without vertex normals the globe's day-night shading was a hard-coded `clamp(5 × Lambert + 0.3)`: its floor is now `vertexShadowDarkness`, its multiplier a new `dayNightLambertDiffuseMultiplier` (defaults unchanged) | [CesiumGS/cesium#13974](https://github.com/CesiumGS/cesium/pull/13974), from `upstream/globe-daynight-lighting`; drop the patch's hunks once a release has it |
 | External renderers: renderers outside Cesium drawing into its frame | `celestiary/external-render-pass` | `scene.externalRenderers` and `ExternalRenderer({boundingVolume, show, render(p)})`: `render` is called once per depth frustum the volume overlaps, after the opaque passes, with Cesium's framebuffer bound and the view, projection, near and far and log-depth constants in `p`; `Context.prototype.resetState()` after each.  For [New York](#new-york).  Exported from `cesium` too, so a second patch, `patches/cesium+1.145.0.patch` | not yet proposed |
+| A globe's imagery decoded from sRGB before it is lit | `celestiary/globe-imagery-srgb` (to be made: the patch was written in node_modules and folded in with patch-package) | `globe.imagerySrgb` (default false): `GlobeFS` decodes each imagery sample by sRGB's curve (IEC 61966-2-1, not Cesium's 2.2 power) before the layers are blended and lit, and encodes the lit colour back by it before `out_FragColor`; a uniform, `u_imagerySrgb`, so no new shader variants.  For [colour](#colour-the-imagery-decoded) | not yet proposed |
 | Log depth follows a NetGL host's reprojection | `celestiary/netgl-reproject` | A late frame from a guest page is corrected to the host's camera by portal-netgl, which multiplies `gl_Position` by `netgl_reproject` after a vertex shader's `main`; Cesium's log depth reads `gl_Position` inside `main` (`czm_vertexLogDepth`), so its depth kept the old frame's.  The log-depth derived vertex shader (`DerivedCommand`) now applies `netgl_reproject` before `czm_vertexLogDepth`, and `ViewportQuadVS` declares it without applying it, so the full-screen copies stay put.  `netgl_reproject` is an automatic uniform, the identity: on its own Cesium draws as before.  For [design/CesiumGuest.md](design/CesiumGuest.md), late frames | not yet proposed |
 
 Candidates for later patches, by how much celestiary code each would
@@ -1879,6 +1936,13 @@ that, see below.
 
 SwiftShader, 480x300, `t=9233.1234jd`, ion token from the repository
 secret.  Cesium over celestiary; runs repeat to about 0.002 in ratio.
+
+**These are from before the imagery was decoded** ([colour](#colour-the-imagery-decoded)):
+both sides lit stored values then.  Both now decode the same data the same
+way, so the ratios should hold, but they haven't been re-run: Earth's and
+Mars's (globe and tileset paths changed), `earth-night-europe` (the lights
+decoded on both sides), `earth-clouds-*` (the shell's albedo, 0.83 for 0.92,
+over a darker ground), and New York.  The Moon's path didn't change.
 
 | View | Luma | R / G / B | Profile max / mean (of 255) |
 |---|---|---|---|

@@ -25,7 +25,7 @@ import {perf} from '../perf/perf.js'
 import {ASTRO_UNIT_METER, DISPLAY_GAIN, LIGHTYEAR_METER, overlay} from '../shared.js'
 import {slug} from '../targetPath.js'
 import SpriteSheet from './SpriteSheet.js'
-import {SUN_APPARENT_MAGNITUDE} from './exposure.js'
+import {EYE_POINT_RAD, SUN_APPARENT_MAGNITUDE} from './exposure.js'
 import {fadeMaterial} from './fade.js'
 import {
   KPC_METER, MILKY_WAY, STORE_SCALE, SUN_G, bakeMapSteps, galaxyGlsl, galaxyNormUniforms, galaxySpecUniforms, normalize,
@@ -1092,8 +1092,9 @@ function rightOf(view, r) {
 
 /**
  * The eye's patch a point's light lands in (HDR.md, "Physical stars"), as
- * stars.vert has it: a pixel, or the dark-adapted eye's 10′ (over the
- * magnification of a field narrower than 45°) where a pixel is finer.
+ * stars.vert has it: a pixel, or the dark-adapted eye's patch (exposure.js
+ * EYE_POINT_RAD, 9.7′; over the magnification of a field narrower than 45°)
+ * where a pixel is finer, so a galaxy's point is calibrated as a star's.
  *
  * @param {number} fovDeg
  * @param {number} heightPx
@@ -1104,10 +1105,6 @@ export function patchRadians(fovDeg, heightPx) {
   const pxRad = fovDeg * DEG / Math.max(heightPx, 1)
   return Math.max(pxRad, EYE_POINT_RAD / magnification)
 }
-
-
-/** The dark-adapted eye's resolution of a point, 10′ (stars.vert). */
-const EYE_POINT_RAD = 10 / 60 * DEG
 
 
 /**

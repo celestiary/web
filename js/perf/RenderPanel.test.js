@@ -31,9 +31,9 @@ describe('RenderPanel', () => {
     expect(() => installToneMaps({uniforms: {}, fragmentShader: 'x'}, line)).toThrow()
   })
 
-  it('offers three\'s two output colour spaces, linear first', () => {
-    expect(OUTPUT_COLOR_SPACES.map((o) => o.value)).toEqual(['srgb-linear', 'srgb'])
-    expect(OUTPUT_COLOR_SPACES.map((o) => colorSpaceName(o.value))).toEqual(['LinearSRGBColorSpace', 'SRGBColorSpace'])
+  it('offers three\'s two output colour spaces, the app\'s sRGB first', () => {
+    expect(OUTPUT_COLOR_SPACES.map((o) => o.value)).toEqual(['srgb', 'srgb-linear'])
+    expect(OUTPUT_COLOR_SPACES.map((o) => colorSpaceName(o.value))).toEqual(['SRGBColorSpace', 'LinearSRGBColorSpace'])
   })
 
   it('names three\'s constants', () => {
