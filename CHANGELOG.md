@@ -39,6 +39,16 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### Earth's air as it really is: a blue limb, orange sunsets
+
+Earth's sky is now drawn from the measured air, at its physical brightness: a clear day's haze, the ozone layer and the standard atmosphere, in place of a sky turned up four and a half times.  From orbit the limb goes from black through a thin deep blue to the surface, as the astronauts' photographs show, with the land and clouds no longer veiled; from the ground the noon sky has the luminance a clear day has, and sunsets glow orange.
+
+- Date: 2026-11-21
+- PR: [#375](https://github.com/celestiary/web/pull/375)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance
+- Permalink: none
+- Featured: yes
+
 ### Colours as they really are: pictures decoded, the screen encoded
 
 Surfaces are now lit in linear light and the frame is encoded for the screen, as a camera's would be: the planets come out at their measured albedos (Mercury and Mars no longer a magnitude and half a magnitude too bright), their colours no longer over-saturated, and labels and lines show their true colours.  The naked-eye star field is calibrated as before.
