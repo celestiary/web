@@ -46,14 +46,21 @@
   "clouds": "gibs",
   "atmosphere": {
     "height": "8e4 m",
-    "sunIntensity": 21,
-    "rayleigh": [5.8e-6, 1.35e-5, 3.31e-5],
+    "rayleigh": [5.12e-6, 1.216e-5, 3.02e-5],
     "rayleigh_unit": "1/m",
     "rayleighScaleHeight": "8e3 m",
-    "mieCoeff": 5e-6,
+    "mieCoeff": [7.590e-5, 1.0e-4, 1.3366e-4],
     "mieCoeff_unit": "1/m",
     "mieScaleHeight": "1.2e3 m",
-    "miePolarity": 0.8,
+    "mieAlbedo": 0.93,
+    "miePolarity": 0.7,
+    "ozone": {
+      "absorption": [6.497e-7, 1.881e-6, 8.502e-8],
+      "absorption_unit": "1/m",
+      "bottom": "1e4 m",
+      "peak": "2.5e4 m",
+      "top": "4e4 m"
+    },
     "airglow": {
       "zenithMag": 22.4,
       "height": "9e4 m",

@@ -24,7 +24,7 @@ import {DEFAULT_TONE_MAP_GLSL, newAtmospherePass} from './scene/atmos/Atmosphere
 import {atmosphereBody, atmosphereResolvable} from './scene/atmos/atmosphereBody.js'
 import {setDrawingBuffer} from './scene/farPoint.js'
 import {
-  mieParams, precomputeInScatter, precomputeInScatterMs, precomputeMultiScatter, precomputeTransmittance,
+  mieParams, ozoneParams, precomputeInScatter, precomputeInScatterMs, precomputeMultiScatter, precomputeTransmittance,
 } from './scene/atmos/AtmospherePrecompute'
 import CesiumLayers from './scene/cesium/CesiumLayers'
 import {
@@ -2152,9 +2152,13 @@ export default class ThreeUi {
     u.uSkyExposure.value = sunDist > 0 ? skyExposure(sunDist, this.renderer.toneMappingExposure) : 1
     u.uRayleigh.value.set(...atmos.rayleigh)
     u.uRayleighScaleHeight.value = atmos.rayleighScaleHeight.scalar
-    u.uMieCoeff.value = atmos.mieCoeff
-    u.uMieScaleHeight.value = atmos.mieScaleHeight.scalar
     const mie = mieParams(atmos)
+    const ozone = ozoneParams(atmos)
+    u.uMieCoeff.value.copy(mie.extinction)
+    u.uMieChroma.value = mie.chroma
+    u.uOzone.value.copy(ozone.absorption)
+    u.uOzoneProfile.value.copy(ozone.profile)
+    u.uMieScaleHeight.value = atmos.mieScaleHeight.scalar
     u.uMiePolarity.value.copy(mie.polarity)
     u.uMieBackPolarity.value = mie.backPolarity
     u.uMieForwardWeight.value = mie.forwardWeight

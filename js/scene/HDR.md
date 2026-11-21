@@ -332,9 +332,11 @@ not a bug: PR B's metered exposure raises twilight on its own.
 `sunIntensity`'s physical value is `π·DISPLAY_GAIN` = 4.71; Earth's 30 was 6.4×
 that.  The factor stood in for multiple scattering and aerosols; since the
 precompute integrates multiple scattering (composition.md, "Multiple
-scattering") Earth's gain is 21, 4.5×, re-fitted to hold its sky's luma,
-and the rest is the aerosol load PR B tunes against, once stars are
-physical too.  Mars has the physical value: its sky is its dust's.
+scattering") Earth's gain was 21, 4.5×, re-fitted to hold its sky's luma,
+and the rest was the aerosol load.  Since that load is in the data (τ 0.12
+at 550 nm, and the ozone: composition.md, "Earth's air") Earth has the
+physical value too, as Mars does: its sky is its air's.  (The worked number
+above is the data before, Mie τ 0.006.)
 
 **Every other body has it too** (`exposure.js` `PHYSICAL_SKY_GAIN`, the
 default when a body's data gives no `sunIntensity`).  The factor

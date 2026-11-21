@@ -1,6 +1,27 @@
 {
   "entries": [
     {
+      "id": "2026-11-21-earth-s-air-as-it-really-is-a-blue-limb-orange",
+      "date": "2026-11-21",
+      "headline": "Earth's air as it really is: a blue limb, orange sunsets",
+      "text": "Earth's sky is now drawn from the measured air, at its physical brightness: a clear day's haze, the ozone layer and the standard atmosphere, in place of a sky turned up four and a half times.  From orbit the limb goes from black through a thin deep blue to the surface, as the astronauts' photographs show, with the land and clouds no longer veiled; from the ground the noon sky has the luminance a clear day has, and sunsets glow orange.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 375,
+          "url": "https://github.com/celestiary/web/pull/375"
+        }
+      ],
+      "epic": {
+        "number": 110,
+        "title": "Earth appearance parity across the Cesium swap",
+        "url": "https://github.com/celestiary/web/issues/110"
+      },
+      "permalink": null,
+      "image": null,
+      "featured": true
+    },
+    {
       "id": "2026-11-21-colours-as-they-really-are-pictures-decoded-the",
       "date": "2026-11-21",
       "headline": "Colours as they really are: pictures decoded, the screen encoded",

@@ -308,3 +308,38 @@ that lobe's share), the second atlas's a holds the broad lobes' extra
 single scattering of that beam, and the pass draws the narrow lobe's
 orders of scattering per pixel (composition.md, "The dust's forward
 peak").  With no narrow lobe, Earth's, the tables are as they were.
+
+---
+
+## The ozone layer (done)
+
+Bruneton's 2017 reference implementation
+([precomputed_atmospheric_scattering](https://github.com/ebruneton/precomputed_atmospheric_scattering),
+`atmosphere/demo/demo.cc`) adds to the 2008 model an absorbing species:
+ozone, which scatters nothing and takes light out of every path, with its
+own density profile, a tent rising linearly from 0 at 10 km to 1 at 25 km
+and falling to 0 at 40 km, and an absorption coefficient per wavelength,
+its peak number density (300 Dobson units over the tent's 15 km,
+5.374e18 /m³) times the ozone's cross-section (Bremen's, at 233 K).  Here
+it is data (a body's `atmosphere.ozone`: the absorption at the peak in
+three channels and the tent's heights; composition.md, "Per-body data"),
+and only Earth has it:
+
+- the transmittance table stores its density integral in b, beside the
+  Rayleigh's (r) and the Mie's (g), so the Sun's path and the view ray's
+  through the table add `uOzone · od.b` to their optical depth;
+- the in-scatter and multiple-scattering precomputes and the pass's march
+  add `uOzone · ozoneDensity(h)` to each step's extinction, not to its
+  scattering (`OZONE_GLSL`, `ozoneParams`);
+- with no ozone the absorption is zero, and every table and march is the
+  arithmetic it was.
+
+Its Chappuis band absorbs green and red and leaves blue (28 times the
+blue's at 550 nm), which is why a long path through the limb stays blue
+(composition.md, "Earth's air").
+
+With it the 2017 implementation's other step that matters here: an
+aerosol whose extinction is per channel.  The atlas holds red's Mie (its
+a), and the pass colours it from the Rayleigh's rgb (the reference's
+reconstruction when Mie isn't stored whole, `GetExtrapolatedSingleMieScattering`),
+for Earth's aerosol only (composition.md, "Per-body data").

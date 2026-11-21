@@ -32,6 +32,7 @@ import {
   eddingtonGamma, phaseTable,
 } from './cloudPhysics.js'
 import {SUN_BELOW_HORIZON_GLSL} from '../atmos/rayEnd.js'
+import {mieParams, ozoneParams} from '../atmos/AtmospherePrecompute.js'
 import {CLOUD_HEIGHT_M, FAR_FIELD_FADE_M, VOLUME_FADE_M, fadeOver} from './CloudShell.js'
 
 
@@ -250,7 +251,8 @@ export default class CloudVolume {
     u.tMultiScatter.value = multiScatter.texture
     u.uAtmosphereRadius.value = this.groundRadius + atmos.height.scalar
     u.uRayleigh.value.set(...atmos.rayleigh)
-    u.uMieCoeff.value = atmos.mieCoeff
+    u.uMieCoeff.value.copy(mieParams(atmos).extinction)
+    u.uOzone.value.copy(ozoneParams(atmos).absorption)
     // The ground under the cloud reflects what the cloud passes (the
     // body's albedo stands for the ground's).
     u.uGroundAlbedo.value = node.props.albedo ?? 0
@@ -616,7 +618,8 @@ function newMarchMaterial(params, groundRadius, coverage) {
       tMultiScatter: {value: null},
       uAtmosphereRadius: {value: groundRadius + 1},
       uRayleigh: {value: new Vector3()},
-      uMieCoeff: {value: 0},
+      uMieCoeff: {value: new Vector3()},
+      uOzone: {value: new Vector3()},
       uGroundAlbedo: {value: 0},
       uTargetSize: {value: new Vector2(1, 1)},
       uFrame: {value: 0},
@@ -869,7 +872,8 @@ uniform sampler2D tTransmittance;
 uniform sampler2D tMultiScatter;
 uniform float uAtmosphereRadius;
 uniform vec3  uRayleigh;
-uniform float uMieCoeff;
+uniform vec3  uMieCoeff;
+uniform vec3  uOzone;
 uniform float uGroundAlbedo;
 uniform vec2  uTargetSize;
 uniform float uFrame;
@@ -1049,8 +1053,8 @@ vec3 sunThroughAir(vec3 p) {
   // Under the sphere's horizon (rayEnd.js sunBelowHorizon: rsi's near hit
   // is float32 noise within a metre of the sphere)
   if (sunBelowHorizon(p, uSun, uGroundRadius)) return vec3(0.0);
-  vec2 od = texture(tTransmittance, airUv(r - uGroundRadius, dot(p / r, uSun))).rg;
-  return exp(-(uMieCoeff * od.g + uRayleigh * od.r));
+  vec3 od = texture(tTransmittance, airUv(r - uGroundRadius, dot(p / r, uSun))).rgb;
+  return exp(-(uMieCoeff * od.g + uRayleigh * od.r + uOzone * od.b));
 }
 
 // The ground's shadow under the cloud at g: the cloud's optical depth

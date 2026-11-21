@@ -776,8 +776,10 @@ over the radius).  `standInMaps.test.js` checks each to 1%.
   reflectances (the Sahara's red 0.56, Antarctica 0.83, the Amazon's green
   0.03, which as stored were 0.78, 0.92 and 0.18), and its disc's light is
   mostly its clouds' and its sky's, fitted on their own (the clouds' 0.83,
-  above; its atmosphere's `sunIntensity` 21, against Cesium's side, which
-  decodes the same imagery).  Its ground's mean luma went from 0.163 to
+  above; its atmosphere's, at the physical gain since its aerosol and
+  ozone are in the data: composition.md, "Earth's air"; before, a
+  `sunIntensity` of 21 fitted against Cesium's side, which decodes the same
+  imagery).  Its ground's mean luma went from 0.163 to
   0.094; the whole disc's light against Earth's geometric albedo (0.367)
   wants a re-measure.
 - **The moons** have no gains yet: decoded, each is 0.4 to 1.6 mag darker
