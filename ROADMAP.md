@@ -387,6 +387,13 @@ Roadmap and issues groomed (2026-10-08): [#86](https://github.com/celestiary/web
    ([#101](https://github.com/celestiary/web/issues/101); small: the `layers:` token is in, with New York's switch, so the renderer per body is a named value in it; the clock, tracking, follow, which rides the target's orbit, and the stars' setting are in), then picking on Cesium's globes
    ([#100](https://github.com/celestiary/web/issues/100)).
 
+   6.1. **Earth's cryosphere** (proposed, [design/Cryosphere.md](design/Cryosphere.md); no issue yet): Earth
+   breathing shows the land's snow come and go but no sea ice, which the Blue Marble lacks.  The day's sea ice
+   concentration from GIBS (MUR25 from 2002, NSIDC's SSMIS from 1978; 41 KB a day) on both surfaces, a bundled
+   weekly atlas for timelapses, a thickness model from it, floes as meshes up close, illustrative icebergs, then
+   the ice sheets' thickness from ETOPO 2022 (its host is refused here).  In celestiary's scene, not a NetGL guest
+   and not Cesium; no Cesium patch needed.
+
 **Later**
 7. ~~The Sun's dynamic layers ([#167](https://github.com/celestiary/web/issues/167)) and its corona and wind ([#168](https://github.com/celestiary/web/issues/168))~~: done
    (Done recently; [Sun.md](js/scene/Sun.md)), which completes stars up close ([#164](https://github.com/celestiary/web/issues/164)).  Left as
