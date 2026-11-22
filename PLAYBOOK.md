@@ -268,6 +268,27 @@ overlaps of N⁻¹ values tone-map brighter than the old clamped sum (the toe
 is square-root-like, so √a + √b > √(a + b)): overlapping star glows came
 out ~13% brighter.  Measure blends separately from single draws.
 
+### Per-view uniforms are taken at the draw, from the camera being drawn
+
+Anything a shader needs in view space (a direction to the Sun, a centre)
+goes in the object's `onBeforeRender`, from the camera it's handed: the
+animation callback, where `preAnimCb` runs, comes before the tween, the
+arrow keys and the ground keeper move the camera.  The glare's hole over
+the Sun's disc took its direction there and trailed the disc by a frame
+while the view turned (12 px at 0.5° a frame), a black crescent no still
+screenshot shows.  To catch it headless, move the camera *inside*
+`renderLoop` (wrap `_applyCameraArrowKeys`), not before it: a pose set
+before the call is already the one the update sees.
+
+### Trace a bad pixel through the draws that write it
+
+When the HDR buffer holds a non-finite or wrong value, wrap every scene
+object's `onAfterRender` for one frame, and `readPixels` the pixel (as
+floats) while `_sceneRT` is bound: the log lists each draw and the value
+after it, so the draw that broke it is the first wrong line.  The black
+pixels at the Sun's centre were the disc at 49,980 and then the Sun's point
+sprite adding 18,000, which no reading of either shader alone showed.
+
 ### Far geometry's interpolated positions aren't rays: take the ray from the pixel
 
 The Sun's corona is a shell 40 radii round it, 2e11 m from the camera,
