@@ -285,7 +285,7 @@ for Jupiter by `texture_rotation` ([Body rotation](#body-rotation-iau-prime-meri
 4. Restore `camera.quaternion` — suppresses the `lookAt` that TrackballControls applies each frame, so camera orientation is owned by navigation tweens and user input
 5. `_applyAsymptoticZoom()` — remaps zoom to altitude space and adjusts `camera.near`
 6. `animationCb(scene)` → `Animation.animate(scene)`:
-   - `Time.updateTime()` advances simulation clock by `timeDelta * timeScale`
+   - `Time.updateTime()` advances simulation clock by `timeDelta * timeScale`, or while it steps by days (`Time.setStepDays`, the `time:` token's `step=`) by whole days, run up on the wall clock at `timeScale / 86400` days a second and each landed at local apparent solar noon under the camera (`Celestiary._noonNear`, `solarNoon.js`; [design/URLs.md, time token](design/URLs.md#time-token))
    - `planetCoords(julianDay)` gives the heliocentric XYZ of the 8 major planets: `vsop87c`'s, or before its chunk has loaded, the mean elements' (`planetsApprox.js`), or between them while it hands over ([before the ephemeris loads](#before-the-ephemeris-loads))
    - `updateMoon(julianDay)` computes the Moon's geocentric position (lunarTheory.js)
    - the J2000 → date precession rotation, for the mean elements and the IAU rotation models (`setDate`)

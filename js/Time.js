@@ -16,8 +16,28 @@ export default class Time {
     this.timeScale = 1.0
     this.timeScaleBeforePause = null
 
-    /** Controlled by UI clicks.. timeScale is basically 2^steps. */
+    /**
+     * Controlled by UI clicks.. timeScale is basically 2^steps: signed
+     * powers of two of real time, or while stepping by days of days a
+     * second (stepUnit).  A link's rate is exact, and the steps the nearest.
+     */
     this.timeScaleSteps = 0
+
+    /**
+     * Day steps (design/URLs.md, the `time:` token's `step=`): 0 runs the
+     * clock continuously; N jumps it by N whole days at a time, each landed
+     * at local apparent solar noon by `noonNear`, at timeScale / 86400 days
+     * a second of the wall clock.
+     */
+    this.stepDays = 0
+    /**
+     * The solar noon nearest a date, at the view's meridian (Unix ms in and
+     * out; Celestiary's, solarNoon.js), or null: the steps are then whole
+     * days of the clock.
+     */
+    this.noonNear = null
+    // Days run up on the wall clock and not yet stepped.
+    this._stepCarry = 0
 
     /**
      * Called, with no arguments, when the rate, the pause or the date is
@@ -53,11 +73,94 @@ export default class Time {
     if (this.isPaused) {
       return
     }
-    this._setSimTime(this.simTime + (timeDelta * this.timeScale))
+    if (this.stepDays > 0) {
+      this._stepByDays(timeDelta)
+    } else {
+      this._setSimTime(this.simTime + (timeDelta * this.timeScale))
+    }
     this.simTimeElapsed = this.simTime - this.startTime
     // console.log(`timeDelta: ${timeDelta}, sysTime: ${this.sysTime}, simTime: ${this.simTime}`
     //    + `simTimeSecs: ${this.simTimeSecs}, simTimeElapsed: ${this.simTimeElapsed}`);
     this.updateUi()
+  }
+
+
+  /**
+   * While stepping by days: the wall clock's time at the rate runs up days,
+   * and each whole step of them moves the date on by its days, landed at
+   * solar noon (noonNear).  A frame steps no days, or one step or more:
+   * at 30 days a second and 60 frames, a day every other frame.
+   *
+   * @param {number} wallMs Wall-clock milliseconds since the last update
+   */
+  _stepByDays(wallMs) {
+    this._stepCarry += (wallMs * this.timeScale) / millisPerDay
+    // A hair over, so a carry summed from frames to 6.9999999 is 7.
+    const steps = this._stepCarry / this.stepDays
+    const days = Math.trunc(steps + (Math.sign(steps) * STEP_EPSILON)) * this.stepDays
+    if (days === 0) {
+      return
+    }
+    this._stepCarry -= days
+    const target = this.simTime + (days * millisPerDay)
+    this._setSimTime(this.noonNear ? this.noonNear(target) : target)
+  }
+
+
+  /**
+   * Step by days, at solar noon, or run continuously (0).  Entering, a rate
+   * under a day a second becomes DEFAULT_STEP_DAYS_PER_SEC (its sign kept),
+   * and the date lands on the nearest noon unless `land` is false (a link,
+   * whose date is a noon already and whose camera isn't placed yet).
+   * Leaving keeps the rate as a multiplier on real time.
+   *
+   * @param {number} days Days a step, a whole number; 0 or a bad one is off
+   * @param {object} [opts]
+   * @param {boolean} [opts.land]
+   */
+  setStepDays(days, {land = true} = {}) {
+    const d = Number.isFinite(days) && days >= 1 ? Math.round(days) : 0
+    if (d === this.stepDays) {
+      return
+    }
+    const entering = this.stepDays === 0
+    this.stepDays = d
+    this._stepCarry = 0
+    if (d && entering && Math.abs(this.timeScale) < secsPerDay) {
+      this.timeScale = (this.timeScale < 0 ? -1 : 1) * DEFAULT_STEP_DAYS_PER_SEC * secsPerDay
+    }
+    this.timeScaleSteps = this._nearestSteps(this.timeScale)
+    if (d && land && this.noonNear) {
+      this._setSimTime(this.noonNear(this.simTime))
+      this.setTimeStr(timeToDateStr(this.simTime))
+    }
+    this._notifyScaleChange()
+  }
+
+
+  /**
+   * @returns {number} What a rate step multiplies: 1 (real time), or a
+   *   day a second while stepping by days
+   */
+  get stepUnit() {
+    return this.stepDays > 0 ? secsPerDay : 1
+  }
+
+
+  /** @returns {number} The most steps either way, for the unit */
+  _maxSteps() {
+    return this.stepDays > 0 ? MAX_STEP_DAY_STEPS : MAX_TIME_SCALE_STEPS
+  }
+
+
+  /**
+   * @param {number} scale A multiplier on real time
+   * @returns {number} The signed steps nearest it, in the unit
+   */
+  _nearestSteps(scale) {
+    const steps = Math.min(Math.round(Math.log2(Math.max(Math.abs(scale) / this.stepUnit, 1))), this._maxSteps())
+    // 'j' on real time leaves -1 at no steps (invertTimeScale).
+    return (Math.sign(scale) * steps) + 0
   }
 
 
@@ -86,6 +189,8 @@ export default class Time {
 
   /** */
   setTimeToNow() {
+    this.stepDays = 0
+    this._stepCarry = 0
     this.timeScale = 1.0
     this.timeScaleSteps = 0
     this.simTime = this.sysTime
@@ -97,38 +202,44 @@ export default class Time {
   /**
    * Set the rate by 'j', 'k', 'l' and the time panel's buttons, paused or
    * not: paused is when the step is often set, and resuming runs at it.
+   * From an exact rate (a link's) they go on from the nearest step.  While
+   * stepping by days the steps are of days a second; the reset (0) is real
+   * time, out of day steps.
    *
    * @param delta -1, 0 or 1 for slower, reset or faster.
    */
   changeTimeScale(delta) {
     if (delta === 0) {
+      this.stepDays = 0
+      this._stepCarry = 0
       this.timeScaleSteps = 0
     } else {
-      this.timeScaleSteps = Math.min(Math.max(this.timeScaleSteps + delta, -MAX_TIME_SCALE_STEPS), MAX_TIME_SCALE_STEPS)
+      const max = this._maxSteps()
+      this.timeScaleSteps = Math.min(Math.max(this.timeScaleSteps + delta, -max), max)
     }
-    this.timeScale = (this.timeScaleSteps < 0 ? -1 : 1) * Math.pow(2, Math.abs(this.timeScaleSteps))
+    this.timeScale = (this.timeScaleSteps < 0 ? -1 : 1) * Math.pow(2, Math.abs(this.timeScaleSteps)) * this.stepUnit
     this._notifyScaleChange()
   }
 
 
   /**
    * Set the rate to a link's (design/URLs.md, the `time:` token's `rate=`),
-   * paused or not: the nearest rate the keys reach, plus or minus a power of
-   * two, at most 2^MAX_TIME_SCALE_STEPS.  A zero or a non-number is real
-   * time.
+   * paused or not: exactly as given, held to ±2^MAX_TIME_SCALE_STEPS, with
+   * the keys' step the nearest to it, so `j`, `k` and `l` go on from there
+   * by powers of two (after one the rate is a power of two again).  A zero
+   * or a non-number is real time, or while stepping by days
+   * DEFAULT_STEP_DAYS_PER_SEC.
    *
    * @param {number} rate Multiplier on real time; negative runs backwards
    */
   setRate(rate) {
     if (!Number.isFinite(rate) || rate === 0) {
-      this.timeScaleSteps = 0
-      this.timeScale = 1
+      this.timeScale = this.stepDays > 0 ? DEFAULT_STEP_DAYS_PER_SEC * secsPerDay : 1
     } else {
-      const steps = Math.min(Math.round(Math.log2(Math.max(Math.abs(rate), 1))), MAX_TIME_SCALE_STEPS)
-      this.timeScale = Math.sign(rate) * Math.pow(2, steps)
-      // 'j' on real time leaves -1 at no steps (invertTimeScale).
-      this.timeScaleSteps = (Math.sign(rate) * steps) + 0
+      const max = Math.pow(2, MAX_TIME_SCALE_STEPS)
+      this.timeScale = Math.min(Math.max(rate, -max), max)
     }
+    this.timeScaleSteps = this._nearestSteps(this.timeScale)
     this._notifyScaleChange()
   }
 
@@ -267,6 +378,18 @@ export const MAX_SIM_TIME_MS = J2000_UNIX_MS + (SUPPORTED_DAYS_FROM_J2000 * mill
  * Infinity, and Infinity × a zero frame delta is NaN.
  */
 export const MAX_TIME_SCALE_STEPS = 40
+
+/**
+ * While stepping by days the steps are of days a second, 2^steps; this many
+ * is 2^23 days a second (23,000 years), inside 2^MAX_TIME_SCALE_STEPS.
+ */
+export const MAX_STEP_DAY_STEPS = 23
+
+// Of a step, for the carry's rounding (_stepByDays).
+const STEP_EPSILON = 1e-9
+
+/** Days a second on entering day steps from a slower rate: a year in 11 s. */
+export const DEFAULT_STEP_DAYS_PER_SEC = 32
 
 
 /**

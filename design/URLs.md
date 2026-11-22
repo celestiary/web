@@ -338,19 +338,25 @@ Each feature has its own label:
 
 ### Time Token
 
-The clock (`Time.js`): paused, and the rate it runs at.
+The clock (`Time.js`): paused, the rate it runs at, and whether it steps by
+days at solar noon.
 
 ```
 pause              the clock is paused
 rate=<n>           the rate, a signed multiplier on real time: 8 is eight
-                   times, -2 is backwards at twice (default 1)
+                   times, -2 is backwards at twice, 86400 a day a second
+                   (default 1); with step=, days a second
+step=<N>d          day steps: the clock jumps N whole days at a time, each
+                   landed at local apparent solar noon under the camera
 ```
 
 ```
 #…;t=9774.8984jd;…;time:pause                paused at that date
 #…;t=now;…                                   at the moment it's opened, running
 #…;t=9774.8984jd;…;time:rate=8               running at 8x
+#…;t=9774.8984jd;…;time:rate=86400           a day a second, exactly
 #…;t=9774.8984jd;…;time:pause,rate=-4        paused, resuming at 4x backwards
+#…;t=9496.8052jd;…;s=…FY;time:step=1d,rate=30  noon to noon, 30 days a second
 ```
 
 Decisions:
@@ -367,11 +373,44 @@ Decisions:
   its rate (`j`, `k` and `l` set it while paused), so a link made paused at
   8x resumes at 8x.  Real time (1) is the default and left out, and so is a
   clock that is running at it, so the common link has no token.
-- **The rate is the multiplier, not Time's step count.**  The keys reach
-  only signed powers of two (`Time.timeScale`, up to 2^40), so the value is an
-  integer and reads as "8x"; a hand-written one snaps to the nearest power
-  of two (`Time.setRate`).  (Real time run backwards, `-1`, is a rate too:
-  `j` on real time gives it.)
+- **The rate is the multiplier, not Time's step count, and exact.**  The
+  keys reach signed powers of two (`Time.timeScale`, up to 2^40), which read
+  as "8x"; a link's rate is kept as written (to 4 decimal places, held to
+  ±2^40), so `rate=86400` is a day a second, not the 65,536 the nearest power
+  of two would be, and the rewritten link keeps it.  The keys' step is set to
+  the nearest (`Time.setRate`), so `j`, `k` and `l` go on from there by
+  powers of two, and after one the rate is a power of two again.  (Real
+  time run backwards, `-1`, is a rate too: `j` on real time gives it.)  Until
+  November 2026 a link's rate snapped to the nearest power of two.
+- **Day steps (`step=Nd`) are for timelapses of the seasons** ("breathing
+  Earth": the months' surface blended by day, the terminator rocking north
+  and south).  Each step lands at local apparent solar noon for the meridian
+  under the camera, its nadir on Earth (the link's `lng`), read at each step,
+  so the Sun stays over the same ground all year: the equation of time's
+  ±4° east-west wander, which steps of 86,400 s of the clock would show, is
+  gone, and only the Sun's declination moves.  Noon is the app's own: the
+  Sun's right ascension from its ephemeris (VSOP87C's Earth turned round, or
+  Meeus's Sun before it loads) against Greenwich by GMST, as the scene turns
+  Earth (`solarNoon.js`; the Sun drawn over that meridian to 0.003° in the
+  headless check).  The steps are paced by the wall clock: `rate` is then days
+  a second (`step=1d,rate=30` is a year in 12 s; at 60 frames a second, a day
+  every other frame), always written, `DEFAULT_STEP_DAYS_PER_SEC` (32) when
+  missing or when the steps start from a slower rate.  `j`, `k` and `l`
+  change the days a second by powers of two; `\` and `!`/`n` leave the
+  steps for real time; paused is paused.  The time panel's *Step by day
+  (solar noon)* toggle starts and ends them, the rate kept as a multiplier on
+  leaving.
+  - *The camera turns with Earth while the steps run* (`Scene.setCameraMode
+    ('turning')`, so the link has `Y`), if it was riding Earth's orbit: from
+    the orbit the ground turns under the camera a degree a day against the
+    Sun, so a year of noons would turn the globe once round in view.  It
+    goes back to the height's choice when the steps end, if they chose it.
+  - *Earth only.*  With the camera at another body, or a star, the steps are
+    whole days of the clock (no noon).
+  - *The clouds hold the day they had* while the steps run (CloudShell): a
+    day a frame never lets a day's GIBS mosaic settle (CloudMap's 1 s), but
+    at a day a second one could start each second.  Paused, the day's
+    clouds load as ever.
 - **It belongs in a state token, not with the view params:** how the clock
   runs is app state, not how the camera frames the scene, and the
   view params are the camera's.
