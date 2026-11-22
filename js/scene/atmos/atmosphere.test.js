@@ -421,6 +421,28 @@ describe('the ground under the air', () => {
     expect(groundAlbedo(atmos, earth.albedo).toArray()).toEqual(TEXTURE_MEANS.monthly.earth[6])
   })
 
+  it('blends the months\' albedos as the surface blends their maps, and is made again only past the threshold', () => {
+    const months = TEXTURE_MEANS.monthly.earth
+    const atmos = {groundAlbedo: months}
+    setGroundMonth(atmos, {a: 10, b: 11, w: 0.25})
+    const mixed = groundAlbedo(atmos, 0.3).toArray()
+    mixed.forEach((v, c) => expect(v).toBeCloseTo((0.75 * months[9][c]) + (0.25 * months[10][c]), 12))
+    // Through October into November by quarter days: a rebuild only each time it moves past the threshold.
+    setGroundMonth(atmos, 10)
+    setBuiltAlbedo(atmos, groundAlbedo(atmos, 0.3).toArray())
+    let rebuilds = 0
+    for (let w = 0; w <= 1; w += 1 / 120) {
+      setGroundMonth(atmos, {a: 10, b: 11, w})
+      const now = groundAlbedo(atmos, 0.3).toArray()
+      if (groundAlbedoStale(atmos, now)) {
+        rebuilds++
+        setBuiltAlbedo(atmos, now)
+      }
+    }
+    const step = Math.max(...months[9].map((v, c) => Math.abs(v - months[10][c])))
+    expect(rebuilds).toBe(Math.floor(step / GROUND_ALBEDO_REBUILD))
+  })
+
   it('makes the tables again only when the month moves it past the threshold', () => {
     const months = TEXTURE_MEANS.monthly.earth
     const atmos = {}

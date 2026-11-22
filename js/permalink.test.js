@@ -749,21 +749,40 @@ describe('the time: token', () => {
     expect(encodeTimeToken(true, -1)).toBe('pause,rate=-1')
   })
 
-  it('round-trips', () => {
+  it('round-trips, the rate exactly', () => {
     for (const paused of [false, true]) {
-      for (const rate of [1, 2, 8, -1, -2, -4096, 2 ** 40]) {
-        expect(decodeTimeToken(encodeTimeToken(paused, rate) ?? undefined)).toEqual({paused, rate})
+      for (const rate of [1, 2, 8, -1, -2, -4096, 2 ** 40, 86400, -86400, 10, 3600, 0.5, 1.25, 31557600]) {
+        expect(decodeTimeToken(encodeTimeToken(paused, rate) ?? undefined)).toEqual({paused, rate, stepDays: 0})
       }
+    }
+    expect(encodeTimeToken(false, 86400)).toBe('rate=86400')
+  })
+
+  it('is step=Nd for day steps, with the rate in days a second, always written', () => {
+    const DAY = 86400
+    expect(encodeTimeToken(false, 30 * DAY, 1)).toBe('step=1d,rate=30')
+    expect(encodeTimeToken(true, DAY, 1)).toBe('pause,step=1d,rate=1')
+    expect(encodeTimeToken(false, -4 * DAY, 7)).toBe('step=7d,rate=-4')
+    expect(encodeTimeToken(false, 0.5 * DAY, 1)).toBe('step=1d,rate=0.5')
+    for (const paused of [false, true]) {
+      for (const [rate, stepDays] of [[30 * DAY, 1], [DAY, 1], [-32 * DAY, 1], [2.5 * DAY, 7]]) {
+        expect(decodeTimeToken(encodeTimeToken(paused, rate, stepDays) ?? undefined)).toEqual({paused, rate, stepDays})
+      }
+    }
+    // Without a rate, Time's default for day steps (setRate(0)); a bad step is none.
+    expect(decodeTimeToken('step=1d')).toEqual({paused: false, rate: 0, stepDays: 1})
+    for (const bad of ['step=0d', 'step=1', 'step=xd', 'step=-1d', 'step=1.5d']) {
+      expect(decodeTimeToken(`${bad},rate=8`)).toEqual({paused: false, rate: 8, stepDays: 0})
     }
   })
 
   it('reads a link without it as running at real time, and a bad rate as 1', () => {
-    expect(decodeTimeToken(undefined)).toEqual({paused: false, rate: 1})
-    expect(decodeTimeToken('')).toEqual({paused: false, rate: 1})
+    expect(decodeTimeToken(undefined)).toEqual({paused: false, rate: 1, stepDays: 0})
+    expect(decodeTimeToken('')).toEqual({paused: false, rate: 1, stepDays: 0})
     for (const bad of ['rate=x', 'rate=0', 'rate=', 'rate=NaN']) {
-      expect(decodeTimeToken(`pause,${bad}`)).toEqual({paused: true, rate: 1})
+      expect(decodeTimeToken(`pause,${bad}`)).toEqual({paused: true, rate: 1, stepDays: 0})
     }
-    expect(decodeTimeToken('future,rate=4,other=1')).toEqual({paused: false, rate: 4})
+    expect(decodeTimeToken('future,rate=4,other=1')).toEqual({paused: false, rate: 4, stepDays: 0})
   })
 
   it('travels as a state token in the link, with the apps\'', () => {
@@ -773,7 +792,7 @@ describe('the time: token', () => {
     expect(frag).toBe('sun@1,2,3m;t=5jd;cq=0,0,0,1;fov=45deg;time:pause,rate=4;apps:open')
     const pl = decodePermalink(frag)
     expect(pl.tokens).toEqual({time: 'pause,rate=4', apps: 'open'})
-    expect(decodeTimeToken(pl.tokens.time)).toEqual({paused: true, rate: 4})
+    expect(decodeTimeToken(pl.tokens.time)).toEqual({paused: true, rate: 4, stepDays: 0})
     // None at real time.
     expect(encodePermalink('sun', 5, 1, 2, 3, Q, 45, undefined, {time: encodeTimeToken(false, 1)}))
         .toBe('sun@1,2,3m;t=5jd;cq=0,0,0,1;fov=45deg')

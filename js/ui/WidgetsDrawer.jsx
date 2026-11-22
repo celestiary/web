@@ -127,7 +127,7 @@ export default function WidgetsDrawer({celestiary}) {
             </IconButton>
           </Tooltip>
         </Stack>
-        {widgets.view === TRAY && <Tray running={widgets.running} dispatch={dispatch}/>}
+        {widgets.view === TRAY && <Tray running={widgets.running} dispatch={dispatch} celestiary={celestiary}/>}
         {widgets.running.map((id) => {
           const {name, Icon, Panel} = appById(id)
           const isPinned = widgets.pinned.includes(id)
@@ -163,14 +163,17 @@ export default function WidgetsDrawer({celestiary}) {
 }
 
 
-/** @returns {ReactElement} The app tray: a tile per app */
-function Tray({running, dispatch}) {
+/**
+ * @returns {ReactElement} The app tray: a tile per app.  An app's `start`
+ *   runs on opening one that isn't running (apps.jsx).
+ */
+function Tray({running, dispatch, celestiary}) {
   return (
     <Stack spacing={1} sx={{p: 2}} data-testid='widgets-tray'>
-      {APPS.map(({id, name, description, Icon}) => (
+      {APPS.map(({id, name, description, Icon, start}) => (
         <ButtonBase
           key={id}
-          onClick={() => dispatch({type: 'openApp', id})}
+          onClick={() => (start && !running.includes(id) ? start(celestiary) : dispatch({type: 'openApp', id}))}
           sx={{
             justifyContent: 'flex-start',
             textAlign: 'left',

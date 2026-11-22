@@ -131,12 +131,25 @@ export const STATIC_BUDGET = {
   // brighten when it came.  2,497 and a fraction, so 2,498, with the
   // ground's albedo by the month (groundLight.js's month and threshold,
   // ThreeUi's rebuild of the tables that read it, 1 KB).
+  // 2,501, so 2,502, with the months blended by the day (Planet.md, "The
+  // months blended by day": monthMaps.js and the planet material's mod, the
+  // shares' easing in monthly.js, Cesium's month stacks in cesium/season.js,
+  // 3 KB).  The detail over the month's colour (detailTransfer.js,
+  // detailImagery.js) is a chunk of its own, loaded once ion is asked.
+  // 2,502 and a fraction with the ion token, so 2,503, with the planets'
+  // places kept while the date stands (Animation.setDate's copy, a few
+  // hundred bytes); the detail's worker is a script of its own.  2,505 and
+  // a fraction, so 2,506, with the clock's day steps at solar noon (Time's
+  // steps, solarNoon.js, the time panel's toggle).  2,506 and a fraction, so
+  // 2,508, with the Earth breathing app's way in (its tray entry, search view
+  // and constants; its panel is a chunk of its own, breathingApp.js).
   // 1.7 KB more with the layers control's sky imagery (#360): the Layers
   // button everywhere, the loader of its sky section (SkyImagery.jsx; the
   // section, the surveys and the turn to a field are lazy, handed the first
   // load's MUI and React so the split leaves MUI's chunks alone), LayerSwitch
-  // shared with the New York toggle, the `sky:` token and the store's list.
-  totalMinifiedKB: 2500,
+  // shared with the New York toggle, the `sky:` token and the store's list,
+  // and the wheel's field zoom: 2,510.
+  totalMinifiedKB: 2510,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -165,8 +178,10 @@ export const STATIC_BUDGET = {
   // with the ion token baked in, as CI's and the precommit hook's builds are).
   // 774 and a fraction, so 776, with the ground lit through the air and its
   // albedo by the month (as above; a fraction more with the ion token).
-  // 0.7 KB more with the layers control's sky imagery (#360, as above).
-  totalGzipKB: 777,
+  // 777, so 778, with the months blended by the day (as above).  778 and a
+  // fraction, so 779, with the day steps and the Earth breathing app.
+  // 0.7 KB more with the layers control's sky imagery (#360, as above): 780.
+  totalGzipKB: 780,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,
@@ -215,7 +230,9 @@ export const RUNTIME_BUDGET = {
   // #375's physical air (the ozone in the tables), the camera's glare
   // function and the backtick key's hooks took a CI run to 1,034.4: 1,036,
   // for the runs' spread.
-  ready: {requests: 28, kb: 1036},
+  // #377's month blend (two map slots in the planet shader, about 3 KB
+  // minified) with #378's sprite caps took a CI run to 1,039.0: 1,041.
+  ready: {requests: 28, kb: 1041},
   // After #259: 39 requests, 3,918 KB.  Raised from #258's 29 requests:
   // the catalogue's faint tiers are 12 packs where stars.dat was one file,
   // by design (a deep link needs only its field's; DESIGN.md "The star

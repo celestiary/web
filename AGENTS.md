@@ -59,6 +59,7 @@ tried and dropped.
 | Human expansion (an app: BFS spread across the stars) | [js/scene/Colonization.md](js/scene/Colonization.md) |
 | The Rubin Observatory on Cerro Pachón following 2026 ED138, its first dwarf planet candidate (an app: the model, its pointing, the object's apparent path, the body's JPL elements; Rubin's image on the sky, its WCS and tiles) | [js/scene/rubin/Rubin.md](js/scene/rubin/Rubin.md); the image: [the imagery](js/scene/rubin/Rubin.md#the-imagery) |
 | Sky imagery as HiPS surveys (HEALPix tiles on the sky): the layer, a survey's manifest and coverage (MOC), the tile's orientation in its cell, Rubin's First Look, ESASky's JWST and Hubble (grey: no colour HiPS of them is reachable), the jpeg black key, the layers control's *Sky imagery*, its showpieces and the `sky:` token | [js/scene/sky/Sky.md](js/scene/sky/Sky.md): [the control](js/scene/sky/Sky.md#the-control), [showpieces](js/scene/sky/Sky.md#showpieces) |
+| Earth breathing (an app: the clock's day steps at solar noon over the seasons, `time:step=`; the time panel's toggle; `solarNoon.js`) | [design/URLs.md, Earth breathing](design/URLs.md#earth-breathing-breathing), [the time token](design/URLs.md#time-token) |
 | Suntan (an app: a concept mission to the Sun's surface on Parker Solar Probe's path): the mission model and how it's checked against Parker, its sensors (sunlight, temperatures by layer, wind, field), the panel; the research, trajectory numbers and STEP model in `design/suntan/` | [js/scene/suntan/Suntan.md](js/scene/suntan/Suntan.md) |
 | Other galaxies: SPARC's 175 discs from their parameters, their data and cross-match, levels of detail, rotation curves | [js/scene/Galaxies.md](js/scene/Galaxies.md); the model they share with the Milky Way, [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
 | Social previews via the portal proxy | [portal/DESIGN.md](portal/DESIGN.md) |
@@ -318,6 +319,22 @@ tried and dropped.
   Earth turns to the new time only when the frame animates. To compare
   with and without clouds, move the shell off its layer
   (`clouds.layers.set(31)`); its `visible` is rewritten every frame.
+- **Earth's months headless** (Planet.md, [the months blended by
+  day](js/scene/Planet.md#the-months-blended-by-day)): celestiary's
+  surface's `material.userData.monthMaps` (the `planet surface` mesh under
+  `c.scene.objects.earth`) has the two slots' months and `uniforms.uMonthMix`;
+  Cesium's is `c.ui.layers.bodies.earth.season` (`entries` with each month's
+  share and layers, `detail` the detail's strength).  A new month's share
+  grows over half a second of frames, so step frames after `setTime`.  To see
+  ion's detail without ion, stub `/v1/assets/2/endpoint` with `externalType:
+  'URL_TEMPLATE'` and a local tile server; `?detail=raw` shows the detail
+  layer's own tiles, as before the transfer, and `?detailWorker=0` makes
+  the detail tiles on the main thread (the fallback, the worker's bytes
+  exactly); a `PerformanceObserver` for `longtask` in an init script counts
+  what the tiles cost the main thread.  A shader mod that replaces a
+  chunk another mod also replaces (`map_fragment`: the small disc's) silently
+  drops the other's code, and the program fails to compile: collect
+  `Shader Error` from the console.
 - **Overlays and the chrome come in with the first load's reveal**
   (DESIGN.md [the first load](DESIGN.md#the-first-load)): held hidden
   until the scene is in, then faded in over about 1.3 s.  A probe that

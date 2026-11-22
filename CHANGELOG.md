@@ -54,6 +54,28 @@ unavailable for now); Rubin's Virgo field, also in the list, is in colour.
 - Permalink: [Open this view](https://celestiary.org/#sun@0,-90,23.604464Gm;t=9820.337596jd;cq=0.0036,-0.9956,0.0829,0.0436;fov=0.07deg;s=F;time:pause;sky:jwst-nircam)
 - Featured: yes
 
+### Earth breathing: an app that steps the clock from noon to noon, and watches the seasons go round
+
+Open *Earth breathing* from the apps drawer, or search for it, and the camera flies to Earth over Central Asia while the clock jumps a whole day at a time, always landing at local noon under the camera: the Sun stays put over the ground while a year runs by in 11 seconds.  The snow comes and goes, the land greens and browns, and the line between day and night rocks north and south with the seasons.  Its panel plays and pauses, sets the days a second and scrubs through the year; the time panel's *Step by day (solar noon)* does the same from wherever you are.  Links also keep the exact speed you give them now: a day a second stays a day a second.
+
+- Date: 2026-11-22
+- PR: [#379](https://github.com/celestiary/web/pull/379)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@50,69.8893,7Mm;t=9504.810753jd;cq=-0.5614,0.2476,0.1411,0.7769;fov=45deg;s=FY;time:step=1d,rate=32;apps:open,view=breathing)
+- Featured: yes
+- Kind: feature
+
+### Earth through the seasons: the months blend day by day, and close-up detail keeps the season
+
+Earth's surface used to jump at the start of each month; now each day shows a mix of the two nearest months' pictures, so speed up time and the steppe browns, the snow creeps south and the spring greens come back smoothly.  Flying low with Cesium's detail imagery, the ground keeps the season's colours: the close-up photographs (mostly taken in summer) now add only their fine texture, fields, rivers and relief, over the month's colour, so November's brown steppe no longer turns into a green square as you descend.
+
+- Date: 2026-11-22
+- PR: [#377](https://github.com/celestiary/web/pull/377)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@50,70,7Mm;t=9800.791707jd;cq=0.0734,-0.8925,-0.4162,-0.1574;fov=45deg;s=alpoLF)
+- Featured: yes
+- Kind: feature
+
 ### The Sun's glare stays with its disc, with no black pixels in it
 
 Looking at the Sun, its glare and its disc now move together as the view turns: before, the glare followed a frame behind, leaving a dark crescent beside the disc.  The few black pixels at the centre of the Sun's disc, seen from the ground with a wide field, are gone too.

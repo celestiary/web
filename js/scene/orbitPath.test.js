@@ -335,9 +335,10 @@ describe('orbit lines follow the computed paths', () => {
     budget(anim, Infinity)
     calls = 0
     anim.animateAtJD(g.root, JD_2026)
-    // The frame's, the centre and its neighbours for the velocity, and the
-    // samples (the centre's reused).
-    expect(calls).toBe(1 + 3 + JUPITER_SATURN_SAMPLES)
+    // The centre and its neighbours for the velocity, and the samples (the
+    // centre's reused); the frame's own places are the last frame's, at the
+    // same date (Animation.setDate).
+    expect(calls).toBe(3 + JUPITER_SATURN_SAMPLES)
     expect(anim.orbitPaths.lastBuildMs).toBeGreaterThan(0)
     expect(g.shape.line.visible).toBe(true)
   })

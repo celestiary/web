@@ -12,7 +12,7 @@ import {
   WebGLRenderTarget,
 } from 'three'
 import {
-  GROUND_LIGHT_ROWS, GROUND_LIGHT_W, MU_S_MIN, groundLightFor, groundMonth, monthsAlbedo, setBuiltAlbedo, setGroundLight,
+  GROUND_LIGHT_ROWS, GROUND_LIGHT_W, MU_S_MIN, groundBlend, groundLightFor, monthsAlbedo, setBuiltAlbedo, setGroundLight,
 } from './groundLight.js'
 
 
@@ -761,14 +761,15 @@ export function precomputeGroundLight(renderer, atmos, rGround, transmittanceRT,
  * disc's, its air and clouds in it: as the ground's it counts them twice
  * (composition.md, "The ground under the air").  Earth's is its drawn
  * ground's mean, the decoded Blue Marble's, one a month (textureMeans.json
- * `monthly`), at the simulation's month (groundLight.js groundMonth).
+ * `monthly`), at the simulation's months as the surface blends them
+ * (groundLight.js groundBlend).
  *
  * @param {object} atmos A body's reified atmosphere props
  * @param {number} bodyAlbedo The body's albedo (its JSON)
  * @returns {Vector3}
  */
 export function groundAlbedo(atmos, bodyAlbedo) {
-  const a = monthsAlbedo(atmos?.groundAlbedo ?? bodyAlbedo ?? 0, groundMonth(atmos))
+  const a = monthsAlbedo(atmos?.groundAlbedo ?? bodyAlbedo ?? 0, groundBlend(atmos))
   return Array.isArray(a) ? new Vector3(...a) : new Vector3(a, a, a)
 }
 

@@ -59,15 +59,15 @@ import {
   sampleGround,
   terrainHeight,
   tilesReady,
-  updateMonthlyImagery,
 } from './cesiumBody.js'
+import {updateSeason} from './season.js'
 import {latLngAltToBodyFixed} from '../../coords.js'
 import {perf} from '../../perf/perf.js'
 import {dataUrl} from '../../dataUrl.js'
 import {sanitizeCredits} from '../../cesium-guest/credits.js'
 import {addCredit, removeCredit} from '../../credits.js'
 import {creditGibs} from '../gibs.js'
-import {monthOfJulianDay} from '../monthly.js'
+import {monthBlendOfJulianDay, monthOfJulianDay} from '../monthly.js'
 import {GUEST_VERSION, guestOptions} from '../../cesium-guest/origins.js'
 import {SCREEN_STEP, sceneOfScreen} from '../screen.js'
 
@@ -1248,6 +1248,7 @@ export default class CesiumLayers {
       distanceScale: distanceScale(heightM),
       sunDirection: sunLightDirectionEcef(node.matrixWorld, this._sunPos),
       month: this._month(),
+      monthBlend: this._monthBlend(),
       earthshine: CESIUM_BODIES[name].earthshine ? this._earthshineOf(node) : null,
     }
   }
@@ -1794,15 +1795,25 @@ export default class CesiumLayers {
 
 
   /**
-   * Keep a body's monthly base imagery on the simulation date's month.  The
-   * new month's layer goes in above the old one, which is removed once the
-   * globe's tiles are in again, so the globe never shows without imagery.
+   * @returns {{a: number, b: number, w: number}} The two months the
+   *   simulation date falls between, and the share of the second
+   *   (monthly.js); today's without a clock
+   */
+  _monthBlend() {
+    const jd = this.time?.simTimeJulianDay() ?? ((Date.now() / 864e5) + 2440587.5)
+    return monthBlendOfJulianDay(jd)
+  }
+
+
+  /**
+   * Keep a body's months on the blend (season.js updateSeason).
    *
    * @param {object} body
    * @param {object} config
+   * @param {number} [now] ms
    */
-  _updateMonthlyImagery(body, config) {
-    updateMonthlyImagery(body, config, this._month())
+  _updateSeason(body, config, now) {
+    updateSeason(body, config, this._monthBlend(), now)
   }
 
 
