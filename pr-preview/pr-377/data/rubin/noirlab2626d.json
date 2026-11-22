@@ -1,0 +1,96 @@
+{
+ "id": "noirlab2626d",
+ "title": "Rubin's discovery image of 2026 ED138",
+ "source": "https://noirlab.edu/public/images/noirlab2626d/",
+ "credit": "NSF–DOE Vera C. Rubin Observatory/NOIRLab/SLAC/AURA; image processing M. Jurić (UW), D. de Martin & M. Zamani (NSF NOIRLab)",
+ "creditNote": "Tiled and reprojected by celestiary.",
+ "licence": "CC BY 4.0",
+ "licenceUrl": "https://creativecommons.org/licenses/by/4.0/",
+ "about": "A composite of the 30 visits over 20 nights, 4 March to 11 July 2026, not one night's frame.",
+ "frame": "ICRS",
+ "colorSpace": "srgb",
+ "tiles": {
+  "url": "large/rubin/noirlab2626d/{level}/{x}_{y}.jpg",
+  "tileSize": 512,
+  "fullLevel": 7,
+  "levels": [
+   {
+    "level": 0,
+    "width": 259,
+    "height": 173,
+    "cols": 1,
+    "rows": 1
+   },
+   {
+    "level": 1,
+    "width": 517,
+    "height": 345,
+    "cols": 2,
+    "rows": 1
+   },
+   {
+    "level": 2,
+    "width": 1034,
+    "height": 690,
+    "cols": 3,
+    "rows": 2
+   },
+   {
+    "level": 3,
+    "width": 2068,
+    "height": 1379,
+    "cols": 5,
+    "rows": 3
+   },
+   {
+    "level": 4,
+    "width": 4135,
+    "height": 2757,
+    "cols": 9,
+    "rows": 6
+   },
+   {
+    "level": 5,
+    "width": 8269,
+    "height": 5513,
+    "cols": 17,
+    "rows": 11
+   }
+  ]
+ },
+ "wcs": {
+  "ctype": [
+   "RA---TAN",
+   "DEC--TAN"
+  ],
+  "crval": [
+   274.26429971287035,
+   -42.77702611022246
+  ],
+  "crpix": [
+   16537.49999999972,
+   11025.000000000175
+  ],
+  "cd": [
+   [
+    -5.081180493911502e-05,
+    2.2483817593537853e-05
+   ],
+   [
+    -2.2483342761211207e-05,
+    -5.081305379877778e-05
+   ]
+  ],
+  "pixels": "0-based, x right, y down, a pixel's centre at integer + 0.5, at full resolution",
+  "width": 33075,
+  "height": 22050,
+  "scaleArcsec": 0.20003222252313094,
+  "fit": {
+   "stars": 567,
+   "rmsArcsec": 0.601,
+   "catalogue": "Gaia DR3, G < 12.5",
+   "detectedAt": "1/8 resolution",
+   "tool": "tools/rubin/solveWcs.py"
+  }
+ }
+}
