@@ -1,6 +1,7 @@
 import {BufferGeometry, Float32BufferAttribute, Group, Mesh, Quaternion, TextureLoader, Vector3} from 'three'
 import {angle, applyTransposed, cellGrid, cellsInDisc, formatOrder, frameMatrix, newCoverage, selectOrder,
   tilePath} from './hips.js'
+import {noDataCleared} from './noData.js'
 import {TILE_RENDER_ORDER, disposeTileMesh, newTileMaterial, prepareTileTexture} from './tileMaterial.js'
 
 
@@ -83,13 +84,16 @@ export default class HipsLayer extends Group {
    * @param {(url: string) => Promise<object>} [opts.loadTexture] A three Texture's promise
    * @param {boolean} [opts.webp] Whether webp tiles may be asked for
    * @param {(drawn: boolean) => void} [opts.onDrawn] When the first tile shows, and when the last goes
+   * @param {Function} [opts.clearNoData] noData.js's noDataCleared, for an inverted survey's tiles
    */
-  constructor({survey, view, sceneReferred = null, loadTexture = null, webp = true, onDrawn = null}) {
+  constructor({survey, view, sceneReferred = null, loadTexture = null, webp = true, onDrawn = null,
+    clearNoData = noDataCleared}) {
     super()
     this.name = `hips ${survey.id}`
     this.survey = survey
     this.view = view
     this.sceneReferred = sceneReferred
+    this.clearNoData = clearNoData
     this.loadTexture = loadTexture ?? ((url) => {
       const loader = new TextureLoader()
       loader.setCrossOrigin('anonymous')
@@ -262,8 +266,13 @@ export default class HipsLayer extends Group {
           // The first service failed where this one answered: ask this one first from now on.
           this.serviceIndex = order[k]
         }
-        const material = newTileMaterial(this.sceneReferred, tileKey(this.survey))
-        material.uniforms.map.value = prepareTileTexture(texture)
+        // A negative's black is no data or a saturated core: told apart
+        // from the tile's pixels, the no data made clear (noData.js), and
+        // no key then; where the pixels can't be read, the key as before.
+        const look = tileKey(this.survey)
+        const cleared = look.invert ? this.clearNoData(texture, {black: this.survey.keyBlack?.[0]}) : null
+        const material = newTileMaterial(this.sceneReferred, cleared ? {invert: true} : look)
+        material.uniforms.map.value = prepareTileTexture(cleared ?? texture)
         const mesh = new Mesh(tileGeometry(t.order, t.pix, this.toScene), material)
         mesh.name = `hips ${this.survey.id} ${key}`
         mesh.frustumCulled = false

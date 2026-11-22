@@ -226,11 +226,28 @@ within 4 px of a no-data block (a run of exact zeros) take values 1 to 16
 own sky, served dark-on-light, is 100 counts and more.  So a manifest
 gives its own ramp in counts, `"keyBlack": [16, 24]` (clear to 16, opaque
 from 24: `HipsLayer.js` `tileKey`), and `"invert": true` shows the tile's
-negative after the key, which reads the texel as served.  The cost: a
-saturated star or nucleus, 0 as served (white in the negative), is keyed
-too, so its core shows what's under it (measured: Eta Carinae in WFPC2,
-below); a few hundred pixels a 512² tile at M51's core.  Telling those from
-no data needs the neighbourhood, not the texel.
+negative after the key, which reads the texel as served.
+
+### Saturated cores
+
+A saturated star or nucleus is 0 as served too (white in the negative), and
+the key cut it out with the no data: the Sombrero's nucleus and the bright
+of its bulge showed the sky under them, in patches that changed with the
+order (the maintainer's look at the preview), and so did Eta Carinae's core
+in WFPC2.  The texel can't tell the two; its neighbourhood can.  So an
+inverted survey's tile is read once as it loads (`noData.js`
+`clearNoData`, 3 to 18 ms a 512² tile): each connected black region (16
+counts and under) is a saturated core if the data 2 px out from its edge
+has a median under 72 counts, the dark of a bright object (the survey's sky
+is 100 and more), or if it is under 100 px and clear of the tile's edge (a
+star's core); otherwise it is no data, widened 4 px for the rim the blend
+at the data's edge makes in the negative, and given alpha 0 over white.
+The material then draws the tile by its alpha, with no key.  A tile black
+all over is no data: inside a core wider than a tile, the coarser tile
+drawn under it (3 orders up) holds the core whole.  Where the pixels can't
+be read (no DOM), the key as before.  Checked on ACS's tiles of the
+Sombrero at orders 8 to 14: the no data clear (208,241 px of the order-8
+tile), the nucleus and the bulge's cores kept (7,967 px at order 10).
 
 ### Showpieces
 
