@@ -258,8 +258,9 @@ describe('ion\'s detail over the months (season.js addDetail)', () => {
     expect(list[6]).toBe(night)
     expect(d7.options).toEqual({minimumTerrainLevel: config.detailFromLevel})
     Cesium.ion.settle.resolve(inner())
-    await settle()
-    await settle()
+    // The provider waits on ion and on the detail's chunk, a dynamic import
+    // that a busy machine (CI) takes longer than two ticks to load.
+    await d7.loaded
     expect(d7.provider.lowLevel).toBe(4)
     for (let t = 16; t < 4000; t += 16) {
       updateSeason(body, config, blend, t)
