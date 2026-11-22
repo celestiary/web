@@ -1043,12 +1043,62 @@ colour (`ringcolor.png`) is a picture, decoded ([rings.md](rings/rings.md)).
   MB in all), and can go once nothing else reads them.
   Same −180° left edge as before.  NASA has no June: it's May and July
   blended.  `earth/index.json` `texture_monthly` makes the map follow the
-  simulation date's month (`monthly.js`, `Planet.monthlyMap`).  Earth's
+  simulation date, two months blended by the day (`monthly.js`,
+  `monthMaps.js`, `Planet.monthlyMap`; [below](#the-months-blended-by-day)).  Earth's
   atmosphere `sunIntensity` was 30, matched to Cesium's Earth over the same
   imagery (median ratio 1.00 over the disc from 20,000 km; at 60 the haze
   made celestiary's Earth ~1.7x as bright, and the swap to Cesium darkened
   it); it is 21 since the atmosphere pass integrates multiple scattering
   (composition.md), re-fitted to hold the sky's luma.
+
+#### The months blended by day
+
+Each month's Blue Marble is a mosaic of that month, so it is taken as the
+month's middle, and a date between two middles shows the two mixed by the
+time between them (`monthBlendOfJulianDay`): the 16th of a 31-day month at
+noon is that month alone, its 1st about half the month before (June's middle
+is the 16th at 00:00, July's the 16th at 12:00, so the 1st of July is 15 /
+30.5 of July).  Before, the map stepped at each month's first, and a
+timelapse over a season jumped twelve times a year; now the steppe browns and
+the snow comes down through the autumn without a step.  The calendar month
+is the heavier of the two but for hours round its first, where the two weigh
+about the same.
+
+- **celestiary's Earth** (`monthMaps.js`): two textures, the material's
+  `map` and a second, mixed in the surface shader's map sample (three's
+  `map_fragment`, `monthMapShaderMod`), in linear light (both decoded from
+  sRGB as sampled).  Each holds a month; when the blend moves to a month
+  neither holds, the one no longer shown takes it, so a timelapse loads and
+  uploads each month once, as before.
+- **No jump when a map arrives.**  A month's shown share moves toward its
+  share of the blend by at most `MONTH_FADE_PER_S` (2) a second, and is
+  wanted at 0 until its picture is in (`stepMonthShares`): a month arriving
+  fades in over a quarter to half a second, and a timelapse slower than two
+  months a second follows the blend exactly.  After a jump in date, the
+  months shown before stay until one of the new blend's is in.  The first
+  map over the stand-in shows at once, as it did.
+- **Loads.**  The heavier month is fetched at once, the one picture the
+  first load fetched before; the lighter only once the scene is on screen
+  (`Scene.revealed`) and its share is over `LIGHTER_MIN` (2%), so the
+  homepage's first load is unchanged and a date near a month's middle never
+  fetches the neighbour.  Both through `sharedImage.js`, so Cesium's base
+  layers and the clouds take the same downloads.
+- **Cesium's globe** blends the same two months by the same shares, as two
+  stacks of imagery layers (CESIUM.md, [Data](../../CESIUM.md#data)).
+- **The ground under the air** (`groundLight.js`): its albedo is the two
+  months' means mixed by the blend's weight (the mean of the mix is the mix of
+  the means), and the multiple scattering is made again only when that moves
+  past `GROUND_ALBEDO_REBUILD` (0.004) in a channel, as before: from
+  October's middle to November's (0.011 apart in blue) the tables are made
+  twice, where the step at the 1st made them once; three times at most (May
+  to June, 0.014), and none from July to August (0.0008).
+- **The clouds' unmixing** ([above](#from-a-picture-to-coverage-unmixing-over-the-blue-marble))
+  stays against the day's calendar month's Blue Marble alone: a day's map is
+  built once, and the month's picture is the heavier part of what the
+  surface shows but for the hours round the first, where the blend is
+  about half each.  Unmixing against the blend would need both months decoded
+  for each day built (two 4096 × 2048 decodes), for a ground off by at most
+  half a month's change.
 
 #### One fetch of the month's Blue Marble
 

@@ -1,6 +1,27 @@
 {
   "entries": [
     {
+      "id": "2026-11-22-earth-through-the-seasons-the-months-blend-day",
+      "date": "2026-11-22",
+      "headline": "Earth through the seasons: the months blend day by day, and close-up detail keeps the season",
+      "text": "Earth's surface used to jump at the start of each month; now each day shows a mix of the two nearest months' pictures, so speed up time and the steppe browns, the snow creeps south and the spring greens come back smoothly.  Flying low with Cesium's detail imagery, the ground keeps the season's colours: the close-up photographs (mostly taken in summer) now add only their fine texture, fields, rivers and relief, over the month's colour, so November's brown steppe no longer turns into a green square as you descend.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 377,
+          "url": "https://github.com/celestiary/web/pull/377"
+        }
+      ],
+      "epic": {
+        "number": 110,
+        "title": "Earth appearance parity across the Cesium swap",
+        "url": "https://github.com/celestiary/web/issues/110"
+      },
+      "permalink": "#sun/earth@50,70,7Mm;t=9800.791707jd;cq=0.0734,-0.8925,-0.4162,-0.1574;fov=45deg;s=alpoLF",
+      "image": null,
+      "featured": true
+    },
+    {
       "id": "2026-11-22-the-sun-s-glare-stays-with-its-disc-with-no",
       "date": "2026-11-22",
       "headline": "The Sun's glare stays with its disc, with no black pixels in it",

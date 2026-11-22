@@ -39,32 +39,42 @@ export const GROUND_ALBEDO_REBUILD = 0.004
 
 /**
  * @param {object} atmos
- * @param {number} month 1 to 12
+ * @param {number|{a: number, b: number, w: number}} month 1 to 12, or the
+ *   blend of two the surface shows (monthly.js monthBlendOfJulianDay)
  */
 export function setGroundMonth(atmos, month) {
-  months.set(atmos, month)
+  months.set(atmos, typeof month === 'number' ? {a: month, b: month, w: 0} : month)
 }
 
 
 /**
  * @param {object} [atmos]
- * @returns {number} The body's month, 1 (January) until one is set
+ * @returns {{a: number, b: number, w: number}} The body's months as blended,
+ *   January alone until one is set
  */
-export function groundMonth(atmos) {
-  return months.get(atmos) ?? 1
+export function groundBlend(atmos) {
+  return months.get(atmos) ?? {a: 1, b: 1, w: 0}
 }
 
 
 /**
  * The atmosphere's `groundAlbedo` at the month: one number, [r, g, b], or
- * twelve of either, January first.
+ * twelve of either, January first.  Twelve are blended as the surface's
+ * maps are (the mean of a mix is the mix of the means).
  *
  * @param {number|Array} a
- * @param {number} month 1 to 12
+ * @param {number|{a: number, b: number, w: number}} month 1 to 12, or a blend
  * @returns {Array<number>|number}
  */
 export function monthsAlbedo(a, month) {
-  return Array.isArray(a) && a.length === 12 ? a[month - 1] : a
+  if (!(Array.isArray(a) && a.length === 12)) {
+    return a
+  }
+  const blend = typeof month === 'number' ? {a: month, b: month, w: 0} : month
+  const from = a[blend.a - 1]
+  const to = a[blend.b - 1]
+  const mix = (x, y) => x + ((y - x) * blend.w)
+  return Array.isArray(from) ? from.map((v, i) => mix(v, to[i])) : mix(from, to)
 }
 
 
