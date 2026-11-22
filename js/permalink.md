@@ -199,9 +199,11 @@ On page load from a permalink URL, or a new one in the address bar (`Celestiary.
 ### Clock, tracking and following
 
 The clock is the state token `time:` (design/URLs.md [Time Token](../design/URLs.md#time-token)):
-`pause` and `rate=<signed multiplier>`, left out when running at real time.  Decoded with
-`decodeTimeToken(decodePermalink(...).tokens.time)`; restored by `Celestiary._restoreClock` with
-`Time.setRate` and `Time.setPaused`, after `t` is set, on every restore of a view (a link without
+`pause`, `rate=<signed multiplier>` (exact, not snapped to a power of two) and `step=<N>d` (day
+steps at solar noon, the rate then in days a second), left out when running continuously at real
+time.  Decoded with `decodeTimeToken(decodePermalink(...).tokens.time)`; restored by
+`Celestiary._restoreClock` with `Time.setStepDays` (not landing: the link's `t` is a noon
+already), `Time.setRate` and `Time.setPaused`, after `t` is set, on every restore of a view (a link without
 the token runs at real time).  `Time.onTimeScaleChange` (rate, pause, date set) schedules the
 link's rewrite.
 

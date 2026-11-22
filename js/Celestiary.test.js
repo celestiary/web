@@ -8,6 +8,7 @@
  * Mocked: ThreeUI (no WebGL), ControlPanel, Keys, Loader (filesystem),
  *         scene/SpriteSheet (no canvas), vsop (fixed coordinates).
  */
+import {BREATHING_VIEW, stopBreathing} from './store/breathingApp.js'
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock, setSystemTime} from 'bun:test'
 import {readFileSync} from 'fs'
 import {descriptorUrl} from './bodyBundle.js'
@@ -1362,6 +1363,37 @@ describe('the target in the link', () => {
       const back = await open(app.permalink())
       expect(back.time.isPaused).toBe(false)
       expect(back.time.timeScale).toBe(-8)
+      clearTimeout(app._permalinkTimer)
+    })
+
+    it('a link\'s exact rate and day steps come back, and are written as they are', async () => {
+      const app = await open(`${TEST_FRAGMENT};time:rate=86400`)
+      expect(app.time.timeScale).toBe(86400)
+      expect(app.time.timeScaleSteps).toBe(16)
+      expect(app.permalink()).toContain(';time:rate=86400')
+      const stepped = await open(`${TEST_FRAGMENT};time:pause,step=1d,rate=30`)
+      expect(stepped.time.stepDays).toBe(1)
+      expect(stepped.time.timeScale).toBe(30 * 86400)
+      expect(stepped.time.isPaused).toBe(true)
+      expect(stepped.permalink()).toContain(';time:pause,step=1d,rate=30')
+      // The steps' noon: Earth only; the clock's own date elsewhere.
+      expect(stepped.time.noonNear).toBeInstanceOf(Function)
+      // The reset leaves them for real time, and the link says nothing.
+      stepped.keys.onKeyDown({key: '\\'})
+      expect(stepped.time.stepDays).toBe(0)
+      expect(stepped.permalink()).toContain(';time:pause')
+      expect(stepped.permalink()).not.toContain('step=')
+      clearTimeout(app._permalinkTimer)
+      clearTimeout(stepped._permalinkTimer)
+    })
+
+    it('the Earth breathing app\'s view steps by day, and its stop returns to real time', async () => {
+      const app = await open(BREATHING_VIEW)
+      expect([app.time.stepDays, app.time.timeScale, app.time.isPaused]).toEqual([1, 32 * 86400, false])
+      expect(app.time.noonNear).toBeInstanceOf(Function)
+      stopBreathing(app)
+      expect([app.time.stepDays, app.time.timeScale]).toEqual([0, 1])
+      expect(app.permalink()).not.toContain('time:')
       clearTimeout(app._permalinkTimer)
     })
 

@@ -135,6 +135,11 @@ export function decodeSettings(s) {
 }
 
 
+// The `time:` token's day steps: `step=1d`, and its rate in days a second.
+const SECONDS_PER_DAY = 86400
+const DAY_SUFFIX = 'd'
+
+
 /**
  * Trim a float to at most 4 decimal places, stripping trailing zeros.
  *
@@ -476,17 +481,26 @@ export function formatTokenValue(flags, named = {}) {
 /**
  * The `time:` token (design/URLs.md): the clock when it isn't running at
  * real time.  `pause` is a flag; `rate=N` is the signed multiplier on real
- * time (`rate=8` eight times, `rate=-2` backwards at twice), which Time
- * keeps at powers of two.  The rate is the one in force: a paused clock
- * keeps it, to resume at.  Left out (null) when running at 1.
+ * time (`rate=8` eight times, `rate=-2` backwards at twice, `rate=86400` a
+ * day a second), exactly as Time has it, to 4 decimal places.  The rate is
+ * the one in force: a paused clock keeps it, to resume at.  `step=Nd` is
+ * day steps (Time.setStepDays): the clock jumps N days at a time, to solar
+ * noon at the view's meridian, and `rate` is then in days a second, always
+ * written.  Left out (null) when running continuously at 1.
  *
  * @param {boolean} paused
- * @param {number} rate Time.timeScale
+ * @param {number} rate Time.timeScale, a multiplier on real time
+ * @param {number} [stepDays] Time.stepDays: 0 continuous
  * @returns {?string}
  */
-export function encodeTimeToken(paused, rate) {
-  const r = Number.isFinite(rate) && rate !== 0 ? Math.round(rate) : 1
-  const value = formatTokenValue(paused ? ['pause'] : [], {rate: r === 1 ? null : r})
+export function encodeTimeToken(paused, rate, stepDays = 0) {
+  const step = Number.isFinite(stepDays) && stepDays >= 1 ? Math.round(stepDays) : 0
+  const scale = Number.isFinite(rate) && rate !== 0 ? rate : 1
+  const r = trimFloat(step ? scale / SECONDS_PER_DAY : scale)
+  const value = formatTokenValue(paused ? ['pause'] : [], {
+    step: step ? `${step}${DAY_SUFFIX}` : null,
+    rate: !step && (r === '1' || r === '0') ? null : r,
+  })
   return value || null
 }
 
@@ -496,13 +510,19 @@ export function encodeTimeToken(paused, rate) {
  * defaults, running at real time.
  *
  * @param {string} [value] The token's value, undefined if the link has none
- * @returns {{paused: boolean, rate: number}} `rate` as written, 1 if it is
- *   absent, zero or not a number (Time.setRate holds it to what it runs at)
+ * @returns {{paused: boolean, rate: number, stepDays: number}} `rate` as
+ *   written, a multiplier on real time (a day-step link's days a second
+ *   taken to it), 1 if it is absent, zero or not a number (0 with day
+ *   steps: Time.setRate's default for them); `stepDays`
+ *   0 unless `step=` is a whole number of days, at least 1
  */
 export function decodeTimeToken(value) {
   const {flags, named} = parseTokenValue(value)
-  const rate = parseFloat(named.rate)
-  return {paused: flags.includes('pause'), rate: Number.isFinite(rate) && rate !== 0 ? rate : 1}
+  const m = /^(\d+)d$/.exec(named.step ?? '')
+  const stepDays = m && Number(m[1]) >= 1 ? Number(m[1]) : 0
+  const parsed = parseFloat(named.rate)
+  const rate = Number.isFinite(parsed) && parsed !== 0 ? parsed * (stepDays ? SECONDS_PER_DAY : 1) : (stepDays ? 0 : 1)
+  return {paused: flags.includes('pause'), rate, stepDays}
 }
 
 

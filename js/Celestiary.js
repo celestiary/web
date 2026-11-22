@@ -38,6 +38,7 @@ import {HOME_HISTORY_KEY, isHomeEntry, isHomepage} from './home'
 import {HOME_TOUR_LOOP_FADE_MS, HOME_TOUR_STILL_MS, homeTour} from './homeTour'
 import {ease} from './tour'
 import {formatTonight, lowPrecisionSun, resolveLocation, tonightTime} from './tonight'
+import {solarNoonNear} from './solarNoon'
 import {hideLoading} from './loading'
 import {setCreditsChrome} from './credits.js'
 import {clampEv, stepEv} from './scene/evCompensation'
@@ -258,6 +259,12 @@ export default class Celestiary {
     this._restoring = false
     // The link holds the clock's pause, rate and date.
     this.time.onTimeScaleChange(() => this._schedulePermalinkUpdate())
+    // Day steps land at solar noon under the camera (_noonNear), and turn
+    // the camera with Earth while they run (_onDaySteps).
+    this.time.noonNear = (ms) => this._noonNear(ms)
+    this._daySteps = 0
+    this._daySpun = false
+    this.time.onTimeScaleChange(() => this._onDaySteps())
     // Callbacks waiting for a body to load, by name (_loadBody).
     this._bodyWaiters = {}
     // AR (mobile sky-view).  Constructed lazily — most users won't enter
@@ -1024,7 +1031,9 @@ export default class Celestiary {
    * @param {object} pl The decoded link
    */
   _restoreClock(pl) {
-    const {paused, rate} = decodeTimeToken(pl.tokens.time)
+    const {paused, rate, stepDays} = decodeTimeToken(pl.tokens.time)
+    // The link's date is a noon already, and the camera isn't placed yet.
+    this.time.setStepDays(stepDays, {land: false})
     this.time.setRate(rate)
     this.time.setPaused(paused)
     // The time panel's React state.
@@ -2395,6 +2404,78 @@ export default class Celestiary {
 
 
   /**
+   * The solar noon nearest a date at the view's meridian, for the clock's
+   * day steps (Time.setStepDays, solarNoon.js): the longitude under the
+   * camera, its nadir on Earth (the link's `lng`), as the frame before the
+   * step has it.  The camera turns with Earth while the steps run
+   * (_onDaySteps), so that meridian stays under it, and moving the camera
+   * moves the noon with it.  Earth only: with the camera at another body,
+   * or none, the steps are whole days of the clock.
+   *
+   * @param {number} ms Unix epoch milliseconds
+   * @returns {number}
+   */
+  _noonNear(ms) {
+    const frame = this._cameraFrame()
+    if (!frame || frame.path !== this.loader.pathByName.earth) {
+      return ms
+    }
+    // A link's steps start before its camera is hung (_restoreClock runs
+    // before _restoreView), so the turning _onDaySteps asks for is asked
+    // again here, where the camera now rides Earth's orbit.
+    this._turnForDaySteps()
+    // Turning asked for and not yet hung (syncFollow hangs it after this
+    // frame's animation): the step waits, as from the orbit the ground
+    // slips a degree a day under the camera.
+    const mode = this.scene.cameraMode?.()
+    if (mode?.mode === 'orbit' && this.scene._spinHold === 'on') {
+      return this.time.simTime
+    }
+    const camWorldPos = this.ui.camera.getWorldPosition(new THREE.Vector3())
+    const {lng} = worldToLatLngAlt(camWorldPos, frame.pos, frame.quat, frame.radius)
+    return Number.isFinite(lng) ? solarNoonNear(ms, lng, this._sunAt()) : ms
+  }
+
+
+  /**
+   * Day steps begun or ended (Time.onTimeScaleChange): riding Earth's orbit
+   * the ground turns under the camera by a degree a day against the Sun, so
+   * a year of noons would turn the globe round once in view; turning with
+   * it (Scene.setCameraMode) holds the ground still, and the Sun over it.
+   * Ended, the height chooses again, if the steps chose turning.
+   */
+  _onDaySteps() {
+    const steps = this.time.stepDays
+    if ((steps > 0) === (this._daySteps > 0)) {
+      this._daySteps = steps
+      return
+    }
+    this._daySteps = steps
+    if (steps > 0) {
+      this._turnForDaySteps()
+    } else if (this._daySpun) {
+      this._daySpun = false
+      if (this.scene.cameraMode?.().mode === 'turning') {
+        this.scene.setCameraMode('auto')
+      }
+    }
+  }
+
+
+  /**
+   * While the clock steps by days, turn with Earth if riding its orbit by
+   * the height's choice (_onDaySteps); riding held by hand (`y`) is left.
+   */
+  _turnForDaySteps() {
+    const mode = this.scene.cameraMode?.()
+    if (this.time.stepDays > 0 && mode?.mode === 'orbit' && mode.auto && mode.body === 'earth') {
+      this.scene.setCameraMode('turning')
+      this._daySpun = true
+    }
+  }
+
+
+  /**
    * The homepage's "Tonight's sky" card (tonight.js): the visitor's sky
    * from the ground where they are, now if it's night, else at this
    * evening's astronomical dusk.  Their location is asked for here, on the
@@ -3535,7 +3616,7 @@ export default class Celestiary {
     // lit on the bodies' orbits (`orbits:`), the optional layers on
     // (`layers:`), then the drawer and the apps.
     const tokens = {
-      time: encodeTimeToken(this.time.isPaused, this.time.timeScale),
+      time: encodeTimeToken(this.time.isPaused, this.time.timeScale, this.time.stepDays),
       info: encodeInfoToken(this.controlPanel.uiState),
       orbits: encodeOrbitsToken(this.scene.getOrbitElements(), this.scene.getOrbitFade()),
       periodic: encodePeriodicToken(this.scene.getPeriodic(), this.scene.getPeriodicFrame(),

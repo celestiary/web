@@ -198,7 +198,13 @@ export function newCloudShell(groundRadius, cloudMap, {ready = () => true, volum
   shell.preAnimCb = (time) => {
     credit(gibsDrawn)
     gibsDrawn = false
-    cloudMap.update(time.simTime)
+    // While the clock steps by days (Time.setStepDays) the clouds hold the
+    // day they had: a day a frame never settles (CloudMap SETTLE_MS), but at
+    // a day a second one could, and start a day's tiles each second.
+    // Paused, the day's clouds load as ever.
+    if (!(time.stepDays > 0 && !time.isPaused)) {
+      cloudMap.update(time.simTime)
+    }
     volume?.update()
     shell.visible = ready()
     // The first map fades in from here (CloudMap.gain), not from when it

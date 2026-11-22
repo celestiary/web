@@ -1,6 +1,8 @@
 import {afterEach, describe, expect, it, spyOn} from 'bun:test'
 import Time, {
+  DEFAULT_STEP_DAYS_PER_SEC,
   MAX_SIM_TIME_MS,
+  MAX_STEP_DAY_STEPS,
   MAX_TIME_SCALE_STEPS,
   MIN_SIM_TIME_MS,
   SUPPORTED_YEARS_FROM_J2000,
@@ -258,16 +260,47 @@ describe('setRate and setPaused (a link\'s clock)', () => {
     time.setRate(-16)
     time.changeTimeScale(-1)
     expect(time.timeScale).toBe(-32)
+    // From an exact rate, by powers of two from its nearest step.
+    time.setRate(86400)
+    time.changeTimeScale(1)
+    expect(time.timeScale).toBe(2 ** 17)
+    time.setRate(86400)
+    time.changeTimeScale(-1)
+    expect(time.timeScale).toBe(2 ** 15)
+    time.setRate(86400)
+    time.invertTimeScale()
+    expect([time.timeScale, time.timeScaleSteps]).toEqual([-86400, -16])
   })
 
-  it('snaps to a power of two, within the range, and a bad one is real time', () => {
+  it('runs at the exact rate', () => {
+    let now = Date.UTC(2026, 8, 30)
+    const nowSpy = spyOn(Date, 'now').mockImplementation(() => now)
+    try {
+      const time = new Time
+      time.setRate(86400)
+      const start = time.simTime
+      now += 1000
+      time.updateTime()
+      expect(time.simTime - start).toBe(86400000)
+    } finally {
+      nowSpy.mockRestore()
+    }
+  })
+
+  it('is exact, within the range, its step the nearest, and a bad one is real time', () => {
     const time = new Time
     time.setRate(10)
-    expect(time.timeScale).toBe(8)
+    expect([time.timeScale, time.timeScaleSteps]).toEqual([10, 3])
+    time.setRate(86400)
+    expect([time.timeScale, time.timeScaleSteps]).toEqual([86400, 16])
+    time.setRate(-86400)
+    expect([time.timeScale, time.timeScaleSteps]).toEqual([-86400, -16])
     time.setRate(1e30)
     expect(time.timeScale).toBe(2 ** MAX_TIME_SCALE_STEPS)
+    time.setRate(-1e30)
+    expect(time.timeScale).toBe(-(2 ** MAX_TIME_SCALE_STEPS))
     time.setRate(0.2)
-    expect(time.timeScale).toBe(1)
+    expect([time.timeScale, time.timeScaleSteps]).toEqual([0.2, 0])
     for (const bad of [0, NaN, Infinity, undefined]) {
       time.setRate(8)
       time.setRate(bad)
@@ -297,5 +330,157 @@ describe('setRate and setPaused (a link\'s clock)', () => {
     time.onTimeScaleChange(() => heard++)
     time.setTime(0)
     expect(heard).toBe(1)
+  })
+})
+
+
+describe('day steps (setStepDays)', () => {
+  const DAY_MS = 86400000
+  let nowSpy = null
+  afterEach(() => {
+    nowSpy?.mockRestore()
+    nowSpy = null
+  })
+
+
+  /**
+   * A Time on a wall clock the test advances, whose "noon" is 12:00 UTC.
+   *
+   * @returns {{time: Time, frame: Function, noons: Array<number>}}
+   */
+  function stepClock() {
+    let now = Date.UTC(2026, 8, 30)
+    nowSpy = spyOn(Date, 'now').mockImplementation(() => now)
+    const time = new Time
+    time.setTime(Date.UTC(2026, 0, 1, 7, 30))
+    const noons = []
+    time.noonNear = (ms) => {
+      noons.push(ms)
+      return (Math.round((ms - (DAY_MS / 2)) / DAY_MS) * DAY_MS) + (DAY_MS / 2)
+    }
+    return {time, noons, frame: (ms) => {
+      now += ms
+      time.updateTime()
+    }}
+  }
+
+
+  it('lands at noon on entering, at DEFAULT_STEP_DAYS_PER_SEC from a slower rate, and says so', () => {
+    const {time} = stepClock()
+    let heard = 0
+    time.onTimeScaleChange(() => heard++)
+    time.setStepDays(1)
+    expect(time.simTime).toBe(Date.UTC(2026, 0, 1, 12))
+    expect(time.timeScale).toBe(DEFAULT_STEP_DAYS_PER_SEC * 86400)
+    expect(time.timeScaleSteps).toBe(Math.log2(DEFAULT_STEP_DAYS_PER_SEC))
+    expect(heard).toBe(1)
+    time.setStepDays(1)
+    expect(heard).toBe(1)
+  })
+
+  it('keeps a rate of a day a second or more, and a link\'s date (land: false)', () => {
+    const {time} = stepClock()
+    time.setRate(-3 * 86400)
+    const at = time.simTime
+    time.setStepDays(1, {land: false})
+    expect(time.simTime).toBe(at)
+    expect(time.timeScale).toBe(-3 * 86400)
+    expect(time.timeScaleSteps).toBe(-2)
+  })
+
+  it('steps whole days by the wall clock, each at noon, a frame stepping none or some', () => {
+    const {time, frame} = stepClock()
+    time.setStepDays(1)
+    time.setRate(30 * 86400)
+    const start = time.simTime
+    const seen = new Set
+    // Frames of 20 ms (Date.now is whole milliseconds): 0.6 of a day each.
+    for (let i = 0; i < 50; i++) {
+      frame(20)
+      expect((time.simTime - start) % DAY_MS).toBe(0)
+      seen.add(time.simTime)
+    }
+    expect(time.simTime - start).toBe(30 * DAY_MS)
+    // The start (the first frame's 0.6 of a day steps none) and 30 noons.
+    expect(seen.size).toBe(31)
+    // Backwards.
+    time.invertTimeScale()
+    frame(1000)
+    expect(time.simTime - start).toBe(0)
+  })
+
+  it('steps N days at a time', () => {
+    const {time, frame} = stepClock()
+    time.setStepDays(7)
+    time.setRate(14 * 86400)
+    const start = time.simTime
+    frame(400)
+    expect(time.simTime - start).toBe(0)
+    frame(200)
+    expect(time.simTime - start).toBe(7 * DAY_MS)
+    frame(400)
+    expect(time.simTime - start).toBe(14 * DAY_MS)
+  })
+
+  it('stands still paused, and whole days of the clock without a noon', () => {
+    const {time, frame} = stepClock()
+    time.setStepDays(1)
+    time.setPaused(true)
+    const start = time.simTime
+    frame(5000)
+    expect(time.simTime).toBe(start)
+    time.setPaused(false)
+    time.noonNear = null
+    time.setRate(86400)
+    frame(2000)
+    expect(time.simTime - start).toBe(2 * DAY_MS)
+  })
+
+  it('j, k and l change the days a second by powers of two', () => {
+    const {time} = stepClock()
+    time.setStepDays(1)
+    time.setRate(30 * 86400)
+    time.changeTimeScale(1)
+    expect(time.timeScale).toBe(64 * 86400)
+    time.changeTimeScale(-1)
+    time.changeTimeScale(-1)
+    expect(time.timeScale).toBe(16 * 86400)
+    time.invertTimeScale()
+    expect(time.timeScale).toBe(-16 * 86400)
+    for (let i = 0; i < 100; i++) {
+      time.changeTimeScale(1)
+    }
+    expect(time.timeScale).toBe((2 ** MAX_STEP_DAY_STEPS) * 86400)
+    expect(time.timeScale).toBeLessThanOrEqual(2 ** MAX_TIME_SCALE_STEPS)
+  })
+
+  it('leaving keeps the rate as a multiplier, and the reset and now leave it for real time', () => {
+    const {time, frame} = stepClock()
+    time.setStepDays(1)
+    time.setRate(30 * 86400)
+    time.setStepDays(0)
+    expect([time.stepDays, time.timeScale, time.timeScaleSteps]).toEqual([0, 30 * 86400, 21])
+    const start = time.simTime
+    frame(10)
+    // Continuous again.
+    expect(time.simTime - start).toBe(10 * 30 * 86400)
+    time.setStepDays(1)
+    time.changeTimeScale(0)
+    expect([time.stepDays, time.timeScale]).toEqual([0, 1])
+    time.setStepDays(1)
+    time.setTimeToNow()
+    expect([time.stepDays, time.timeScale]).toEqual([0, 1])
+  })
+
+  it('a bad rate while stepping is the default days a second', () => {
+    const {time} = stepClock()
+    time.setStepDays(1)
+    time.setRate(0)
+    expect(time.timeScale).toBe(DEFAULT_STEP_DAYS_PER_SEC * 86400)
+    for (const bad of [0, -1, NaN, 0.5]) {
+      time.setStepDays(bad)
+      expect(time.stepDays).toBe(0)
+      time.setStepDays(1)
+    }
   })
 })

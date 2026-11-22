@@ -285,7 +285,7 @@ for Jupiter by `texture_rotation` ([Body rotation](#body-rotation-iau-prime-meri
 4. Restore `camera.quaternion` — suppresses the `lookAt` that TrackballControls applies each frame, so camera orientation is owned by navigation tweens and user input
 5. `_applyAsymptoticZoom()` — remaps zoom to altitude space and adjusts `camera.near`
 6. `animationCb(scene)` → `Animation.animate(scene)`:
-   - `Time.updateTime()` advances simulation clock by `timeDelta * timeScale`
+   - `Time.updateTime()` advances simulation clock by `timeDelta * timeScale`, or while it steps by days (`Time.setStepDays`, the `time:` token's `step=`) by whole days, run up on the wall clock at `timeScale / 86400` days a second and each landed at local apparent solar noon under the camera (`Celestiary._noonNear`, `solarNoon.js`; [design/URLs.md, time token](design/URLs.md#time-token))
    - `planetCoords(julianDay)` gives the heliocentric XYZ of the 8 major planets: `vsop87c`'s, or before its chunk has loaded, the mean elements' (`planetsApprox.js`), or between them while it hands over ([before the ephemeris loads](#before-the-ephemeris-loads))
    - `updateMoon(julianDay)` computes the Moon's geocentric position (lunarTheory.js)
    - the J2000 → date precession rotation, for the mean elements and the IAU rotation models (`setDate`)
@@ -1640,6 +1640,10 @@ Thin MUI-based overlay panels:
   ([Colonization.md](js/scene/Colonization.md))
 - `SuntanApp` — the Suntan app's panel: a concept mission to the Sun's
   surface, its play controls and sensors ([Suntan.md](js/scene/suntan/Suntan.md))
+- `breathingApp.js` — the Earth breathing app's panel, a lazy chunk with its
+  dependencies handed in from `apps.jsx` (`BREATHING_DEPS`): the clock's day
+  steps at solar noon over the seasons ([design/URLs.md, Earth
+  breathing](design/URLs.md#earth-breathing-breathing))
 - `Settings` — keyboard shortcut reference
 - `About` — app info and star catalog stats
 - `CreditsFooter` — every attribution on screen in one line along the bottom,
@@ -1654,7 +1658,11 @@ Thin MUI-based overlay panels:
 
 Optional tools ("apps") live in a drawer on the right, opened by the
 Widgets button (top right).  `ui/apps.jsx` lists them: a name, an icon, a
-panel, and a `stop` that removes whatever the app added to the scene.
+panel, a `stop` that removes whatever the app added to the scene, and
+optionally a `start` the tray's tile runs on opening it (Earth breathing's
+flight to its view; a link that restores the app doesn't run it).  Human
+Expansion, Rubin Observatory, Suntan and Earth breathing; the search finds
+them by their views (`store/appViews.js`).
 State is `store/WidgetsSlice.js`, a pure reducer (tested without a DOM):
 
 - **Three states.** Closed; open, the drawer over the right of the canvas,
