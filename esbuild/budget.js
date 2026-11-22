@@ -238,7 +238,11 @@ export const RUNTIME_BUDGET = {
   // for the runs' spread.
   // #377's month blend (two map slots in the planet shader, about 3 KB
   // minified) with #378's sprite caps took a CI run to 1,039.0: 1,041.
-  ready: {requests: 28, kb: 1041},
+  // The compass (#361 step 3) and the layers control's sky imagery (#360:
+  // about 0.9 KB of it here, main 1,039.5 and this 1,040.4 on one machine)
+  // each fitted alone; together a CI run took 1,043.1: 1,045, for the runs'
+  // spread.
+  ready: {requests: 28, kb: 1045},
   // After #259: 39 requests, 3,918 KB.  Raised from #258's 29 requests:
   // the catalogue's faint tiers are 12 packs where stars.dat was one file,
   // by design (a deep link needs only its field's; DESIGN.md "The star
