@@ -47,7 +47,7 @@ import {balmerPerNm} from './emission.js'
 import {glareFieldWeight, glareFunction, glareRadiusDeg} from './glare.js'
 import {MS_PER_DAY, activityLevel, cyclesAt, sunspotNumber} from './solarCycle.js'
 import {newSolarWind} from './SolarWind.js'
-import {cmesAt, flaresAt, prominencesAt} from './solarEvents.js'
+import {cmeFront, cmesAt, flaresAt, prominencesAt} from './solarEvents.js'
 import {sunBodyQuaternion} from './sunFrame.js'
 import {generator, hash2} from './sunRandom.js'
 import {MAX_CMES, MAX_FILAMENTS, MAX_FLARES, MAX_REGIONS} from './limits.js'
@@ -512,8 +512,13 @@ export default class SunLayers {
         this._events(ms)
         this._lastEventMs = ms
       } else {
-        // Flares change in minutes: their phases every frame.
+        // Flares change in minutes: their phases every frame.  And the
+        // CMEs' fronts: on the step alone an eruption moved once every 30 s
+        // of the date, half a second apart at a minute a second.
         this.state.flares = flaresAt(ms, this.state.regions, this.seed, this.model)
+        for (const cme of this.state.cmes) {
+          cme.front = cmeFront(cme, ms)
+        }
       }
       this.ms = ms
     }

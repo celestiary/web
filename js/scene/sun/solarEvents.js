@@ -276,6 +276,20 @@ export function cmeRate(ms) {
 
 
 /**
+ * Where a CME's front is at a time: it leaves the surface at its launch and
+ * goes out at its speed.  Cheap, for every frame, where cmesAt (which draws
+ * the hours' CMEs again) is for a step of the date (SunLayers.update).
+ *
+ * @param {{launch: number, speed: number}} cme
+ * @param {number} ms UTC
+ * @returns {number} solar radii from the centre
+ */
+export function cmeFront(cme, ms) {
+  return 1 + (cme.speed * (ms - cme.launch) / 1000 / SUN_RADIUS_KM)
+}
+
+
+/**
  * The CMEs in flight at a time, out to CME_MAX_RADII.  Their sources are
  * drawn as the active regions' are (the cycle's spot zones) or from the
  * streamer belt, not tied to a particular region, so a CME in flight never
@@ -313,7 +327,7 @@ export function cmesAt(ms, seed = 0, star = null) {
       const lat = fromRegion ? hemisphere * Math.abs(zone.latitude + (zone.width * z)) :
         (v - 0.5) * 2 * (30 + (30 * Math.min(level, 1)))
       const source = {lat, lon: 360 * rng()}
-      const front = 1 + (speed * (ms - launch) / 1000 / SUN_RADIUS_KM)
+      const front = cmeFront({launch, speed}, ms)
       if (ms >= launch && front < CME_MAX_RADII) {
         out.push({launch, speed, width, mass, source, front})
       }

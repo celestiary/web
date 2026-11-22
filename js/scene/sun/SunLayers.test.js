@@ -1,10 +1,12 @@
 import {describe, expect, it} from 'bun:test'
+import {Quaternion} from 'three'
 import {SUN_DISC_RADIANCE} from '../exposure.js'
 import SunLayers, {VISIBLE_FLOOR, offDiscBrightest, viewFieldWeight, visibleRadius} from './SunLayers.js'
 import {EUV_VIEW, VIEW_EUV, VIEW_EYE} from './activityView.js'
 import {MAX_FILAMENTS} from './limits.js'
 import {CORONA_RADII} from './sun-shaders.js'
 import {newSolarWind, parkerLag} from './SolarWind.js'
+import {cmeFront} from './solarEvents.js'
 
 
 describe('the Sun\'s off-disc layers, by exposure', () => {
@@ -103,6 +105,25 @@ describe('the view the layers are drawn in', () => {
 
 
 describe('the CMEs\' pass', () => {
+  it('moves each CME\'s front every frame, not only when the date\'s events are stepped', () => {
+    const star = {props: {radius: {scalar: 6.957e8}}, color: [1, 1, 1], teff: 5772, surface: {quaternion: new Quaternion}}
+    const layers = new SunLayers(star, {activity: true})
+    const ms = Date.UTC(2024, 3, 17, 22, 15)
+    layers.update({simTime: ms})
+    const cmes = layers.state.cmes
+    expect(cmes.length).toBeGreaterThan(0)
+    const before = cmes.map((c) => c.front)
+    // A sixtieth of a second at 64 times: a second of the date, well inside the events' step.
+    layers.update({simTime: ms + 1000})
+    expect(layers.state.cmes).toBe(cmes)
+    cmes.forEach((c, i) => {
+      expect(c.front).toBeGreaterThan(before[i])
+      expect(c.front).toBeCloseTo(cmeFront(c, ms + 1000), 12)
+      // At its speed: km over the second, in solar radii.
+      expect(c.front - before[i]).toBeCloseTo(c.speed / 695700, 9)
+    })
+  })
+
   const star = () => ({props: {radius: {scalar: 6.957e8}}, color: [1, 1, 1], teff: 5772})
   const camera = {fov: 9, aspect: 16 / 9}
   const item = (front) => ({cme: {front}})
