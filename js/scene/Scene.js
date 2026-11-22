@@ -3655,6 +3655,16 @@ export default class Scene {
 
 
   /**
+   * @returns {boolean} Whether a sky survey's imagery is in the frame now
+   *   (a layer under the stellar frame with tiles drawn: sky/HipsLayer.js,
+   *   rubin/RubinImage.js): ThreeUi's wheel then changes the field
+   */
+  skyInView() {
+    return this.stellarFrame.children.some((o) => o.visible && o.drawnCount > 0)
+  }
+
+
+  /**
    * The sky surveys the layers control has on (the store's `skyOn`, the
    * `sky:` token): each one's layer held for the control (sky/install.js
    * skyLayers, shared with the Rubin app), and let go of when it's off.

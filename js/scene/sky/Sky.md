@@ -335,6 +335,29 @@ nights visit the First Look fields: the Trifid and Lagoon on 9 April 2026
 (visit 734 at RA 271.6°, Dec −24°) and in late June and July, the Virgo
 field in April and May.
 
+## Zooming a picture at infinity
+
+A survey's picture is on the sky like the stars: moving the camera
+doesn't change it, only the field of view does.  The wheel, and a
+trackpad's two fingers, move the camera (the controls' zoom), so over a
+survey they did nothing a visitor could see, where the `,` and `.` keys
+narrowed and widened the field (the maintainer's report on #370's
+preview: "i can't zoom").  So **while a survey's tiles are in the frame**
+(`Scene.skyInView`: a layer under the stellar frame with tiles drawn, a
+HiPS layer's or the discovery image's) **the wheel changes the field**
+(`ThreeUi.wheelField`: a factor of e^(0.002 × the wheel's pixels), a
+notch about a fifth, one event counting for at most 120 px), caught before
+the controls' own listener and kept from it; with no imagery in the frame
+the wheel moves the camera as ever.  An instrument's range still holds
+the field (the Rubin app's optics).  A phone's pinch goes through the
+controls' pointers, not the wheel, and still moves the camera: not done.
+
+Checked headless on the build, 800 × 500, five notches in and five out
+with the pointer over the sky: JWST NIRCam and Hubble WFC3 from 0.07° to
+0.0258° and back with the camera's distance unchanged; the Rubin app's
+Virgo view from 3.5° to 1.29° and back; the same view with no survey on,
+the field unchanged and the camera moved, as before.
+
 ## Hosts, and what the sandbox reaches
 
 - **CDS** (`alasky.cds.unistra.fr`): from the sandbox its static HiPS
