@@ -1,8 +1,9 @@
 import {
   EXPOSURE_TAU_SECONDS, METER_TAU_DOWN_SECONDS, METER_TAU_UP_SECONDS, adaptMeterGain, easeExposure,
 } from '../exposure.js'
+import {GLARE_MODEL_CAMERA, GLARE_MODEL_EYE, cameraGlareFunction, glareFunction} from '../sun/glare.js'
 import {
-  ADAPTATION, NAKED_EYE, RUBIN, clampField, fieldEnd, instrumentFieldRange, instrumentStarGain,
+  ADAPTATION, CAMERA, NAKED_EYE, RUBIN, clampField, fieldEnd, instrumentFieldRange, instrumentStarGain,
 } from './instrument.js'
 
 
@@ -20,6 +21,24 @@ describe('an instrument\'s field', () => {
     expect(RUBIN.adaptation).toBe(ADAPTATION)
     expect(instrumentStarGain(RUBIN, 1)).toBe(instrumentStarGain(NAKED_EYE, 1))
     expect(Object.isFrozen(RUBIN)).toBe(true)
+  })
+
+  it('a camera: the eye\'s light, star PSF and field, with a lens\'s veil round a disc', () => {
+    for (const key of Object.keys(NAKED_EYE)) {
+      expect(key in CAMERA).toBe(true)
+    }
+    expect(CAMERA.psf.wing).toBe(NAKED_EYE.psf.wing)
+    expect(CAMERA.psf.coreShare).toBe(NAKED_EYE.psf.coreShare)
+    expect(CAMERA.psf.poolRadiusDeg).toBe(NAKED_EYE.psf.poolRadiusDeg)
+    expect(CAMERA.darkGain).toBe(NAKED_EYE.darkGain)
+    expect(CAMERA.fieldMaxDeg).toBe(null)
+    expect(instrumentStarGain(CAMERA, 1)).toBe(instrumentStarGain(NAKED_EYE, 1))
+    expect(CAMERA.psf.glare).toBe(cameraGlareFunction)
+    expect(CAMERA.psf.glareModel).toBe(GLARE_MODEL_CAMERA)
+    expect(NAKED_EYE.psf.glare).toBe(glareFunction)
+    expect(NAKED_EYE.psf.glareModel).toBe(GLARE_MODEL_EYE)
+    expect(RUBIN.psf.glareModel).toBe(GLARE_MODEL_EYE)
+    expect(Object.isFrozen(CAMERA.psf)).toBe(true)
   })
 
   it('the eye has no range: the field is free', () => {

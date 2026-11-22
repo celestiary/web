@@ -48,6 +48,7 @@ import {HDR_MAX_VALUE, NEUTRAL_GLSL} from '../hdr.js'
 import {DECODE_DISTANCE_GLSL, distanceScale} from './distance.js'
 import {detailScale} from './detail.js'
 import {LOG_DECODE_GLSL, earthshineFraction} from './encoding.js'
+import {GROUND_LIGHT_GLSL, newGroundLightUniforms, updateGroundLight} from '../atmos/groundLight.js'
 import {
   DEFAULT_FAR,
   absoluteUrl,
@@ -68,6 +69,7 @@ import {addCredit, removeCredit} from '../../credits.js'
 import {creditGibs} from '../gibs.js'
 import {monthOfJulianDay} from '../monthly.js'
 import {GUEST_VERSION, guestOptions} from '../../cesium-guest/origins.js'
+import {SCREEN_STEP, sceneOfScreen} from '../screen.js'
 
 
 export {tilesReady}
@@ -452,10 +454,28 @@ export default class CesiumLayers {
     this.decode.material.depthWrite = this._terrainDepth(name)
     // A guest page's late frame: the scale of the view it was drawn for.
     u.uDistanceScale.value = this._frameDistanceScale(this.bodies[name])
-    // A tileset's shader writes its light log-encoded (sunlitShader).
-    u.uLogEncoded.value = CESIUM_BODIES[name]?.ionTileset ? 1 : 0
+    // A tileset's shader writes its light log-encoded (sunlitShader), a
+    // globe sRGB-encoded (globe.imagerySrgb).
+    u.uEncoding.value = frameEncoding(CESIUM_BODIES[name], this.bodies[name])
     u.uProjection.value.copy(this.ui.camera.projectionMatrix)
     u.uProjectionInverse.value.copy(this.ui.camera.projectionMatrixInverse)
+    // The ground's light through the air, as celestiary's surface takes it
+    // (groundLight.js; CESIUM.md, "The ground's light"): the body's sphere
+    // and the Sun in view space, for each pixel's Sun.
+    updateGroundLight(u, node.props.atmosphere)
+    const {camera} = this.ui
+    node.getWorldPosition(this._lightsCenter)
+    u.uSun.value.copy(this._sunPos).sub(this._lightsCenter).normalize().transformDirection(camera.matrixWorldInverse)
+    u.uCenter.value.copy(this._lightsCenter).applyMatrix4(camera.matrixWorldInverse)
+    u.uRadius.value = node.props.radius.scalar
+    // The frame's floor, which the decode recovers the albedo by: a globe's
+    // albedoFloor, taken out (none from a guest page before GUEST_VERSION
+    // 5); a tileset's nightFloor (Mars's), kept.
+    const config = CESIUM_BODIES[name] ?? {}
+    const body = this.bodies[name]
+    const albedoFloor = body?.remote && (body.guestVersion ?? GUEST_VERSION) < 5 ? 0 : (config.albedoFloor ?? 0)
+    u.uNightFloor.value = albedoFloor || (config.nightFloor ?? 0)
+    u.uKeepFloor.value = albedoFloor ? 0 : 1
     renderer.setRenderTarget(sceneRT)
     const autoClear = renderer.autoClear
     renderer.autoClear = false
@@ -473,9 +493,10 @@ export default class CesiumLayers {
    * lighting, which is 0 on the night side (and its night alpha only
    * chooses which imagery is blended in before that), and the frame's 8
    * bits hold the lit surface up to 1, where the lights are ~1e-5 of a
-   * sunlit white.  The lights pass has the whole frame: the layer's stored
-   * values, as celestiary's night texture is read, and the decode scales
-   * them to exposure units (newLightsMaterial), where each pixel's
+   * sunlit white.  The lights pass has the whole frame: the layer's
+   * values, sRGB-encoded (the globe's imagerySrgb decodes and encodes them
+   * back, unlit), decoded as celestiary's night texture is, and scaled to
+   * exposure units (newLightsMaterial), where each pixel's
    * terminator band is computed as celestiary's surface does it.
    *
    * Runs in the stencil the day frame left in _cesiumRT (only its colour is
@@ -552,8 +573,10 @@ export default class CesiumLayers {
    * @param {object} sceneRT
    * @param {object} lightsRT Holding the lights' frame
    * @param {object} node The body's node
+   * @param {boolean} [srgb] Whether the frame is sRGB-encoded: a guest page's
+   *   before GUEST_VERSION 4 holds the layer's values as stored, read linear
    */
-  _decodeLights(sceneRT, lightsRT, node) {
+  _decodeLights(sceneRT, lightsRT, node, srgb = true) {
     const {renderer, camera} = this.ui
     // The decode: the body's sphere and the Sun in view space, for each
     // pixel's N·L.
@@ -561,6 +584,7 @@ export default class CesiumLayers {
     u.tCesium.value = lightsRT.texture
     u.uHdr.value = this.ui.hdr === true ? 1 : 0
     u.uGain.value = nightLightRadiance() * renderer.toneMappingExposure
+    u.uSrgb.value = srgb ? 1 : 0
     u.uProjectionInverse.value.copy(camera.projectionMatrixInverse)
     node.getWorldPosition(this._lightsCenter)
     this._lightsSun.copy(this._sunPos).sub(this._lightsCenter).normalize()
@@ -1820,10 +1844,10 @@ export default class CesiumLayers {
 
 
 /**
- * The decode's scale from a body's Cesium frame (stored value × Lambert)
- * into _sceneRT's units: DISPLAY_GAIN, as celestiary's own surfaces, and
- * the body's imagery against celestiary's texture (bodies.js textureGain,
- * imageryScale).
+ * The decode's scale from a body's Cesium frame (its imagery's linear
+ * value × Lambert) into _sceneRT's units: DISPLAY_GAIN, as celestiary's own
+ * surfaces, and the body's imagery against celestiary's texture (bodies.js
+ * textureGain, imageryScale).
  *
  * @param {string} name
  * @returns {number}
@@ -1835,9 +1859,30 @@ export function bodyGain(name) {
 
 
 /**
+ * How a body's Cesium frame encodes its linear light in 8 bits, for the
+ * decode (HDR.md, "Cesium in the same units"): a tileset's shader
+ * log-encodes it (sunlitShader), a globe sRGB-encodes it (the patched
+ * globe.imagerySrgb).  A guest page before GUEST_VERSION 4 drew a globe's
+ * imagery as stored × Lambert, unencoded, and is read so.
+ *
+ * @param {object} [config] The body's CESIUM_BODIES entry
+ * @param {object} [body] The body's layer state (`remote`, `guestVersion`)
+ * @returns {number} 0 linear, 1 log, 2 sRGB: the decode's uEncoding
+ */
+export function frameEncoding(config, body) {
+  if (config?.ionTileset) {
+    return 1
+  }
+  // Before its first status, a guest page is taken to be this one's.
+  return body?.remote && (body.guestVersion ?? 4) < 4 ? 0 : 2
+}
+
+
+/**
  * @returns {object} The ShaderMaterial of the night lights' decode
- *   (_drawNightLights): the lights frame (the layer's stored values on
- *   black, opaque where the globe is) into _sceneRT, added, as emitted
+ *   (_drawNightLights): the lights frame (the layer's values, sRGB-
+ *   encoded, on black, opaque where the globe is) into _sceneRT, added,
+ *   decoded, as emitted
  *   light in exposure units.  Each pixel's N·L comes from the view ray
  *   against the body's sphere, and the band from it as celestiary's surface
  *   shader has it, `smoothstep(-0.05, 0.05, -N·L)` (Planet.js), so the two
@@ -1850,6 +1895,7 @@ function newLightsMaterial() {
       uHdr: {value: 1},
       // nightLightRadiance() × the renderer's exposure.
       uGain: {value: 0},
+      uSrgb: {value: 1},
       uProjectionInverse: {value: new Matrix4()},
       uCenter: {value: new Vector3()},
       uSun: {value: new Vector3(0, 0, -1)},
@@ -1865,6 +1911,7 @@ function newLightsMaterial() {
       uniform sampler2D tCesium;
       uniform float uHdr;
       uniform float uGain;
+      uniform float uSrgb;
       uniform mat4 uProjectionInverse;
       uniform vec3 uCenter;
       uniform vec3 uSun;
@@ -1885,7 +1932,8 @@ function newLightsMaterial() {
         if (t < 0.0) t = along + chord;
         vec3 normal = normalize(dir * max(t, 0.0) - uCenter);
         float nightFactor = smoothstep(-${NIGHT_LIGHT_EDGE.toFixed(2)}, ${NIGHT_LIGHT_EDGE.toFixed(2)}, -dot(normal, uSun));
-        vec3 rgb = min(c.rgb * nightFactor * uGain, vec3(${HDR_MAX_VALUE.toFixed(1)}));
+        vec3 lights = uSrgb > 0.5 ? sRGBTransferEOTF(c).rgb : c.rgb;
+        vec3 rgb = min(lights * nightFactor * uGain, vec3(${HDR_MAX_VALUE.toFixed(1)}));
         if (uHdr < 0.5) {
           rgb = neutralToneMap(rgb);
         }
@@ -1917,9 +1965,15 @@ function newDecodeMaterial() {
       uHdr: {value: 1},
       uGain: {value: DISPLAY_GAIN},
       uDistanceScale: {value: 1},
-      uLogEncoded: {value: 0},
+      uEncoding: {value: 2},
       uProjection: {value: new Matrix4()},
       uProjectionInverse: {value: new Matrix4()},
+      uCenter: {value: new Vector3()},
+      uSun: {value: new Vector3(0, 0, -1)},
+      uRadius: {value: 1},
+      uNightFloor: {value: 0},
+      uKeepFloor: {value: 1},
+      ...newGroundLightUniforms(),
     },
     vertexShader: `
       varying vec2 vUv;
@@ -1931,8 +1985,14 @@ function newDecodeMaterial() {
       uniform sampler2D tCesium;
       uniform float uHdr;
       uniform float uGain;
+      uniform vec3 uCenter;
+      uniform vec3 uSun;
+      uniform float uRadius;
+      uniform float uNightFloor;
+      uniform float uKeepFloor;
+      ${GROUND_LIGHT_GLSL}
       uniform float uDistanceScale;
-      uniform float uLogEncoded;
+      uniform float uEncoding;
       uniform mat4 uProjection;
       uniform mat4 uProjectionInverse;
       varying vec2 vUv;
@@ -1942,20 +2002,32 @@ function newDecodeMaterial() {
       void main() {
         vec4 c = texture2D(tCesium, vUv);
         if (c.a < 0.5 / 255.0) discard;
-        // Every body's frame: stored value × Lambert, opaque, its distance
-        // in alpha (distance.js).  Into the HDR buffer scaled by the body's
+        // Every body's frame: albedo × Lambert, opaque, its distance in
+        // alpha (distance.js).  Into the HDR buffer scaled by the body's
         // gain; into the LDR fallback's display values, tone-mapped too.
-        // A tileset's frame comes log-encoded (encoding.js); a globe's linear.
-        vec3 stored = uLogEncoded > 0.5 ? cesiumLogDecode(c.rgb) : c.rgb;
-        vec3 rgb = min(stored * uGain, vec3(${HDR_MAX_VALUE.toFixed(1)}));
+        // A tileset's frame comes log-encoded (encoding.js), a globe's
+        // sRGB-encoded (frameEncoding).
+        vec3 lit = uEncoding > 1.5 ? sRGBTransferEOTF(c).rgb : uEncoding > 0.5 ? cesiumLogDecode(c.rgb) : c.rgb;
+        vec4 v = uProjectionInverse * vec4(vUv * 2.0 - 1.0, -1.0, 1.0);
+        vec3 dir = normalize(v.xyz / v.w);
+        if (uGroundLightOn > 0.5 || uKeepFloor < 0.5) {
+          // albedo × (floor + (1 − floor)·Lambert): the albedo by the sphere's Lambert.
+          float along = dot(uCenter, dir);
+          float t = along - sqrt(max(uRadius * uRadius - dot(uCenter, uCenter) + along * along, 0.0));
+          float mu = dot(normalize(dir * max(t, 0.0) - uCenter), uSun);
+          float lam = uNightFloor + (1.0 - uNightFloor) * max(mu, 0.0);
+          vec3 albedo = lit / max(lam, uNightFloor > 0.0 ? uNightFloor : 0.005);
+          // The Sun's share, (1 − floor) of Lambert's: whole where the floor goes.
+          vec3 sunLit = max(lit - albedo * uNightFloor, 0.0) / (1.0 - uNightFloor * (1.0 - uKeepFloor));
+          lit = albedo * uNightFloor * uKeepFloor + sunLit * groundSunT(0.0, mu) + albedo * groundSky(0.0, mu);
+        }
+        vec3 rgb = min(lit * uGain, vec3(${HDR_MAX_VALUE.toFixed(1)}));
         if (uHdr < 0.5) {
           rgb = neutralToneMap(rgb);
         }
         // The distance becomes this pixel's depth, for the atmosphere pass
         // (terrain above and below the sphere), written while depthWrite is
         // on (_decodeInto).
-        vec4 v = uProjectionInverse * vec4(vUv * 2.0 - 1.0, -1.0, 1.0);
-        vec3 dir = normalize(v.xyz / v.w);
         // At the encoding's limit the distance is "at least 5.5 D"
         // (distance.js MAX_U), and that is the depth: a surface that far,
         // which the pass hazes as one.  Not the ground sphere's depth where
@@ -2032,8 +2104,9 @@ const GUEST_WAIT_UNCORRECTED_MS = 100
 // under a few pixels across, celestiary's own mesh shows the same.
 const MIN_PIXEL_RADIUS = 2
 // The night lights' frame is skipped when the brightest light it could add,
-// in exposure units, is under this: half a display step (_lightsShow).
-const LIGHTS_DISPLAY_STEP = 0.5 / 255
+// in exposure units, is under this: what shows as half a screen step
+// through the tone map and the screen's encoding (_lightsShow; screen.js).
+const LIGHTS_DISPLAY_STEP = sceneOfScreen(0.5 * SCREEN_STEP)
 // The crossfade from celestiary's surface to Cesium's, ms.
 const FADE_MS = 1000
 // Highest camera, over the surface, m, at which the terrain's distance

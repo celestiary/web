@@ -268,7 +268,9 @@ it showed 2-5 of 255 toward the centre, about 2 elsewhere, 1 at the poles.
 That was the eye's calibration, not the galaxy: the gain is set so a
 magnitude 6.5 star just shows over the eye's 10′ patch, a surface brightness
 of 20.3 mag/arcsec², and the eye sees extended light far fainter than that,
-against a night sky whose own light wasn't drawn.
+against a night sky whose own light wasn't drawn.  (Those values are at the
+dark gain of before the screen was sRGB-encoded, 4e6; it is 1.13e6 since,
+and the band 3.54 times lower in exposure units, the same on the screen.)
 
 [#186](https://github.com/celestiary/web/issues/186) draws both halves of
 the answer (HDR.md, [the eye and extended light](HDR.md#the-eye-and-extended-light)):
@@ -276,15 +278,16 @@ the answer (HDR.md, [the eye and extended light](HDR.md#the-eye-and-extended-lig
 - **The night sky's own light**: airglow, from Earth's surface, and the
   zodiacal light and gegenschein from anywhere in the inner solar system,
   with the galaxy's light, all in exposure units, so the meter adapts to
-  them (the dark-adapted gain stays 4e6: they are under its floor, but
+  them (the dark-adapted gain stays at its ceiling: they are under its floor, but
   for the zodiacal light within about 25° of the Sun).
 - **The eye's response to extended light**: the rods pool light over
   degrees, so their threshold for a large field is a tenth over the sky,
   where a point needs 4.7 times it.  The night sky's light is tone-mapped by
   a response of its own, 2.2 times the stars' gain at full dark
   adaptation (threshold mapping: the eye's just-visible difference on the
-  sky is the display's), greyed as rods see it, and added over the stars'
-  image in display values, so the stars' calibration is untouched.
+  sky is one step of the screen; 2.19 before the screen was encoded, 2.15
+  since), greyed as rods see it, and added over the stars' image in linear
+  display values, so the stars' calibration is untouched.
 
 From a dark site at −30° on a July night, local midnight, the sky shows
 12-15 of 255 and the band up to 33-42, grey, its bright side south of the

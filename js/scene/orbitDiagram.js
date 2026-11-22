@@ -3,7 +3,6 @@ import {
   Color,
   DoubleSide,
   Group,
-  LinearSRGBColorSpace,
   Mesh,
   Matrix4,
   Quaternion,
@@ -14,6 +13,7 @@ import {sceneReferred} from './hdr.js'
 import {ORBIT_ELEMENTS} from './orbitElements.js'
 import SpriteSheet from './SpriteSheet.js'
 import {newWideLineStrip} from './wideLines.js'
+import {sceneColors} from '../theme.js'
 
 
 // A diagram of an orbit's six elements (DESIGN.md "Orbital elements"), after
@@ -63,14 +63,7 @@ const WIDTH = {lit: 2.5, all: 1.5, context: 1}
 const OPACITY = {lit: 1, all: 0.85, context: 0.4}
 
 const C = ORBIT_ELEMENTS
-const COLORS = {
-  orbit: 0x6fa8ff,
-  reference: 0xb0b0b0,
-  orbitPlane: 0xe0d070,
-  direction: 0xd0d0d0,
-  body: 0xffffff,
-  barycentre: 0xffe08a,
-}
+const COLORS = sceneColors.diagram
 
 const A = 'semiMajorAxis'
 const E = 'eccentricity'
@@ -280,7 +273,7 @@ export default class OrbitDiagram extends Group {
         material: p.xray ? {depthTest: false} : {},
       })
       if (screen) {
-        strip.material.uniforms.uOverride.value.set(...new Color().setHex(p.color, LinearSRGBColorSpace).toArray(), 1)
+        strip.material.uniforms.uOverride.value.set(...new Color(p.color).toArray(), 1)
       }
       this.parts[name] = strip
       this.add(strip)

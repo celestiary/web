@@ -5,6 +5,7 @@ import Tooltip from '@mui/material/Tooltip'
 import OpenWithIcon from '@mui/icons-material/OpenWith'
 import ControlCameraIcon from '@mui/icons-material/ControlCamera'
 import useStore from '../store/useStore'
+import {alpha, uiColors} from '../theme.js'
 
 
 /**
@@ -18,11 +19,11 @@ import useStore from '../store/useStore'
  */
 const HALO_SX = {
   '&.Mui-selected': {
-    color: '#90caf9',
-    backgroundColor: 'rgba(33, 150, 243, 0.18)',
-    boxShadow: '0 0 14px 2px rgba(33, 150, 243, 0.85), inset 0 0 6px rgba(33, 150, 243, 0.35)',
+    color: uiColors.controlSelected,
+    backgroundColor: alpha(uiColors.controlHalo, 0.18),
+    boxShadow: `0 0 14px 2px ${alpha(uiColors.controlHalo, 0.85)}, inset 0 0 6px ${alpha(uiColors.controlHalo, 0.35)}`,
     '&:hover': {
-      backgroundColor: 'rgba(33, 150, 243, 0.28)',
+      backgroundColor: alpha(uiColors.controlHalo, 0.28),
     },
   },
   transition: 'box-shadow 200ms ease, background-color 200ms ease',

@@ -9,7 +9,7 @@ import {equatorialToSceneUnit} from './galacticFrame.js'
 import {ATTENUATION_MU} from './sparcGalaxy.js'
 import GalaxiesProvider from '../search/providers/GalaxiesProvider.js'
 import {parseTargetPath, targetFramePath, targetPath} from '../targetPath.js'
-import {LIMITING_MAGNITUDE} from './observer/instrument.js'
+import {EYE_POINT_RAD, LIMITING_MAGNITUDE} from './observer/instrument.js'
 import {ASTRO_UNIT_METER, DISPLAY_GAIN, LIGHTYEAR_METER} from '../shared.js'
 
 
@@ -85,9 +85,9 @@ describe('a far galaxy\'s light', () => {
     expect(attenuationAt(table, 0)).toBe(0.2)
   })
 
-  it('lands in the eye\'s patch: 10′, or a pixel where pixels are coarser', () => {
-    expect(patchRadians(45, 1080) / DEG * 60).toBeCloseTo(10, 6)
-    expect(patchRadians(45, 200) / DEG * 60).toBeCloseTo(45 * 60 / 200, 6)
+  it('lands in the eye\'s patch, as a star does, or a pixel where pixels are coarser', () => {
+    expect(patchRadians(45, 1080)).toBeCloseTo(EYE_POINT_RAD, 12)
+    expect(patchRadians(45, 100) / DEG * 60).toBeCloseTo(45 * 60 / 100, 6)
   })
 })
 

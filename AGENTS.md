@@ -40,6 +40,7 @@ tried and dropped.
 | What's new on the homepage, the changelog tour, the `#;news:tour` link | DESIGN.md [what's new](DESIGN.md#whats-new-and-the-changelog-tour); [design/URLs.md](design/URLs.md#news-token); [tools/changelog/README.md](tools/changelog/README.md) (the entries) |
 | Social post drafts from the changelog (`yarn posts`), the first campaign, what to attach and how to publish | [tools/posts/README.md](tools/posts/README.md); [What's new epic #244](https://github.com/celestiary/web/issues/244) |
 | The interface's look: the design system, its tokens, the info panel's tiers, the phone sheet, and the redesign's phases | [design/UI.md](design/UI.md); DESIGN.md [the info panel](DESIGN.md#the-info-panel) |
+| Colours: every designed colour, chrome and scene, in `js/theme.js` (the chrome's set as CSS custom properties at load, `applyCssColors`) | [design/UI.md, the theme](design/UI.md#the-theme) |
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
 | Lagrange points, Hill spheres, synchronous orbits (every pair), orbital regimes (LEO, MEO, GPS, Molniya, sun-synchronous, cislunar space), three-body orbits (halo, Lyapunov, DRO, NRHO; the CR3BP), and the rest of #272's orbital structure | [js/scene/Lagrange.md](js/scene/Lagrange.md); DESIGN.md [orbital elements](DESIGN.md#orbital-elements) |
 | A craft's integrator (#11): the force model on the ephemerides, the integrators and their energy drift, Lambert, the transfer to the Moon, the `craft:` flights | [js/scene/Craft.md](js/scene/Craft.md) |
@@ -492,6 +493,11 @@ tried and dropped.
     (in sync mode, how long it was waited on).  `counts` are per frame,
     by pass.  `gpu.unmaskedRenderer` and `devicePixelRatio` say which GPU
     and how many pixels.
+  - **The `` ` `` key** opens the same overlay without `?perf=1` (with
+    the render panel; DESIGN.md [performance
+    panel](DESIGN.md#performance-panel)), but a Cesium layer made before
+    the press has no shadow-context row: for a snapshot, ask for the
+    `?perf=1` link.
   - **Add a pass's marker** when you add a pass: `perf.begin('name')` /
     `perf.end('name')` in the loop and a line in `js/perf/passes.js`.
 - **Known SwiftShader quirk:** `gl_PointCoord` flips in point shaders
@@ -609,7 +615,9 @@ tried and dropped.
   fails when it drifts**: after editing a body's descriptor
   (`public/data/<dir>/index.json`: `public/data/earth/`,
   `public/data/earth/moons/moon/`) run `yarn bodies`; a place catalogue,
-  `yarn places-index`; `CHANGELOG.md`, `yarn changelog`. Nothing but the
+  `yarn places-index`; `CHANGELOG.md`, `yarn changelog`.  Colours are in
+  `js/theme.js` only: a colour literal elsewhere in `js/` fails a test
+  (`tools/theme/literals.test.js`). Nothing but the
   page, its scripts, the bodies' bundle and the stars loads with the page:
   a body's places, the galaxies and the changelog wait until something
   needs them (DESIGN.md [what loads when](DESIGN.md#what-loads-when)), so

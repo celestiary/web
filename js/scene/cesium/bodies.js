@@ -17,16 +17,28 @@
  * Cesium's globe; they need an ion access token, and without one they
  * aren't offered.  That fork, globe or tileset, is the data's; everything
  * after it is one path for every body (CESIUM.md, architecture): each draws
- * its stored values × Lambert with its distance in alpha, and differs only
+ * its imagery's albedo × Lambert, in linear light, with its distance in
+ * alpha, and differs only
  * by the data here:
  *
  * - `textureGain`, `imageryScale`: the decode's scale for the body's
- *   imagery against celestiary's texture (CesiumLayers bodyGain).
+ *   imagery against celestiary's texture (CesiumLayers bodyGain):
+ *   `textureGain` is the body's descriptor's `texture_gain`, its colour
+ *   map's linear values to its albedo (Planet.md, "Albedo").
+ * - `imageryEncoding`: 'linear' for imagery that is a calibrated linear
+ *   quantity, lit as stored (the Moon's linear stretch of I/F, as its
+ *   descriptor's `texture_encoding`); otherwise a picture's sRGB, decoded
+ *   to linear light before it is lit (sunlitShader; a globe's by the
+ *   patched `globe.imagerySrgb`).
  * - `nightImagery`: a globe's city lights, an imagery layer drawn in a
  *   pass of its own on the night side (CesiumLayers, CESIUM.md "Night
  *   lights"), not through Cesium's lighting, which would multiply them away.
  * - `nightFloor`: a tileset's light on its night side, as a fraction of
  *   full sun (sunlitShader); a globe's lighting is Cesium's.
+ * - `albedoFloor`: a globe's light floor, as a fraction of full sun
+ *   (litSurfaceOnly): its frame then holds the albedo on the night side
+ *   too, which the decode needs for the sky's light on the ground, and
+ *   takes out (CESIUM.md, "The ground's light").
  * - `relief`: a tangent-space normal map the tileset's shader lights the
  *   sphere's slopes by (the Moon's LOLA map, as celestiary's own Moon).
  * - `earthshine`: the tileset's night side is lit by Earth's reflected
@@ -56,6 +68,7 @@ export const CESIUM_BODIES = {
     // Celestiary's atmosphere pass, over Cesium's lit surface.
     atmosphere: false,
     shellScale: TERRAIN_SHELL_SCALE,
+    albedoFloor: 0.05,
     // The globe's base imagery, the simulation date's month: tiles cut from
     // the Blue Marble mosaics celestiary's own Earth texture is from
     // (earth.json texture_monthly), so the two match across the swap.
@@ -114,6 +127,8 @@ export const CESIUM_BODIES = {
     // mosaic, whose stored values are a linear stretch of I/F, scaled to the
     // Moon's normal albedo (lunarPhotometry.js MOON_TEXTURE_GAIN; Planet.md).
     textureGain: 0.4448,
+    // Lit as stored, not decoded: it's I/F, not a picture.
+    imageryEncoding: 'linear',
     // ion's copy of the mosaic is stored darker than NASA Trek's, which
     // celestiary's texture is from: 0.815× (median over the lit disk, both
     // rendered alike, parity's moon-quarter at 1.000; Mars's two copies
@@ -130,6 +145,10 @@ export const CESIUM_BODIES = {
     // Cesium Mars (ion).
     ionTileset: 3644333,
     nightFloor: 0.02,
+    // mars.json's texture_gain: its imagery is the Viking MDIM2.1 mosaic, as
+    // celestiary's texture is (ion's copy within 1%), decoded from sRGB and
+    // scaled to Mars's geometric albedo (Planet.md, "Albedo").
+    textureGain: 1.887,
   },
 }
 

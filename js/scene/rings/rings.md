@@ -28,7 +28,9 @@ cover and blended `One, OneMinusSrcAlpha`.  In the planet's shadow there
 is no sunlight (the 15% "ambient" is gone; Saturnshine isn't modelled).
 
 - **ϖ, the particles' single-scattering albedo**, is the colour map's
-  stored value times `RING_ALBEDO_SCALE`, per channel.
+  value, decoded from sRGB (it is a picture: HDR.md, [colour
+  spaces](../HDR.md#colour-spaces)), times `RING_ALBEDO_SCALE`, per
+  channel, held to 1: a particle reflects no more than it gets.
 - **τ** is the opacity map read as the share of the background a normal
   ray loses, 1 − e^(−τ), capped at τ 6.9.
 - **P(α)**, the particles' phase function, is the power law
@@ -44,17 +46,24 @@ is no sunlight (the 15% "ambient" is gone; Saturnshine isn't modelled).
   (2018, Astronomy and Computing 25, 10) magnitude law for Saturn, the one
   JPL Horizons uses, adds −1.825·sin B mag for the rings at ring opening B
   (plus an opposition surge, −0.378·sin B·e^(−2.25α), not modelled).
-  `RING_ALBEDO_SCALE` 0.914 makes the render's rings add the law's light
-  at B = 26.6° (2017 June 15, at opposition, the rings widest), 1.046 times
-  the globe's, measured as the summed linear composite with the rings
-  shown and hidden, from Earth's direction.  Then the B ring's band of the
-  map (its median stored value 0.55) has ϖ ≈ 0.50, inside the 0.4-0.6
-  that ring photometry finds for B ring particles.
+  `RING_ALBEDO_SCALE` made the render's rings add the law's light at B =
+  26.6° (2017 June 15, at opposition, the rings widest), 1.046 times the
+  globe's, measured as the summed linear composite with the rings shown and
+  hidden, from Earth's direction: 0.914 when the map was lit as stored.
+  Decoded, the same light takes 1.58, computed, not re-rendered: the map's
+  luma summed over the rings at that view, each radius weighted by its slab
+  factor μ₀/(μ + μ₀)·(1 − e^(−τ(1/μ + 1/μ₀))) and its area (2πr dr), the
+  decoded map × 1.58 with the cap against the stored × 0.914, equal to
+  within 0.01% (decoding alone takes 1.663 times less light; the cap, 24%
+  of the radii at 1.58, the rest).  Then the B ring's band of the map (its
+  median 0.55 stored, 0.267 decoded) has ϖ ≈ 0.42, inside the 0.4-0.6 that
+  ring photometry finds for B ring particles.
 
 **Checked** at #192's date (2026 October 6, B = 7.4°, phase 0.36°, two
-days from opposition), not fitted there: the rings add 0.229 mag to the
+days from opposition), not fitted there: the rings added 0.229 mag to the
 globe in the render, against the law's 0.189 without the surge and 0.211
-with it (JPL Horizons, #214).  Before, as display values, they added
+with it (JPL Horizons, #214).  Decoded at 1.58, the same sum at B = 7.4° is
+0.986 of the stored values', so 0.226 mag (computed, not re-rendered).  Before, as display values, they added
 0.07.  The model's tilt dependence is a little weak (the thin parts' light
 doesn't fall as the rings close), but within 0.04 mag over B 7°-27°.
 
@@ -70,7 +79,7 @@ doesn't fall as the rings close), but within 0.04 mag over B 7°-27°.
   fairly opaque band (stored value 0.8-1.0, opacity 0.6-0.9) falls at
   72-92 Mm, the C ring, which is the darkest and most transparent of the
   main rings (τ about 0.1, I/F about 0.1); the Cassini Division is 0.7
-  opaque.  A radial profile of τ (Cassini UVIS and RSS occultations) and
+  opaque.  Decoded and scaled, that band is what reaches ϖ = 1, the cap.  A radial profile of τ (Cassini UVIS and RSS occultations) and
   of I/F (Cassini ISS, HST) from the PDS Rings Node would make ϖ and τ
   measurements.
 - Single scattering only: the tilt effect (the B ring brightening by about

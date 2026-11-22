@@ -164,6 +164,10 @@ class StubThreeUI {
   }
   addClickCb() {}
   setLimitingMagnitude() {}
+  // The user's observer (the Observer setting, K: Scene.setObserverCamera).
+  setObserver(instrument) {
+    this.observer = instrument
+  }
   setStarMagnitudeOffset(mag) {
     this._starMag = mag
   }
@@ -378,7 +382,7 @@ describe('Celestiary permalink restore', () => {
   afterAll(() => clearTimeout(app._permalinkTimer))
 
   it('binds the backtick key to the performance panel toggle', () => {
-    expect(app.keys.msgs['`']).toBe('Toggle performance panel')
+    expect(app.keys.msgs['`']).toBe('Toggle performance panels')
     app.keys.onKeyDown({key: '`'})
     expect(app.ui.perfToggles).toBe(1)
     expect(app.keys.toggleStates['`']()).toBe(true)
@@ -1205,6 +1209,22 @@ describe('the target in the link', () => {
       app.keys.onKeyDown({key: 'E'})
       expect(app.scene.getSetting('G')).toBe(g)
       expect(app.scene.getSetting('C')).toBe(c)
+      clearTimeout(app._permalinkTimer)
+    })
+
+    it('the Settings\' Observer row makes a camera the observer, which the link carries as K', async () => {
+      const app = await open(TEST_FRAGMENT)
+      const row = app.keys.actions.find((a) => a.group === 'Observer')
+      expect(row.msg).toMatch(/camera/)
+      expect(row.getState()).toBe(false)
+      expect(encodeSettings(app.scene.getSettings()).includes('K')).toBe(false)
+      row.fn()
+      expect(row.getState()).toBe(true)
+      expect(app.ui.observer?.name).toBe('a camera')
+      expect(encodeSettings(app.scene.getSettings()).includes('K')).toBe(true)
+      row.fn()
+      expect(app.ui.observer).toBe(null)
+      expect(encodeSettings(app.scene.getSettings()).includes('K')).toBe(false)
       clearTimeout(app._permalinkTimer)
     })
 

@@ -81,6 +81,7 @@ export function createWidget(Cesium, name, {container, contextOptions, creditCon
   const customShader = config.ionTileset ?
     sunlitShader(Cesium, config.nightFloor ?? 0, {
       lunar: config.photometry === 'lunar',
+      srgb: config.imageryEncoding !== 'linear',
       reliefUrl: config.relief ? absoluteUrl(dataUrl(config.relief)) : null,
     }) : null
   if (config.ionTileset) {
@@ -127,8 +128,9 @@ export function createWidget(Cesium, name, {container, contextOptions, creditCon
   // then matches celestiary's whatever its sidereal phase.
   // Every body draws the same thing, whether Cesium loads it as a globe
   // (Earth: terrain and imagery) or as a 3D tileset (the Moon, Mars:
-  // imagery baked in): its imagery's stored values × Lambert, at most 1,
-  // which fits Cesium's 8-bit buffers, and its distance in alpha; the
+  // imagery baked in): its imagery's albedo × Lambert, at most 1, encoded
+  // to fit Cesium's 8-bit buffers (a globe's by sRGB, a tileset's by the
+  // log encoding), and its distance in alpha; the
   // composite's one decode scales it into _sceneRT (bodyGain), and
   // celestiary's atmosphere pass, where the body has one, hazes it.  A
   // globe that drew its own atmosphere (config.atmosphere; none does
@@ -139,8 +141,14 @@ export function createWidget(Cesium, name, {container, contextOptions, creditCon
   })
   if (scene.globe) {
     scene.globe.enableLighting = true
+    // The imagery is pictures, sRGB-encoded (Earth's Blue Marble, Bing, the
+    // Black Marble): our Cesium patch decodes each sample to linear light
+    // before the globe lights it, and encodes the lit colour back to sRGB
+    // for the 8-bit frame, which the decode inverts (CesiumLayers; CESIUM.md,
+    // "Patching Cesium").  So Earth is lit in linear light, as celestiary's.
+    scene.globe.imagerySrgb = true
     if (!config.atmosphere) {
-      litSurfaceOnly(scene.globe)
+      litSurfaceOnly(scene.globe, config.albedoFloor ?? 0)
       scene.fog.enabled = false
     }
     // The terrain's own depth for the distance stage: without
@@ -595,14 +603,17 @@ function monthlyTileLayer(Cesium, imagery, month) {
  * the surface, while the imagery already shows the craters' shading.
  *
  * Lit as celestiary lights its own surfaces, so the two match across the
- * swap: celestiary scales the texture's stored (sRGB) values and
- * tone-maps them (PBR Neutral, three's and Cesium's alike) straight to the
- * screen, with no sRGB decode or encode.  Cesium hands the shader the
- * imagery decoded to linear and sRGB-encodes what it returns.  Lighting
- * that linear colour instead lifted the dark side and the terminator and
- * dimmed the day side (the Moon: 18 vs 0 at night, 122 vs 190 by the
- * limb, of 255).  So: back to stored values, light and tone-map there,
- * then decode for Cesium's encode to undo.
+ * swap (HDR.md, "Colour spaces"): a picture's sRGB decoded to linear light
+ * and lit (Mars), a linear map's stored values lit as they are (the Moon's
+ * linear stretch of I/F, bodies.js `imageryEncoding`).  Cesium hands the
+ * shader the imagery decoded by a 2.2 power (czm_srgbToLinear) and encodes
+ * what it returns by its inverse.  So the shader first undoes Cesium's
+ * decode, back to the stored value, exactly; then for a picture decodes
+ * that by sRGB's own curve (2.2 is 8× too dark at a stored 0.02, in sRGB's
+ * linear toe); lights it; and decodes the log-encoded result for Cesium's
+ * encode to undo.  Lighting Cesium's linear colour on the Moon lifted the
+ * dark side and the terminator and dimmed the day side (18 vs 0 at night,
+ * 122 vs 190 by the limb, of 255), as its map isn't a picture.
  *
  * The night side: the Moon's is lit by earthshine, Earth's reflected
  * sunlight, from Earth's direction (`u_earthshine`, `u_earthDirWC`, set
@@ -630,11 +641,13 @@ function monthlyTileLayer(Cesium, imagery, month) {
  * @param {number} nightFloor The night side's light, a fraction of full sun
  * @param {object} [options]
  * @param {boolean} [options.lunar] Light it by the lunar photometric function, not Lambert's law
+ * @param {boolean} [options.srgb] Its imagery is a picture, sRGB-encoded (Mars's); false for
+ *   a linear map (the Moon's), lit as stored
  * @param {string|null} [options.reliefUrl] The normal map to light the surface's slopes by
  *   (bodies.js `relief`; relief.js), absolute; null for the smooth sphere
  * @returns {object} Cesium.CustomShader
  */
-function sunlitShader(Cesium, nightFloor, {lunar = false, reliefUrl = null} = {}) {
+export function sunlitShader(Cesium, nightFloor, {lunar = false, srgb = true, reliefUrl = null} = {}) {
   const f = (x) => x.toFixed(4)
   // The light's law, toward a direction `l` from a surface of normal `n`
   // seen along `v` (eye space): the Moon's photometric function, as
@@ -666,15 +679,18 @@ function sunlitShader(Cesium, nightFloor, {lunar = false, reliefUrl = null} = {}
   return new Cesium.CustomShader({
     lightingModel: Cesium.LightingModel.UNLIT,
     uniforms,
-    // Stored value × light, as Earth's globe draws (litSurfaceOnly): the
-    // texture's stored values, not Cesium's linear ones, lit; Cesium's
-    // output encodes linear back to what's returned here, the code.
-    // `normal` is the surface normal both lights are taken against: the
-    // smooth sphere's, or with relief the map's slopes on it (relief.js).
+    // Albedo × light: the texture's stored value (Cesium's 2.2 decode
+    // undone), decoded by sRGB's curve for a picture; Cesium's output
+    // encodes linear back to what's returned here, the code.  `normal` is
+    // the surface normal both lights are taken against: the smooth
+    // sphere's, or with relief the map's slopes on it (relief.js).
     fragmentShaderText: `
       ${LOG_ENCODE_GLSL}
       ${reliefUrl ? RELIEF_GLSL : ''}
       ${lunar ? LUNAR_PHOTOMETRY_GLSL : ''}
+      vec3 albedoOf(vec3 c) {
+        return ${srgb ? 'mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c))' : 'c'};
+      }
       float sunlitLaw(vec3 n, vec3 l, vec3 v) {
         return ${law};
       }
@@ -685,8 +701,8 @@ function sunlitShader(Cesium, nightFloor, {lunar = false, reliefUrl = null} = {}
         float sun = sunlitLaw(normal, czm_lightDirectionEC, toEye);
         float earth = sunlitLaw(normal, czm_viewRotation * u_earthDirWC, toEye);
         float light = ${f(nightFloor)} + ${f(1 - nightFloor)} * sun + u_earthshine * earth;
-        vec3 stored = czm_linearToSrgb(material.diffuse) * light;
-        material.diffuse = czm_srgbToLinear(cesiumLogEncode(stored, gl_FragCoord.xy));
+        vec3 lit = albedoOf(czm_linearToSrgb(material.diffuse)) * light;
+        material.diffuse = czm_srgbToLinear(cesiumLogEncode(lit, gl_FragCoord.xy));
       }`,
   })
 }
@@ -694,7 +710,8 @@ function sunlitShader(Cesium, nightFloor, {lunar = false, reliefUrl = null} = {}
 
 /**
  * Make a Cesium globe draw only its lit surface, as celestiary lights its
- * own: its imagery's stored values × Lambert (Cesium's defaults add 0.3 and
+ * own: its imagery's linear values × Lambert (decoded and the result
+ * encoded by globe.imagerySrgb, createWidget; Cesium's defaults add 0.3 and
  * scale Lambert by 0.9), with no ground atmosphere (celestiary's atmosphere
  * pass draws it), lit at every distance (Cesium fades day-night shading out
  * below lightingFadeOutDistance, ~10,000 km from Earth's centre, and with it
@@ -707,14 +724,20 @@ function sunlitShader(Cesium, nightFloor, {lunar = false, reliefUrl = null} = {}
  * effect: its sun glint and sky reflection lit the sunward ocean up to
  * twice celestiary's (whose ocean shine is its own, Planet.md).
  *
+ * With a `floor` the light is floor + (1 − floor) × Lambert: the frame holds
+ * the albedo on the night side too, for the sky's light on the ground, and
+ * the decode takes the floor out (CesiumLayers; CESIUM.md, "The ground's
+ * light").
+ *
  * @param {object} globe Cesium.Globe
+ * @param {number} [floor] The body's albedoFloor
  */
-function litSurfaceOnly(globe) {
+function litSurfaceOnly(globe, floor = 0) {
   globe.showGroundAtmosphere = false
   globe.showWaterEffect = false
-  globe.lambertDiffuseMultiplier = 1
-  globe.dayNightLambertDiffuseMultiplier = 1
-  globe.vertexShadowDarkness = 0
+  globe.lambertDiffuseMultiplier = 1 - floor
+  globe.dayNightLambertDiffuseMultiplier = 1 - floor
+  globe.vertexShadowDarkness = floor
   globe.lightingFadeOutDistance = 0
   globe.lightingFadeInDistance = 1
 }

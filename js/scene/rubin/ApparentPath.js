@@ -25,7 +25,6 @@ import {cubicAt, writeOffsets} from '../relativeToEye.js'
 // the line's and the ring's position (float64, composed on the CPU).  As a
 // Float32Array at 7e12 m the points were held to 5e5 m, 13 screen pixels
 // at a 0.00016° field: the ring jumped and the path missed the orbit line.
-export const PATH_COLOR = 0x4fd8c8
 const WIDTH_PX = 2
 const OPACITY = 0.9
 const MS_PER_DAY = 86400e3
@@ -92,7 +91,7 @@ export default class ApparentPath extends Group {
       const date = new Date(ms)
       if (date.getUTCDate() === 1) {
         entries.push({text: `1 ${date.toLocaleString('en-US', {month: 'short', timeZone: 'UTC'})}`,
-          color: PATH_COLOR, at: [0, 0, 0], index: i})
+          color: deps.colors?.path, at: [0, 0, 0], index: i})
       }
     }
     this.sample()
@@ -103,9 +102,9 @@ export default class ApparentPath extends Group {
     /** Where the line's and the ring's vertices are relative to. */
     this.anchor = new Vector3(this.points[0], this.points[1], this.points[2])
     const offsets = writeOffsets(this.fine, this.anchor, new Float32Array(this.fine.length))
-    this.line = deps.newWideLineStrip(offsets, {name: 'apparent path', color: PATH_COLOR, width: WIDTH_PX,
+    this.line = deps.newWideLineStrip(offsets, {name: 'apparent path', color: deps.colors?.path, width: WIDTH_PX,
       opacity: OPACITY, material: {depthWrite: false, transparent: true}})
-    this.marker = deps.newRings(PATH_COLOR, 1)
+    this.marker = deps.newRings(deps.colors?.path, 1)
     this.marker.name = 'apparent path now'
     this.line.position.copy(this.anchor)
     this.marker.position.copy(this.anchor)

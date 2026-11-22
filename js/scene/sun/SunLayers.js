@@ -44,7 +44,7 @@ import {
 } from './corona.js'
 import {ECLIPSED_DISC, occluderSeen, visibleFraction} from './eclipse.js'
 import {balmerPerNm} from './emission.js'
-import {glareFieldWeight, glareFunction, glareRadiusDeg} from './glare.js'
+import {glareFieldWeight, glareFunctionOf, glareRadiusDeg} from './glare.js'
 import {MS_PER_DAY, activityLevel, cyclesAt, sunspotNumber} from './solarCycle.js'
 import {newSolarWind} from './SolarWind.js'
 import {cmesAt, flaresAt, prominencesAt} from './solarEvents.js'
@@ -81,8 +81,9 @@ import {named} from '../../utils.js'
 export const CHROMOSPHERE = Object.freeze({baseNm: 0.05, baseMm: 1.0, spiculeNm: 0.006, spiculeMm: 3.0})
 // The rays' and plumes' contrast in the corona's density (a model).
 export const RAY_CONTRAST = 0.45
-// What's under this, in exposure units, isn't drawn: a hundredth of a
-// display step through the tone map's toe.
+// What's under this, in exposure units, isn't drawn: under a screen step
+// through the tone map and the encoding (screen.js; a third of one for a
+// saturated colour, whose weakest channel alone the toe takes).
 export const VISIBLE_FLOOR = 1e-4
 // The sheet's tilt turns once round in this many months (a model).
 const SHEET_TURN_MONTHS = 132
@@ -207,6 +208,8 @@ export default class SunLayers {
     this.occulter = 0
     // Each layer on or off (the perf overlay's `sun` toggle; probes).
     this.enabled = {glare: true, corona: true, flares: true, cmes: true, prominences: true}
+    // A diagnostic multiplier on the glare's veil (the render panel's), 1 as the model has it.
+    this.glareGain = 1
     this._v = [new Vector3, new Vector3, new Vector3, new Vector3, new Vector3]
     this._q = [new Quaternion, new Quaternion]
     this._m4 = new Matrix4
@@ -296,6 +299,8 @@ export default class SunLayers {
         uDiscValue: {value: 0},
         uSunColor: {value: color},
         uFieldWeight: {value: 1},
+        // The observer's (ThreeUi._setObserverUniforms): shared, not copied.
+        uGlareModel: absoluteUniforms.uGlareModel,
       },
       vertexShader: GLARE_VERTEX,
       fragmentShader: GLARE_FRAGMENT,
@@ -664,7 +669,8 @@ export default class SunLayers {
     // Shown if its reach, where it falls under the floor, gets into the
     // frame: the angle from the view's axis to the Sun, less the field's
     // half-diagonal.
-    const reach = scale > 0 ? glareRadiusDeg(VISIBLE_FLOOR / scale) : 0
+    const fn = glareFunctionOf(absoluteUniforms.uGlareModel.value)
+    const reach = scale > 0 ? glareRadiusDeg(VISIBLE_FLOOR / scale, fn) : 0
     const halfDiag = Math.atan(Math.tan(camera.fov * Math.PI / 360) * Math.hypot(1, camera.aspect)) * 180 / Math.PI
     b.set(0, 0, -1)
     const offAxis = Math.acos(Math.min(Math.max(dir.dot(b), -1), 1)) * 180 / Math.PI
@@ -672,11 +678,11 @@ export default class SunLayers {
     // view axis, fading out from 90° to 100°; a source behind the head
     // veils nothing, though the frame's edge may be 80° from it.
     const field = glareFieldWeight(offAxis)
-    u.uFieldWeight.value = field
+    u.uFieldWeight.value = field * this.glareGain
     // The veil is the eye's: an instrument's view has none.
     this.glare.visible = this.enabled.glare && this.view === VIEW_EYE &&
       field > 0 && reach > 0.1 && offAxis - halfDiag < reach &&
-      glareFunction(0.1) * scale > VISIBLE_FLOOR
+      fn(0.1) * scale > VISIBLE_FLOOR
   }
 
 

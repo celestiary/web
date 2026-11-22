@@ -148,41 +148,25 @@ export function blackbodyLinearColor(temp) {
 
 
 /**
- * sRGB's transfer function (IEC 61966-2-1): a linear value to the stored
- * value a display decodes back to it.
- *
- * @param {number} linear
- * @returns {number}
- */
-export function srgbEncode(linear) {
-  const v = Math.max(linear, 0)
-  return v <= 0.0031308 ? 12.92 * v : (1.055 * Math.pow(v, 1 / 2.4)) - 0.055
-}
-
-
-/**
- * A blackbody's colour as the pipeline draws it: the chromaticity in
- * stored values (HDR.md, "Colour spaces"), the convention every emitted
- * and lit colour is in (a texture's stored values lit linearly; the
- * galaxy's COLORS, galaxyModel.js), normalised to a luma of 1 over the
- * stored values, so a star's brightness comes from elsewhere (its
- * catalogue lumens as a point, its surface brightness as a disc) and
- * scales the colour linearly.  The linear chromaticity shown as stored
- * values, which it was, is about twice as saturated as the blackbody at
- * the display: a 3,000 K star showed (255, 123, 39), a deep orange,
- * where its colour is (255, 185, 110); the Sun (255, 224, 210) where it
- * is (255, 241, 234).  Channels may pass 1 (a hot star's blue is 1.3):
- * the scene buffer is linear HDR, and the tone map takes them.
+ * A blackbody's colour as the pipeline draws it: its linear sRGB
+ * chromaticity, normalised to a luminance (Rec. 709 luma of linear light)
+ * of 1, so a star's brightness comes from elsewhere (its catalogue lumens
+ * as a point, its surface brightness as a disc) and scales the colour
+ * linearly.  The screen's sRGB encoding (HDR.md, "Colour spaces") shows it
+ * at the blackbody's colour: a 3,000 K star (255, 185, 110), the Sun
+ * (255, 241, 234).  Before the pipeline encoded the screen it took the
+ * chromaticity in stored values, encoded here, for the same look; drawn
+ * unencoded, the linear chromaticity was about twice as saturated (a
+ * 3,000 K star at (255, 123, 39)).  Channels may pass 1 (a hot star's blue
+ * is 1.3): the scene buffer is linear HDR, and the tone map takes them.
  *
  * @param {number} temp K
- * @returns {Array<number>} r, g, b, stored values at a luma of 1
+ * @returns {Array<number>} r, g, b, linear, at a luminance of 1
  */
 export function blackbodyColor(temp) {
   const linear = blackbodyLinearColor(temp)
-  const peak = Math.max(...linear, 1e-9)
-  const stored = linear.map((c) => srgbEncode(c / peak))
-  const luma = (0.2126 * stored[0]) + (0.7152 * stored[1]) + (0.0722 * stored[2])
-  return stored.map((c) => c / luma)
+  const luma = (0.2126 * linear[0]) + (0.7152 * linear[1]) + (0.0722 * linear[2])
+  return linear.map((c) => c / luma)
 }
 
 

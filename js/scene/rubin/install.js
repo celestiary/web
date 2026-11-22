@@ -30,7 +30,8 @@ export {SURVEYS} from '../sky/surveys.js'
  *   ApparentPath's and RubinObservatory's (with `loadModel`, for the
  *   telescope), PixelMarker's (`sceneReferred`), and `ASTRO_UNIT_METER`;
  *   the image's (`dataUrl`, `addCredit`, `removeCredit`, and `fetchJson`
- *   or the global fetch)
+ *   or the global fetch); and `colors`, the theme's (theme.js
+ *   sceneColors.rubin: the path's and the beam's)
  * @returns {{observatory: RubinObservatory, path: ApparentPath, pixel: PixelMarker, cadence: SurveyCadence, image: object,
  *   dispose: Function}}
  */

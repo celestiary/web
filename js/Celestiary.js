@@ -161,6 +161,8 @@ export default class Celestiary {
     this.ui.configLargeScene()
     this.ui.useStore = useStore
     this.ui.onCameraChange = () => this._schedulePermalinkUpdate()
+    // The render panel's EV field (perf/RenderPanel.js), through the keys' path.
+    this.ui.onEv = (ev) => this.setExposureCompensation(ev)
     this.camera = this.ui.camera
     this.scene = new Scene(this.ui)
     this.scene.onLabelDblClick = (label) => this.goToLabel(label)
@@ -3046,9 +3048,9 @@ export default class Celestiary {
         'Hide/show all scene annotations (labels, orbits, asterisms, grids, networks)',
         undefined,
         'Info')
-    // three's FPS/MS/MB panel, for judging frame cost on a real GPU.
+    // The render panel and the perf overlay together (DESIGN.md, "Performance panel").
     k.map('`', () => this.ui.togglePerfPanel(),
-        'Toggle performance panel',
+        'Toggle performance panels',
         () => this.ui.isPerfPanelVisible(),
         'Info')
     // The stars' limiting magnitude at a dark site (HDR.md), stepped as
@@ -3133,6 +3135,16 @@ export default class Celestiary {
     'Earth\'s clouds',
     () => this.scene.getSetting('i'),
     'Surfaces')
+
+    // === Observer === The eye (the default) or a camera, whose veil round
+    // the Sun is a lens's (Sun.md, "Glare"): `K` in a link's `s=`.  A row
+    // with no key, as the networks' are.
+    k.addAction(() => {
+      this.scene.toggleObserverCamera()
+    },
+    'Observer: a camera (a lens\'s glare round the Sun), not the eye',
+    () => this.scene.getSetting('K'),
+    'Observer')
 
     // === Orbits ===
     k.map('o', () => {

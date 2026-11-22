@@ -34,6 +34,82 @@ export function glareFunction(thetaDeg) {
 
 
 /**
+ * A camera's veiling glare (Sun.md, "Glare"): the light a good lens and
+ * its body scatter over the sensor round a bright source (surface scatter
+ * off its elements, haze in the glass, the barrel and the sensor's cover),
+ * per steradian over the illuminance the source makes at the lens, as the
+ * eye's is:
+ *   L_veil / E = 1/θ³ + 0.2/θ²   [sr⁻¹, θ in degrees, 0.1° to 100°]
+ * Its shape is the polished surface's scatter (Harvey's BRDF ∝ θ^-s with
+ * s of 2 to 3: Harvey 1976; Stover, "Optical Scattering", 1995), steeper
+ * near the source and θ^-2 beyond a few degrees.  Its level is set by the
+ * veiling glare index (ISO 9358:1994; ISO 18844:2017 for whole cameras):
+ * the veil at a black spot 1° in radius in a uniform field 30° in radius
+ * is ∫ L/E dΩ over that annulus, 0.32% for these terms, a good multicoated
+ * lens (VGI of good lenses 0.3 to 2%: ISO 9358's examples; McCann & Rizzi,
+ * "The Art and Science of HDR Imaging", 2011, ch. 11, measure cameras'
+ * glare limiting a scene to 2 to 3 log units).  Against the eye's it is 13×
+ * under at 1°, 23× at 10° and 35× at 30° (the test):
+ * the eye's media scatter more, and their uniform term (the light through
+ * the eye's wall) a camera has none of.  Taken as recalled; the sandbox
+ * reaches no journal (Talvala et al. 2007, SIGGRAPH, "Veiling glare in
+ * high dynamic range imaging", measure cameras' glare spread functions).
+ */
+export const CAMERA_GLARE_CUBIC = 1
+export const CAMERA_GLARE_SQUARE = 0.2
+
+
+/**
+ * @param {number} thetaDeg the angle from the source, degrees
+ * @returns {number} L_veil / E, per steradian
+ */
+export function cameraGlareFunction(thetaDeg) {
+  const t = Math.min(Math.max(thetaDeg, GLARE_MIN_DEG), GLARE_MAX_DEG)
+  return (CAMERA_GLARE_CUBIC / (t ** 3)) + (CAMERA_GLARE_SQUARE / (t * t))
+}
+
+
+/** Which glare function an instrument's veil is (its psf.glareModel; the pass's uGlareModel). */
+export const GLARE_MODEL_EYE = 0
+export const GLARE_MODEL_CAMERA = 1
+
+
+/**
+ * @param {number} model GLARE_MODEL_EYE or GLARE_MODEL_CAMERA
+ * @returns {Function} Its glare function, L_veil/E of θ°
+ */
+export function glareFunctionOf(model) {
+  return model === GLARE_MODEL_CAMERA ? cameraGlareFunction : glareFunction
+}
+
+
+/**
+ * The veil over a black spot of a radius in a uniform field of another,
+ * over the field's luminance: ∫ f dΩ over the annulus, the veiling glare
+ * index (ISO 9358) a glare function gives.
+ *
+ * @param {Function} fn A glare function of θ°
+ * @param {number} [innerDeg]
+ * @param {number} [outerDeg]
+ * @returns {number}
+ */
+export function veilingGlareIndex(fn, innerDeg = 1, outerDeg = 30) {
+  const deg2ToSr = (Math.PI / 180) ** 2
+  const n = 2000
+  const lo = Math.log(innerDeg)
+  const hi = Math.log(outerDeg)
+  let sum = 0
+  for (let i = 0; i < n; i++) {
+    const a = Math.exp(lo + ((hi - lo) * i / n))
+    const b = Math.exp(lo + ((hi - lo) * (i + 1) / n))
+    const m = Math.sqrt(a * b)
+    sum += fn(m) * 2 * Math.PI * m * (b - a)
+  }
+  return sum * deg2ToSr
+}
+
+
+/**
  * The veil next to a small disc, over its own radiance: its solid angle
  * times the glare function (E = L·Ω for a disc much smaller than θ).
  *
@@ -51,20 +127,21 @@ export function glareOverRadiance(thetaDeg, discSolidAngle) {
  *
  * @param {number} floor the value under which it isn't drawn, over the
  *     disc's radiance times the disc's solid angle
+ * @param {Function} [fn] The glare function, the eye's by default
  * @returns {number} degrees
  */
-export function glareRadiusDeg(floor) {
+export function glareRadiusDeg(floor, fn = glareFunction) {
   let lo = GLARE_MIN_DEG
   let hi = GLARE_MAX_DEG
-  if (glareFunction(hi) >= floor) {
+  if (fn(hi) >= floor) {
     return hi
   }
-  if (glareFunction(lo) < floor) {
+  if (fn(lo) < floor) {
     return lo
   }
   for (let i = 0; i < 50; i++) {
     const mid = Math.sqrt(lo * hi)
-    if (glareFunction(mid) >= floor) {
+    if (fn(mid) >= floor) {
       lo = mid
     } else {
       hi = mid
@@ -106,6 +183,15 @@ float glareFunction(float thetaDeg) {
   float age = ${(1 + ((GLARE_AGE / 62.5) ** 4)).toFixed(6)};
   float veil = 10.0 / (t * t * t) + (5.0 / (t * t) + ${(0.1 * GLARE_PIGMENT).toFixed(4)} / t) * age;
   return veil + ${(0.0025 * GLARE_PIGMENT).toFixed(6)};
+}
+`
+
+
+/** GLSL: float cameraGlareFunction(float thetaDeg), as cameraGlareFunction(). */
+export const CAMERA_GLARE_GLSL = `
+float cameraGlareFunction(float thetaDeg) {
+  float t = clamp(thetaDeg, ${GLARE_MIN_DEG.toFixed(2)}, ${GLARE_MAX_DEG.toFixed(1)});
+  return (${CAMERA_GLARE_CUBIC.toFixed(4)} / t + ${CAMERA_GLARE_SQUARE.toFixed(4)}) / (t * t);
 }
 `
 

@@ -1,4 +1,4 @@
-import {BufferGeometry, Color, Float32BufferAttribute, LinearSRGBColorSpace, Mesh, ShaderMaterial, Vector2} from 'three'
+import {BufferGeometry, Color, Float32BufferAttribute, Mesh, SRGBColorSpace, ShaderMaterial, Vector2} from 'three'
 
 
 // Rubin's pixel on the sky (Rubin.md, "The optics"; #339): at the body's
@@ -11,9 +11,8 @@ import {BufferGeometry, Color, Float32BufferAttribute, LinearSRGBColorSpace, Mes
 
 /**
  * The marker's colour, its own (amber: not the path's teal or the orbit
- * line's blue), as the display value it shows: the scene is drawn
- * unencoded, so a hex colour three reads as sRGB would show darker and
- * redder (farPoint.js farPointColor).
+ * line's blue), as sRGB values: decoded here, and shown as they are on the
+ * encoded screen (HDR.md, "Colour spaces").
  */
 export const PIXEL_COLOR = [1, 0.71, 0.33]
 /** The pixel's square is this opaque at a full pixel or more; the resolution's outline fainter. */
@@ -77,7 +76,7 @@ function newQuads() {
 function newMaterial(sceneReferred) {
   return sceneReferred(new ShaderMaterial({
     uniforms: {
-      uColor: {value: new Color().setRGB(...PIXEL_COLOR, LinearSRGBColorSpace)},
+      uColor: {value: new Color().setRGB(...PIXEL_COLOR, SRGBColorSpace)},
       uViewport: {value: new Vector2(1, 1)},
       uSidePx: {value: new Vector2(1, 1)},
       uOpacity: {value: new Vector2(0, 0)},

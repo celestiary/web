@@ -5,6 +5,7 @@ import {
   FloatType,
   HalfFloatType,
   LinearSRGBColorSpace,
+  SRGBColorSpace,
   Matrix3,
   NeutralToneMapping,
   Object3D,
@@ -19,12 +20,14 @@ import {
   WebGLRenderer,
   WebGLRenderTarget,
 } from 'three'
-import {newAtmospherePass} from './scene/atmos/Atmosphere'
+import {DEFAULT_TONE_MAP_GLSL, newAtmospherePass} from './scene/atmos/Atmosphere'
 import {atmosphereBody, atmosphereResolvable} from './scene/atmos/atmosphereBody.js'
 import {setDrawingBuffer} from './scene/farPoint.js'
 import {
-  mieParams, precomputeInScatter, precomputeInScatterMs, precomputeMultiScatter, precomputeTransmittance,
+  groundAlbedo, mieParams, ozoneParams, precomputeInScatter, precomputeInScatterMs, precomputeMultiScatter,
+  precomputeTransmittance,
 } from './scene/atmos/AtmospherePrecompute'
+import {groundAlbedoStale} from './scene/atmos/groundLight.js'
 import CesiumLayers from './scene/cesium/CesiumLayers'
 import {
   adaptMeterGain, approachExposure, arrivalGain, easeExposure, exposureAt, exposureRelative,
@@ -36,6 +39,7 @@ import {clampEv, renderExposure} from './scene/evCompensation.js'
 import {clampStarMag} from './scene/starMagnitude.js'
 import {NAKED_EYE, clampField, instrumentFieldRange, instrumentStarGain} from './scene/observer/instrument.js'
 import {extendedGain, s10Value} from './scene/eye.js'
+import {SCREEN_STEP, sceneOfScreen} from './scene/screen.js'
 import {STORE_SCALE} from './scene/galaxyModel.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
 import {AIRGLOW_COLOR, ZODIACAL_STORE, airglowOf, zodiacalBrightest} from './scene/nightSky.js'
@@ -47,7 +51,6 @@ import {declutterLabels, showAllLabels} from './scene/labelDeclutter.js'
 import {styleLabels} from './scene/labelStyle.js'
 import {ECLIPSED_DISC, eclipsedSky} from './scene/sun/eclipse.js'
 import {perf} from './perf/perf.js'
-import Stats from 'three/examples/jsm/libs/stats.module.js'
 import TouchSafeTrackballControls from './TouchSafeTrackballControls.js'
 import {attachPointerDrag} from './dragControls'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
@@ -70,9 +73,11 @@ const AIRGLOW_MAX_RADII = 20
 // bulge face-on from outside is 6e-8, the band from inside 2e-8; with room
 // (_updateNightSkyShown).
 const GALAXY_BRIGHTEST = 1e-6
-// Half a display step through the tone map's toe, in exposure units: under
-// it the night sky's light isn't drawn (_updateNightSkyShown).
-const NIGHT_SKY_SKIP_VALUE = Math.sqrt(0.5 / 255 / 6.25)
+// Half a step of the screen, in exposure units (through the tone map and
+// sRGB's encoding: 0.0049; 0.018 through the tone map alone, before the
+// screen was encoded): under it the night sky's light isn't drawn
+// (_updateNightSkyShown).
+const NIGHT_SKY_SKIP_VALUE = sceneOfScreen(0.5 * SCREEN_STEP)
 // Under a frame cap, a frame this early is still drawn, ms: the display's
 // intervals jitter, and a 60 Hz frame at 33.2 ms shouldn't wait for 50.
 const FRAME_CAP_SLACK_MS = 2
@@ -138,6 +143,23 @@ export default class ThreeUi {
     this._atmCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1)
     this._atmMesh = newAtmospherePass()
     this._atmMesh.material.uniforms.uHdr.value = this.hdr ? 1 : 0
+    // The final tone map: PBR Neutral, or another for diagnosis
+    // (`?tonemap=aces`, or the performance panel's control; toneMaps.js).
+    this.toneMap = 'neutral'
+    const params = new URLSearchParams(typeof location === 'undefined' ? '' : location.search)
+    const toneMapParam = params.get('tonemap')
+    if (toneMapParam && toneMapParam !== 'neutral') {
+      this.setToneMap(toneMapParam)
+    }
+    // And the output colour space: sRGB, or `?colorspace=linear` to see the
+    // frame unencoded, for diagnosis.
+    if (params.get('colorspace') === 'linear') {
+      this.setOutputColorSpace(LinearSRGBColorSpace)
+    }
+    // And a sky gain in place of the body's (`?skygain=4.71`, the physical;
+    // the performance panel's; composition.md, "Per-body data").
+    this.skyGainOverride = null
+    this.setSkyGain(params.get('skygain'))
     this._atmScene.add(this._atmMesh)
     this._pWorldAtm = new Vector3()
     this._camWorldAtm = new Vector3()
@@ -161,11 +183,14 @@ export default class ThreeUi {
     this.meterReadings = 0
     // The user's exposure compensation, stops (setExposureCompensation).
     this._evStops = 0
-    // The observer (observer/instrument.js): the naked eye, dark adapted,
-    // or the instrument an app sets while it runs (setInstrument).  What
-    // the star field takes from it goes to the shaders through hdr.js
-    // absoluteUniforms, once here (the field's magnification is the
+    // The observer (observer/instrument.js): the user's (setObserver: the
+    // naked eye, dark adapted, or a camera), or the instrument an app sets
+    // while it runs (setInstrument), which overrides it.  What the star
+    // field and the Sun's glare take from it go to the shaders through
+    // hdr.js absoluteUniforms, once here (the field's magnification is the
     // camera's, each frame in the shader).
+    this.observer = NAKED_EYE
+    this._appInstrument = null
     this.instrument = NAKED_EYE
     // Whether the instrument's field range holds the field (setFieldLimit).
     this.fieldLimit = true
@@ -208,9 +233,12 @@ export default class ThreeUi {
       this.scene.add(controllerGrip);
     */
 
-    // three's Stats panel (FPS / MS / MB): built on first toggle, so startup
-    // and the tests never touch the DOM for it.  See togglePerfPanel.
-    this._stats = null
+    // The render panel's controls (perf/RenderPanel.js): built on first
+    // toggle, so startup and the tests never touch the DOM for it, and the
+    // element holding it.  See togglePerfPanel.
+    this._renderPanel = null
+    this._perfRoot = null
+    this._perfPanelLoading = null
     this._perfVisible = false
     // Whether the canvas has drawn its first frame (initRenderer, renderLoop),
     // and whether its owner shows it (holdCanvas).
@@ -420,7 +448,10 @@ export default class ThreeUi {
     // As for a body 1 AU from the Sun until one is targeted; see
     // _updateExposure.
     renderer.toneMappingExposure = exposureAt(ASTRO_UNIT_METER)
-    renderer.outputColorSpace = LinearSRGBColorSpace
+    // sRGB to the screen (HDR.md, "Colour spaces"): the atmosphere pass
+    // encodes the frame itself (its encodeOut), and three's materials drawn
+    // to the screen after it (the overlay pass) by three's colorspace_fragment.
+    renderer.outputColorSpace = SRGBColorSpace
     this.width = this.container.offsetWidth
     this.height = this.container.offsetHeight
     renderer.setClearColor(backgroundColor, 1)
@@ -513,13 +544,35 @@ export default class ThreeUi {
 
   /**
    * Make an instrument the observer (HDR.md, "The instrument"): an app's,
-   * while it runs (the Rubin app's RUBIN), or the naked eye again.  The
-   * star field's numbers follow it, and the field is held to its range.
+   * while it runs (the Rubin app's RUBIN), or, with null, the user's
+   * observer again (setObserver).  The star field's numbers and the Sun's
+   * glare follow it, and the field is held to its range.
+   *
+   * @param {?object} instrument An Instrument; null for the user's observer
+   */
+  setInstrument(instrument) {
+    this._appInstrument = instrument ?? null
+    this._applyInstrument()
+  }
+
+
+  /**
+   * The user's observer (the Observer setting, `K` in a link's `s=`):
+   * the naked eye, or a camera, whose veil round the Sun is a lens's
+   * (Sun.md, "Glare").  It is the observer whenever no app has set its
+   * own instrument (setInstrument), and again once that app stops.
    *
    * @param {?object} instrument An Instrument; null for NAKED_EYE
    */
-  setInstrument(instrument) {
-    this.instrument = instrument ?? NAKED_EYE
+  setObserver(instrument) {
+    this.observer = instrument ?? NAKED_EYE
+    this._applyInstrument()
+  }
+
+
+  /** The app's instrument, or the user's observer: its numbers to the shaders. */
+  _applyInstrument() {
+    this.instrument = this._appInstrument ?? this.observer ?? NAKED_EYE
     this._setObserverUniforms()
     this.setStarGain(instrumentStarGain(this.instrument, this._starMag))
     this.setFov(this.camera.fov)
@@ -572,11 +625,7 @@ export default class ThreeUi {
       }
       return
     }
-    // Timing runs only while the panel is showing.  Visibility flips from
-    // key events, never mid-frame, so begin() and end() always pair.
-    const stats = this._perfVisible ? this._stats : null
-    this._frameStats = stats
-    stats?.begin()
+    this._frameRenderPanel = this._perfVisible ? this._renderPanel : null
     perf.frameBegin()
     perf.begin('update')
     this.camera.updateMatrixWorld()
@@ -725,7 +774,7 @@ export default class ThreeUi {
       }
     }
     perf.frameEnd()
-    this._frameStats?.end()
+    this._frameRenderPanel?.frameEnd()
   }
 
 
@@ -828,32 +877,113 @@ export default class ThreeUi {
 
 
   /**
-   * Show or hide three's Stats panel (FPS, MS, MB; click it to cycle).  The
-   * element is created on the first show and then only hidden, so it costs
-   * nothing until asked for.  It sits bottom-right above the fullscreen
-   * control, the corner the HUD leaves free (the info list can run long
-   * down the left), over the canvas; only its own 80x48 box takes pointer
-   * events.
+   * Set the final tone map (toneMaps.js): PBR Neutral, the app's, or another
+   * for diagnosis.  Only the atmosphere pass's last step changes; the scene
+   * pass stays exposure-only.  The other operators load with the first ask
+   * for one (a dynamic import, out of the first load), and the pass
+   * recompiles once then.
+   *
+   * @param {string} key A toneMaps.js TONE_MAP_IDS key; an unknown one is ignored
+   * @returns {Promise<string>} The tone map once it is applied
+   */
+  async setToneMap(key) {
+    const material = this._atmMesh.material
+    if (key === 'neutral' && !material.uniforms.uToneMap) {
+      this.toneMap = key
+      return key
+    }
+    const {TONE_MAP_IDS, installToneMaps} = await import('./scene/toneMaps.js')
+    if (Object.hasOwn(TONE_MAP_IDS, key)) {
+      installToneMaps(material, DEFAULT_TONE_MAP_GLSL)
+      material.uniforms.uToneMap.value = TONE_MAP_IDS[key]
+      this.toneMap = key
+    }
+    return this.toneMap
+  }
+
+
+  /**
+   * Set the output colour space.  The app's is SRGBColorSpace (HDR.md,
+   * "Colour spaces"): the atmosphere pass encodes the tone map's linear
+   * values (its encodeOut), and three's materials drawn to the screen (the
+   * overlay pass) are encoded by three's colorspace_fragment.
+   * LinearSRGBColorSpace, for diagnosis, writes them unencoded: darker and
+   * more contrasty, as the frame was before the pipeline was colour-managed.
+   *
+   * @param {string} space SRGBColorSpace or LinearSRGBColorSpace; another is ignored
+   * @returns {string} The output colour space now
+   */
+  setOutputColorSpace(space) {
+    if (space === SRGBColorSpace || space === LinearSRGBColorSpace) {
+      this.renderer.outputColorSpace = space
+      this._atmMesh.material.uniforms.uSrgbOut.value = space === SRGBColorSpace ? 1 : 0
+    }
+    return this.renderer.outputColorSpace
+  }
+
+
+  /**
+   * Draw the sky at another gain than its body's data gives (`sunIntensity`;
+   * Earth's 21, about 4.5 times the physical 4.71, standing in for aerosols:
+   * composition.md, "Per-body data"), for diagnosis.
+   *
+   * @param {number|string|null} gain A positive number, or null (or '') for the body's own
+   * @returns {number|null} The override now
+   */
+  setSkyGain(gain) {
+    const g = gain === null || gain === '' ? NaN : Number(gain)
+    this.skyGainOverride = Number.isFinite(g) && g > 0 ? g : null
+    return this.skyGainOverride
+  }
+
+
+  /**
+   * Show or hide the performance panels together: the render panel (the
+   * tone map and the rendering's controls, perf/RenderPanel.js) and the perf
+   * overlay (perf.js show: started here without `?perf=1`, and taken off
+   * again on the next press), which has the frame's graphs and render info.
+   * The render panel is created on the first show and then only hidden; its
+   * module loads then too.  It sits bottom-right above the fullscreen
+   * control, over the canvas; only its own box takes pointer events.
    *
    * @returns {boolean} whether the panel is now showing.
    */
   togglePerfPanel() {
     this._perfVisible = !this._perfVisible
-    if (this._perfVisible && !this._stats) {
-      this._stats = new Stats
-      const style = this._stats.dom.style
-      style.top = 'auto'
-      style.left = 'auto'
-      style.bottom = '3.5em'
-      style.right = '0.5em'
-      style.zIndex = '1000'
-      this._stats.dom.id = 'perf-panel'
-      document.body.appendChild(this._stats.dom)
+    if (this._perfVisible && !this._perfPanelLoading) {
+      this._perfPanelLoading = import('./perf/RenderPanel.js').then(({createPerfPanel}) => {
+        const {root, panel} = createPerfPanel({
+          doc: document, renderer: this.renderer, hdr: this.hdr, toneMap: this.toneMap,
+          onToneMap: (key) => this.setToneMap(key),
+          onColorSpace: (space) => this.setOutputColorSpace(space),
+          skyGain: this.skyGainOverride,
+          onSkyGain: (gain) => this.setSkyGain(gain),
+          ui: this,
+        })
+        this._perfRoot = root
+        this._renderPanel = panel
+        this._showPerfPanel()
+      }).catch((err) => {
+        // Let the next press try again (a preview mid-deploy answered 503).
+        // A browser may keep the failed import for the page's life: then a
+        // reload does.
+        this._perfPanelLoading = null
+        this._perfVisible = false
+        this._showPerfPanel()
+        console.warn('Performance panel failed to load (press ` to retry, or reload):', err)
+      })
     }
-    if (this._stats) {
-      this._stats.dom.style.display = this._perfVisible ? 'block' : 'none'
-    }
+    this._showPerfPanel()
     return this._perfVisible
+  }
+
+
+  /** Apply _perfVisible to the render panel, once it's loaded, and to the perf overlay. */
+  _showPerfPanel() {
+    if (this._perfRoot) {
+      this._perfRoot.style.display = this._perfVisible ? 'flex' : 'none'
+    }
+    perf.show(this, this._perfVisible)
   }
 
 
@@ -1122,6 +1252,7 @@ export default class ThreeUi {
     absoluteUniforms.uEyePointRad.value = this.instrument.pointPoolRad
     absoluteUniforms.uPoolRadiusDeg.value = psf.poolRadiusDeg
     absoluteUniforms.uCoreShare.value = psf.coreShare
+    absoluteUniforms.uGlareModel.value = psf.glareModel ?? 0
     let maxPoint = STAR_MAX_SIZE_PX
     try {
       const gl = this.renderer.getContext()
@@ -1424,8 +1555,9 @@ export default class ThreeUi {
    * Whether the night sky's light can show in this frame (HDR.md, "Cost:
    * by day, and with time running"): its brightest, the galaxy's bulge, the
    * zodiacal light by the Sun and airglow at the horizon, at this exposure
-   * and the eye's response to it, against half a display step.  By day it
-   * is 14 times under, and it stays under through most of civil twilight,
+   * and the eye's response to it, against half a step of the screen.  By
+   * day it is 4 times under (14 before the screen was encoded), and it
+   * stays under to a gain of about 4, early in civil twilight,
    * so the galaxy's march and the zodiacal light's cache aren't run and the
    * pass draws none of it (the user's 18 FPS looking at the Sun from the
    * ground with time running: the sky turned, so the march ran every frame
@@ -2019,7 +2151,7 @@ export default class ThreeUi {
     // In an eclipse the air is lit by what it sees of the Sun (sun/eclipse.js),
     // and in totality by the light scattered in from outside the shadow
     // (Sun.md, "Eclipses").
-    u.uSunIntensity.value = skyGain(atmos) * eclipsedSky(this.sceneManager?.objects?.sun, atmTarget,
+    u.uSunIntensity.value = (this.skyGainOverride ?? skyGain(atmos)) * eclipsedSky(this.sceneManager?.objects?.sun, atmTarget,
         camDist < R + atmos.height.scalar)
     // The sky in exposure units: its planet's sunlight at the renderer's
     // exposure (HDR.md).  The Sun is at the world group's origin.
@@ -2033,9 +2165,13 @@ export default class ThreeUi {
     u.uSkyExposure.value = sunDist > 0 ? skyExposure(sunDist, this.renderer.toneMappingExposure) : 1
     u.uRayleigh.value.set(...atmos.rayleigh)
     u.uRayleighScaleHeight.value = atmos.rayleighScaleHeight.scalar
-    u.uMieCoeff.value = atmos.mieCoeff
-    u.uMieScaleHeight.value = atmos.mieScaleHeight.scalar
     const mie = mieParams(atmos)
+    const ozone = ozoneParams(atmos)
+    u.uMieCoeff.value.copy(mie.extinction)
+    u.uMieChroma.value = mie.chroma
+    u.uOzone.value.copy(ozone.absorption)
+    u.uOzoneProfile.value.copy(ozone.profile)
+    u.uMieScaleHeight.value = atmos.mieScaleHeight.scalar
     u.uMiePolarity.value.copy(mie.polarity)
     u.uMieBackPolarity.value = mie.backPolarity
     u.uMieForwardWeight.value = mie.forwardWeight
@@ -2066,6 +2202,16 @@ export default class ThreeUi {
       u.tTransmittance.value = this._transmittanceRT.texture
       u.uUseTransmittanceLUT.value = 1.0
       u.tInScatter.value = this._inScatterRT.texture
+      u.tMultiScatter.value = this._multiScatterRT.texture
+      u.tInScatterMs.value = this._inScatterMsRT.texture
+    } else if (groundAlbedoStale(atmos, groundAlbedo(atmos, atmTarget.props.albedo).toArray())) {
+      // The month's ground (groundLight.js): only the tables that read it.
+      this._multiScatterRT.dispose()
+      this._inScatterMsRT.dispose()
+      this._multiScatterRT = precomputeMultiScatter(
+          this.renderer, atmos, R, this._transmittanceRT, atmTarget.props.albedo ?? 0)
+      this._inScatterMsRT = precomputeInScatterMs(
+          this.renderer, atmos, R, this._transmittanceRT, this._multiScatterRT)
       u.tMultiScatter.value = this._multiScatterRT.texture
       u.tInScatterMs.value = this._inScatterMsRT.texture
     }

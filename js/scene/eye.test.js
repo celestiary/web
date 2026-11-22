@@ -8,10 +8,15 @@ import {
 } from './exposure.js'
 import {DISPLAY_GAIN} from '../shared.js'
 import {neutral} from './hdr.js'
+import {LIMIT_SCREEN} from './observer/instrument.js'
+import {screenOf} from './screen.js'
+import {srgbEncode} from './srgb.js'
 
 
 const DEG = Math.PI / 180
 const grey = (v) => [v, v, v]
+// The screen's value of a grey extendedToDisplay gave (it is linear: the encoding follows).
+const screen = (display) => srgbEncode(display[1])
 
 
 describe('surface brightness in exposure units', () => {
@@ -62,16 +67,19 @@ describe('the eye\'s threshold for extended light', () => {
     }
   })
 
-  it('maps the eye\'s large-field threshold over the dark sky to one display step, at a gain of about 2', () => {
+  it('maps the eye\'s large-field threshold over the dark sky to one screen step, at a gain of about 2', () => {
     const sky = surfaceBrightnessValue(DARK_SKY_MAG) * METER_GAIN_MAX
-    const step = extendedToDisplay(grey(sky * (1 + LARGE_FIELD_THRESHOLD_CONTRAST)), METER_GAIN_MAX, EXTENDED_GAIN_DARK)[1] -
-      extendedToDisplay(grey(sky), METER_GAIN_MAX, EXTENDED_GAIN_DARK)[1]
+    const step = screen(extendedToDisplay(grey(sky * (1 + LARGE_FIELD_THRESHOLD_CONTRAST)), METER_GAIN_MAX,
+        EXTENDED_GAIN_DARK)) - screen(extendedToDisplay(grey(sky), METER_GAIN_MAX, EXTENDED_GAIN_DARK))
     expect(step / DISPLAY_STEP).toBeGreaterThan(0.9)
     expect(step / DISPLAY_STEP).toBeLessThan(1.2)
     expect(EXTENDED_GAIN_DARK).toBeGreaterThan(2)
     expect(EXTENDED_GAIN_DARK).toBeLessThan(2.5)
+    // In the toe, and sRGB's linear part, the sky shows 1/(2C) of a step:
+    // 5 of 255, as before the screen was encoded.
+    expect(screen(extendedToDisplay(grey(sky), METER_GAIN_MAX, EXTENDED_GAIN_DARK)) * 255).toBeCloseTo(5, 6)
     // At the stars' own gain the same difference is a twentieth of a step.
-    const bare = neutral(grey(sky * (1 + LARGE_FIELD_THRESHOLD_CONTRAST)))[1] - neutral(grey(sky))[1]
+    const bare = screenOf(sky * (1 + LARGE_FIELD_THRESHOLD_CONTRAST)) - screenOf(sky)
     expect(bare / DISPLAY_STEP).toBeLessThan(0.25)
   })
 })
@@ -79,8 +87,12 @@ describe('the eye\'s threshold for extended light', () => {
 
 describe('the extended response', () => {
   it('applies where the eye is rod-adapted, not by day, in twilight or in a photograph of the galaxy', () => {
-    expect(adaptationLuminance(METER_GAIN_MAX)).toBeCloseTo(2e-3, 4)
-    expect(extendedGain(METER_GAIN_MAX)).toBeCloseTo(EXTENDED_GAIN_DARK, 12)
+    // 7e-3 cd/m² at the dark gain, the mesopic range's first 1% (in log
+    // luminance): the gain there is within half a percent of the whole.
+    expect(adaptationLuminance(METER_GAIN_MAX)).toBeCloseTo(7.1e-3, 4)
+    expect(extendedGain(METER_GAIN_MAX) / EXTENDED_GAIN_DARK).toBeGreaterThan(0.995)
+    expect(extendedGain(METER_GAIN_MAX / 10)).toBeLessThan(EXTENDED_GAIN_DARK)
+    expect(extendedGain(METER_GAIN_MAX * 10)).toBeCloseTo(EXTENDED_GAIN_DARK, 12)
     expect(extendedGain(1)).toBe(1)
     expect(extendedGain(1000)).toBe(1)
     expect(extendedGain(1.2e8, 1)).toBe(1)
@@ -94,17 +106,21 @@ describe('the extended response', () => {
   it('shows the band over the dark sky above the toe, and the sky dark grey', () => {
     const gain = METER_GAIN_MAX
     const at = (mag) => surfaceBrightnessValue(mag) * gain
-    const sky = extendedToDisplay(grey(at(DARK_SKY_MAG)), gain, EXTENDED_GAIN_DARK)[1] * 255
-    const band = extendedToDisplay(grey(at(DARK_SKY_MAG) + at(20.5)), gain, EXTENDED_GAIN_DARK)[1] * 255
-    const faint = extendedToDisplay(grey(at(DARK_SKY_MAG) + at(22.5)), gain, EXTENDED_GAIN_DARK)[1] * 255
+    const sky = screen(extendedToDisplay(grey(at(DARK_SKY_MAG)), gain, EXTENDED_GAIN_DARK)) * 255
+    const band = screen(extendedToDisplay(grey(at(DARK_SKY_MAG) + at(20.5)), gain, EXTENDED_GAIN_DARK)) * 255
+    const faint = screen(extendedToDisplay(grey(at(DARK_SKY_MAG) + at(22.5)), gain, EXTENDED_GAIN_DARK)) * 255
     expect(sky).toBeGreaterThan(3)
     expect(sky).toBeLessThan(8)
     expect(band).toBeGreaterThan(40)
     expect(faint).toBeGreaterThan(sky + 3)
     // Without the eye's response, the stars' gain alone: the band in the
     // toe, half as bright, and the sky black.
-    expect(neutral(grey(at(DARK_SKY_MAG) + at(20.5)))[1] * 255).toBeLessThan(band / 2)
-    expect(neutral(grey(at(DARK_SKY_MAG)))[1] * 255).toBeLessThan(1.5)
+    expect(screenOf(at(DARK_SKY_MAG) + at(20.5)) * 255).toBeLessThan(band / 2)
+    expect(screenOf(at(DARK_SKY_MAG)) * 255).toBeLessThan(1.5)
+    // The night sky at 20.5 mag/arcsec² in all shows 43 of 255, 21.5 12
+    // (47 and 12 through the tone map alone, before the screen was encoded).
+    expect(screen(extendedToDisplay(grey(at(20.5)), gain, EXTENDED_GAIN_DARK)) * 255).toBeCloseTo(43, 0)
+    expect(screen(extendedToDisplay(grey(at(21.5)), gain, EXTENDED_GAIN_DARK)) * 255).toBeCloseTo(12.4, 0)
   })
 
   it('greys rod-level light, and keeps a photograph\'s colours', () => {
@@ -137,9 +153,15 @@ describe('the extended response', () => {
         EXTENDED_GAIN_DARK)
     const star = neutral(grey(LIMIT_VALUE))
     const over = displaySum(star, sky)
+    // In light the star adds over the sky what it adds over black; the
+    // limit star is LIMIT_SCREEN on black, and on the sky, through the
+    // encoding, a smaller step of the screen's values.
     expect(over[1] - sky[1]).toBeCloseTo(star[1], 12)
+    expect(srgbEncode(star[1])).toBeCloseTo(LIMIT_SCREEN, 9)
+    expect(srgbEncode(over[1]) - srgbEncode(sky[1])).toBeLessThan(LIMIT_SCREEN)
+    expect(srgbEncode(over[1]) - srgbEncode(sky[1])).toBeGreaterThan(LIMIT_SCREEN * 0.8)
     displaySum([0, 0, 0], sky).forEach((v, i) => expect(v).toBeCloseTo(sky[i], 12))
-    displaySum([0.99, 0.99, 0.99], sky).forEach((v) => expect(v).toBe(1))
+    displaySum([0.999, 0.999, 0.999], sky).forEach((v) => expect(v).toBe(1))
     // Added under the toe in exposure units, the sky would have raised the
     // limit star's step by a quarter, and a magnitude 7.5 star's twofold.
     const pedestal = surfaceBrightnessValue(DARK_SKY_MAG) * METER_GAIN_MAX

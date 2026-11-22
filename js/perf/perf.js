@@ -51,6 +51,8 @@ export class Perf {
     this.off = new Set()
     this.offSkip = new Set()
     this.offGate = new Set()
+    // Whether the backtick key started it (show), so hiding takes it off.
+    this._byKey = false
   }
 
 
@@ -63,15 +65,16 @@ export class Perf {
    * @param {Document} [options.doc] Where the overlay goes; default the page's
    * @param {function(): number} [options.now] Milliseconds; default performance.now
    * @param {boolean} [options.overlay] Show the overlay (the tests don't)
+   * @param {boolean} [options.force] On without `?perf=1` (the backtick key, `show`)
    * @returns {boolean} Whether it is on
    */
-  install(ui, {search, doc, now, overlay = true} = {}) {
+  install(ui, {search, doc, now, overlay = true, force = false} = {}) {
     if (this.enabled) {
       return true
     }
     const query = search ?? (typeof location === 'undefined' ? '' : location.search)
     const params = parsePerfParams(query)
-    if (!params.enabled) {
+    if (!params.enabled && !force) {
       return false
     }
     this.ui = ui
@@ -126,9 +129,10 @@ export class Perf {
       // For the console, as `window.c` is: `perf.snapshot()`.
       window.perf = this
     }
-    if (overlay && (doc ?? (typeof document === 'undefined' ? null : document))) {
+    const page = overlay ? doc ?? (typeof document === 'undefined' ? null : document) : null
+    if (page) {
       this.overlay = new Overlay({
-        doc: doc ?? document,
+        doc: page,
         off: this.off,
         sync: this.sync,
         onSync: (on) => this.setSync(on),
@@ -136,8 +140,38 @@ export class Perf {
         onCopy: () => snapshotJson(this.snapshot()),
         onReset: () => this.resetStats(),
       })
+      // The graphs and render info: a chunk of their own (PerfInfo.js).
+      const o = this.overlay
+      import('./PerfInfo.js').then(({default: PerfInfo}) => {
+        if (this.overlay === o) {
+          this.info = new PerfInfo({doc: page, renderer: this.renderer})
+          o.root.insertBefore(this.info.root, o.body)
+        }
+      }).catch((err) => console.warn('perf: graphs failed to load', err))
     }
     return true
+  }
+
+
+  /**
+   * Show or hide the overlay with the backtick key's panels (ThreeUi
+   * togglePerfPanel).  Shown without `?perf=1`, it starts the
+   * instrumentation, and hiding it again takes it all off; under `?perf=1`
+   * hiding only hides it, and the measuring goes on.
+   *
+   * @param {object} ui ThreeUi, as install takes it
+   * @param {boolean} on
+   */
+  show(ui, on) {
+    if (on && !this.enabled) {
+      this._byKey = this.install(ui, {force: true})
+    } else if (!on && this._byKey) {
+      this._byKey = false
+      this.uninstall()
+    }
+    if (this.overlay) {
+      this.overlay.root.style.display = on ? '' : 'none'
+    }
   }
 
 
@@ -201,6 +235,7 @@ export class Perf {
     const now = this._now()
     if (this._lastFrameAt !== null) {
       this.stats.addInterval(now - this._lastFrameAt)
+      this.info?.frame(now - this._lastFrameAt)
     }
     this._lastFrameAt = now
     this._frameOpen = true
@@ -259,7 +294,9 @@ export class Perf {
     const now = this._now()
     if (this.overlay && now - this._lastOverlayAt >= OVERLAY_EVERY_MS) {
       this._lastOverlayAt = now
-      this.overlay.update({summary: this.stats.summary(), gpuMode: this.gpuMode(), sync: this.sync, note: this.note()})
+      const summary = this.stats.summary()
+      this.overlay.update({summary, gpuMode: this.gpuMode(), sync: this.sync, note: this.note()})
+      this.info?.draw(summary)
     }
   }
 
@@ -551,6 +588,8 @@ export class Perf {
     this.shadows.clear()
     this.overlay?.dispose()
     this.overlay = null
+    this.info = null
+    this._frameOpen = false
     this.renderer.info.autoReset = true
     for (const entry of this._hidden.values()) {
       if (entry.saved !== null && entry.object) {

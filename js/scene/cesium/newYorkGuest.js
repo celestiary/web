@@ -45,8 +45,8 @@ export const LEAN_DRAPE = {tolerance: 0.1, minEdge: 8, maxTriangles: 1.5e6}
 
 /**
  * The guest's light in celestiary's units (CESIUM.md, "New York", the colour
- * contract): Cesium's frame holds stored value × the Sun's light, 1 for a
- * white Lambertian surface facing the Sun.  three's Lambert BRDF is albedo
+ * contract): Cesium's frame holds albedo × the Sun's light, sRGB-encoded, 1
+ * for a white Lambertian surface facing the Sun.  three's Lambert BRDF is albedo
  * / π, so a directional light of intensity π gives 1 there.  The sky's
  * share is a hemisphere light at SKY_FRACTION of that; the guest's baked
  * environment (its Preetham sky, for reflections) at ENVIRONMENT_INTENSITY.
@@ -370,17 +370,19 @@ export function inCelestiaryUnits(guest) {
 
 /**
  * Make the guest's materials write what Cesium's frame holds for the
- * composite's decode (HDR.md, "Colour spaces: stored values"; CESIUM.md,
- * "New York", the colour contract): stored value × the Sun's light, linear
- * in the light, and nothing emitted.  Three switches, as uniforms on
- * `guest.celestiary` (1, 1, 0 here; 0, 1, 1 is the guest's own output), and a
+ * composite's decode (HDR.md, "Colour spaces"; CESIUM.md, "New York", the
+ * colour contract): the albedo (three's diffuse colour, decoded from sRGB)
+ * × the Sun's light, sRGB-encoded at the output as the patched globe's is
+ * (globe.imagerySrgb), and nothing emitted.  Three switches, as uniforms on
+ * `guest.celestiary` (0, 1, 0 here; 0, 1, 1 is the guest's own output), and a
  * fourth for the night lights' frame:
  *
- * - `stored`: each material's diffuse colour, which three has decoded from
- *   sRGB to linear, encoded back before it is lit, and the output linear
- *   (no sRGB encode at the end).  The guest's composite output encodes the
- *   lit colour instead, so its light went through sRGB's curve: a wall lit
- *   at 15% of the Sun showed at 42% of its sunlit value, not 15%.
+ * - `stored` (0 here; for diagnosis): 1 is the frame's old contract, from
+ *   before the colour maps were decoded: each material's diffuse colour
+ *   encoded back to its stored value before it is lit, and the output
+ *   linear.  At 0 the light is linear over the decoded colour, and the
+ *   output encoded: a wall lit at 15% of the Sun decodes at 15% of its
+ *   sunlit value.
  * - `daylight`: unlit materials (lights false: signs, sprites) are their
  *   colour whatever the light, as if lit by the Sun; scaled by daylight
  *   (inCelestiaryUnits), they are dark at night like the rest.
@@ -409,7 +411,7 @@ export function inCelestiaryFrame(guest) {
     return null
   }
   const {diffuseColor, mix, output, select, sRGBTransferOETF, uniform, vec4} = TSL
-  const u = {stored: uniform(1), daylight: uniform(1), emission: uniform(0), occlude: uniform(0)}
+  const u = {stored: uniform(0), daylight: uniform(1), emission: uniform(0), occlude: uniform(0)}
   const seen = new Set()
   guest.scene.traverse((obj) => {
     for (const m of [obj.material ?? []].flat()) {
@@ -470,11 +472,11 @@ export function inCelestiaryFrame(guest) {
   }
   u.setEmission(0)
   // The external renderer sets the output each frustum (linear for an HDR
-  // Cesium, which celestiary's isn't): linear always while `stored` is on,
-  // so the light stays linear over the stored values.
+  // Cesium, which celestiary's isn't): the frame's contract decides it here,
+  // sRGB-encoded, as the globe's; linear only for `stored`'s old contract.
   const setLinearOutput = guest.setLinearOutput
-  guest.setLinearOutput = (linear) => setLinearOutput(u.stored.value > 0.5 ? true : linear)
-  setLinearOutput(true)
+  guest.setLinearOutput = () => setLinearOutput(u.stored.value > 0.5)
+  setLinearOutput(u.stored.value > 0.5)
   guest.celestiary = u
   return u
 }

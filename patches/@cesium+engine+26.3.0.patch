@@ -465,10 +465,10 @@ index 0000000..f21e42d
 +
 +export default ExternalRendererCollection;
 diff --git a/node_modules/@cesium/engine/Source/Scene/Globe.js b/node_modules/@cesium/engine/Source/Scene/Globe.js
-index 31b71e4..d4eb766 100644
+index 31b71e4..88684fa 100644
 --- a/node_modules/@cesium/engine/Source/Scene/Globe.js
 +++ b/node_modules/@cesium/engine/Source/Scene/Globe.js
-@@ -168,13 +168,27 @@ function Globe(ellipsoid) {
+@@ -168,13 +168,39 @@ function Globe(ellipsoid) {
    /**
     * A multiplier to adjust terrain lambert lighting.
     * This number is multiplied by the result of <code>czm_getLambertDiffuse</code> in GlobeFS.glsl.
@@ -494,10 +494,22 @@ index 31b71e4..d4eb766 100644
 +   */
 +  this.dayNightLambertDiffuseMultiplier = 5.0;
 +
++  /**
++   * Whether the imagery's colours are sRGB-encoded, as pictures are: when true, each
++   * imagery sample is decoded to linear light before it is blended and lit, and the
++   * lit colour is encoded back to sRGB for the framebuffer, so lighting multiplies light,
++   * not encoded values. For a renderer that composites the globe into a linear pipeline.
++   * With <code>false</code>, the default, imagery is blended and lit as stored.
++   *
++   * @type {boolean}
++   * @default false
++   */
++  this.imagerySrgb = false;
++
    /**
     * Enable dynamic lighting effects on atmosphere and fog. This only takes effect
     * when <code>enableLighting</code> is <code>true</code>.
-@@ -370,7 +384,8 @@ function Globe(ellipsoid) {
+@@ -370,7 +396,8 @@ function Globe(ellipsoid) {
    this._zoomedOutOceanSpecularIntensity = undefined;
  
    /**
@@ -507,60 +519,68 @@ index 31b71e4..d4eb766 100644
     * This only takes effect when <code>enableLighting</code> is <code>true</code>.
     *
     * @type {number}
-@@ -1075,6 +1090,8 @@ Globe.prototype.beginFrame = function (frameState) {
+@@ -1075,6 +1102,9 @@ Globe.prototype.beginFrame = function (frameState) {
      tileProvider.undergroundColorAlphaByDistance =
        this._undergroundColorAlphaByDistance;
      tileProvider.lambertDiffuseMultiplier = this.lambertDiffuseMultiplier;
 +    tileProvider.dayNightLambertDiffuseMultiplier =
 +      this.dayNightLambertDiffuseMultiplier;
++    tileProvider.imagerySrgb = this.imagerySrgb;
  
      surface.beginFrame(frameState);
    }
 diff --git a/node_modules/@cesium/engine/Source/Scene/GlobeSurfaceTileProvider.js b/node_modules/@cesium/engine/Source/Scene/GlobeSurfaceTileProvider.js
-index 6ffcbfc..ce0c50b 100644
+index 6ffcbfc..bb0530e 100644
 --- a/node_modules/@cesium/engine/Source/Scene/GlobeSurfaceTileProvider.js
 +++ b/node_modules/@cesium/engine/Source/Scene/GlobeSurfaceTileProvider.js
-@@ -130,6 +130,7 @@ class GlobeSurfaceTileProvider {
+@@ -130,6 +130,8 @@ class GlobeSurfaceTileProvider {
      this.undergroundColorAlphaByDistance = undefined;
  
      this.lambertDiffuseMultiplier = 0.0;
 +    this.dayNightLambertDiffuseMultiplier = 5.0;
++    this.imagerySrgb = false;
  
      this.materialUniformMap = undefined;
      this._materialUniformMap = undefined;
-@@ -2101,6 +2102,9 @@ function createTileUniformMap(frameState, globeSurfaceTileProvider) {
+@@ -2101,6 +2103,12 @@ function createTileUniformMap(frameState, globeSurfaceTileProvider) {
      u_vertexShadowDarkness: function () {
        return this.properties.vertexShadowDarkness;
      },
 +    u_dayNightLambertDiffuseMultiplier: function () {
 +      return this.properties.dayNightLambertDiffuseMultiplier;
 +    },
++    u_imagerySrgb: function () {
++      return this.properties.imagerySrgb ? 1.0 : 0.0;
++    },
      u_vectorSegmentTexture: function () {
        return (
          this.properties.vectorSegmentTexture ??
-@@ -2235,6 +2239,7 @@ function createTileUniformMap(frameState, globeSurfaceTileProvider) {
+@@ -2235,6 +2243,8 @@ function createTileUniformMap(frameState, globeSurfaceTileProvider) {
        undergroundColorAlphaByDistance: new Cartesian4(),
        lambertDiffuseMultiplier: 0.0,
        vertexShadowDarkness: 0.0,
 +      dayNightLambertDiffuseMultiplier: 0.0,
++      imagerySrgb: false,
  
        vectorSegmentTexture: undefined,
        vectorWidthTexture: undefined,
-@@ -2567,6 +2572,8 @@ function addDrawCommandsForTile(tileProvider, tile, frameState) {
+@@ -2567,6 +2577,9 @@ function addDrawCommandsForTile(tileProvider, tile, frameState) {
  
    const lambertDiffuseMultiplier = tileProvider.lambertDiffuseMultiplier;
    const vertexShadowDarkness = tileProvider.vertexShadowDarkness;
 +  const dayNightLambertDiffuseMultiplier =
 +    tileProvider.dayNightLambertDiffuseMultiplier;
++  const imagerySrgb = tileProvider.imagerySrgb;
  
    const hasWaterMask = tileProvider.hasWaterMask && defined(waterMaskTexture);
    const showReflectiveOcean = hasWaterMask && tileProvider.showWaterEffect;
-@@ -2889,6 +2896,8 @@ function addDrawCommandsForTile(tileProvider, tile, frameState) {
+@@ -2889,6 +2902,9 @@ function addDrawCommandsForTile(tileProvider, tile, frameState) {
  
      uniformMapProperties.lambertDiffuseMultiplier = lambertDiffuseMultiplier;
      uniformMapProperties.vertexShadowDarkness = vertexShadowDarkness;
 +    uniformMapProperties.dayNightLambertDiffuseMultiplier =
 +      dayNightLambertDiffuseMultiplier;
++    uniformMapProperties.imagerySrgb = imagerySrgb;
  
      const highlightFillTile =
        !defined(surfaceTile.vertexArray) &&
@@ -916,10 +936,10 @@ index 72e68cc..8cf742c 100644
      shadowNear = Math.min(Math.max(shadowNear, frustum.near), frustum.far);
      shadowFar = Math.max(Math.min(shadowFar, frustum.far), shadowNear);
 diff --git a/node_modules/@cesium/engine/Source/Shaders/GlobeFS.js b/node_modules/@cesium/engine/Source/Shaders/GlobeFS.js
-index 9f5ad1c..8429f27 100644
+index 9f5ad1c..4c52836 100644
 --- a/node_modules/@cesium/engine/Source/Shaders/GlobeFS.js
 +++ b/node_modules/@cesium/engine/Source/Shaders/GlobeFS.js
-@@ -125,6 +125,15 @@ uniform vec4 u_undergroundColorAlphaByDistance;\n\
+@@ -125,9 +125,32 @@ uniform vec4 u_undergroundColorAlphaByDistance;\n\
  // The hasVertexNormals flag is from the tileProvider\n\
  #ifdef ENABLE_VERTEX_LIGHTING\n\
  uniform float u_lambertDiffuseMultiplier;\n\
@@ -935,7 +955,32 @@ index 9f5ad1c..8429f27 100644
  uniform float u_vertexShadowDarkness;\n\
  #endif\n\
  \n\
-@@ -433,7 +442,7 @@ void main()\n\
++// Imagery taken as sRGB-encoded (Globe#imagerySrgb): each sample decoded to\n\
++// linear light before it is blended and lit, and the lit colour encoded back\n\
++// to sRGB for the framebuffer.  IEC 61966-2-1's curves, not a 2.2 power.\n\
++uniform float u_imagerySrgb;\n\
++vec3 imagerySrgbToLinear(vec3 c)\n\
++{\n\
++    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));\n\
++}\n\
++vec3 imageryLinearToSrgb(vec3 c)\n\
++{\n\
++    c = max(c, 0.0);\n\
++    return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));\n\
++}\n\
++\n\
+ in vec3 v_positionMC;\n\
+ in vec3 v_positionEC;\n\
+ in vec3 v_textureCoordinates;\n\
+@@ -235,6 +258,7 @@ vec4 sampleAndBlend(\n\
+ #else\n\
+     color = pow(color, vec3(textureOneOverGamma));\n\
+ #endif\n\
++    color = mix(color, imagerySrgbToLinear(color), u_imagerySrgb);\n\
+ \n\
+ #ifdef APPLY_SPLIT\n\
+     float splitPosition = czm_splitPosition;\n\
+@@ -433,7 +457,7 @@ void main()\n\
      float diffuseIntensity = clamp(czm_getLambertDiffuse(czm_lightDirectionEC, normalize(v_normalEC)) * u_lambertDiffuseMultiplier + u_vertexShadowDarkness, 0.0, 1.0);\n\
      vec4 finalColor = vec4(color.rgb * czm_lightColor * diffuseIntensity, color.a);\n\
  #elif defined(ENABLE_DAYNIGHT_SHADING)\n\
@@ -944,6 +989,14 @@ index 9f5ad1c..8429f27 100644
      diffuseIntensity = mix(1.0, diffuseIntensity, fade);\n\
      vec4 finalColor = vec4(color.rgb * czm_lightColor * diffuseIntensity, color.a);\n\
  #else\n\
+@@ -591,6 +615,7 @@ void main()\n\
+     }\n\
+ #endif\n\
+ \n\
++    finalColor.rgb = mix(finalColor.rgb, imageryLinearToSrgb(finalColor.rgb), u_imagerySrgb);\n\
+     out_FragColor =  finalColor;\n\
+ }\n\
+ \n\
 diff --git a/node_modules/@cesium/engine/Source/Shaders/ViewportQuadVS.js b/node_modules/@cesium/engine/Source/Shaders/ViewportQuadVS.js
 index f4fb081..67f247b 100644
 --- a/node_modules/@cesium/engine/Source/Shaders/ViewportQuadVS.js

@@ -208,6 +208,10 @@ link's rewrite.
 Tracking (`t`) is the `T` flag in `s=`: `Scene.getSettings()` reads it from
 `Shared.targets.track`, and `Celestiary._arrive` sets it (`Scene.setTracking`) after the target.
 
+The observer is the `K` flag in `s=` (a camera; the eye without it): a plain setting, which
+`Scene.initSettings` and `toggleObserverCamera` hand to `ThreeUi.setObserver`
+(design/URLs.md; js/scene/Sun.md, "Glare").
+
 Following (`f`) is the `F` flag in `s=`, the same way: `Scene.getSettings()` reads it from
 `Shared.targets.follow` (the body's `orbitPosition` while following).  It is independent of `T`
 (`s=TF`) and left out when off.  It means **the camera follows its frame's body** (`from=`, else the

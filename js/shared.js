@@ -4,6 +4,7 @@ import {
 } from 'three'
 
 import {named} from './utils.js'
+import {css, sceneColors} from './theme.js'
 
 
 // Geom
@@ -94,7 +95,7 @@ export const targets = {
 export const FAR_OBJ = named(new Object3D, 'LODFarObj')
 
 // Colors
-export const labelTextColor = '#7fa0e0'
+export const labelTextColor = css(sceneColors.label)
 export const labelTextFont = 'medium arial'
 
 /**

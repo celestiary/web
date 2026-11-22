@@ -1,3 +1,6 @@
+import {sceneColors} from '../theme.js'
+
+
 // The orbital regimes around a body (Lagrange.md, orbital regimes; #272's scope 2): the shells
 // spacecraft use, the boundaries further out, and the orbits that define
 // the families, in the body's equator.  Earth's first, and their analogues
@@ -25,31 +28,36 @@ const KM = 1e3
  * local time (`ltan`, hours) that follows the Sun.  `notes` are lines for
  * the panel alone.
  */
+// The regimes' colours (theme.js).
+const RC = sceneColors.regime
+
+
 export const REGIMES = {
   earth: {
     gm: 3.986004418e14,
     j2: 1.08262668e-3,
     equatorialRadius: 6378137,
     shells: [
-      {name: 'LEO', label: 'LEO', text: 'low Earth orbit (LEO)', from: 160 * KM, to: 2000 * KM, color: 0x7fd0ff},
-      {name: 'MEO', label: 'MEO', text: 'medium Earth orbit (MEO)', from: 2000 * KM, to: 35786 * KM, color: 0xb59bff},
+      {name: 'LEO', label: 'LEO', text: 'low Earth orbit (LEO)', from: 160 * KM, to: 2000 * KM, color: RC.low},
+      {name: 'MEO', label: 'MEO', text: 'medium Earth orbit (MEO)', from: 2000 * KM, to: 35786 * KM, color: RC.medium},
     ],
     spheres: [
       // The cislunar explainer (#272): about here the Moon's pull starts
       // to tell on an orbit.  No standard name for it was found.
-      {label: '100,000 km up', text: '100,000 km up: the Moon\'s pull starts to matter', altitude: 100000 * KM, color: 0xd8c27f},
+      {label: '100,000 km up', text: '100,000 km up: the Moon\'s pull starts to matter', altitude: 100000 * KM, color: RC.far},
       // The 2022 US definition: the volume beyond GEO under the Earth's
       // and the Moon's gravity, the Earth-Moon Lagrange points within it.
-      {label: 'cislunar space', text: 'cislunar space: beyond GEO, out to the Earth–Moon L2', beyond: 'moon', color: 0xd8a07f},
+      {label: 'cislunar space', text: 'cislunar space: beyond GEO, out to the Earth–Moon L2', beyond: 'moon', color: RC.cislunar},
     ],
     orbits: [
-      {label: 'GEO graveyard', text: 'GEO graveyard, 300 km above GEO', a: (42164 * KM) + (300 * KM), color: 0x9a9a9a},
-      {label: 'GPS', text: 'GPS: 6 planes at 55°, 20,200 km up', a: 26559.7 * KM, i: 55, planes: 6, color: 0x9fe09f},
+      {label: 'GEO graveyard', text: 'GEO graveyard, 300 km above GEO', a: (42164 * KM) + (300 * KM), color: RC.graveyard},
+      {label: 'GPS', text: 'GPS: 6 planes at 55°, 20,200 km up', a: 26559.7 * KM, i: 55, planes: 6, color: RC.gps},
       {label: 'Molniya', text: 'Molniya: 12 h, apogee 39,400 km over the north', a: 26554 * KM, e: 0.722, i: 63.4, w: 270, node: 0,
-        color: 0xff9f9f},
+        color: RC.molniya},
       {label: 'Tundra', text: 'Tundra: 24 h, apogee over the north', a: 42164 * KM, e: 0.268, i: 63.4, w: 270, node: 120,
-        color: 0xffc07f},
-      {label: 'sun-synchronous', text: 'sun-synchronous, 700 km, dawn–dusk', sunSync: true, altitude: 700 * KM, ltan: 18, color: 0xfff07f},
+        color: RC.tundra},
+      {label: 'sun-synchronous', text: 'sun-synchronous, 700 km, dawn–dusk', sunSync: true, altitude: 700 * KM, ltan: 18,
+        color: RC.sunSync},
     ],
   },
   mars: {
@@ -61,7 +69,7 @@ export const REGIMES = {
     orbits: [
       // Mars Reconnaissance Orbiter's: about 300 km up, 3 pm.
       {label: 'sun-synchronous', text: 'sun-synchronous, 300 km, 3 pm (as MRO\'s)', sunSync: true, altitude: 300 * KM, ltan: 15,
-        color: 0xfff07f},
+        color: RC.sunSync},
     ],
   },
   // Near the Moon (Lagrange.md, near the Moon).  Altitudes are over the
@@ -71,7 +79,7 @@ export const REGIMES = {
     gm: 4.9028e12,
     equatorialRadius: 1737400,
     shells: [
-      {name: 'LLO', label: 'LLO', text: 'low lunar orbit (LLO)', from: 20 * KM, to: 100 * KM, color: 0x7fd0ff},
+      {name: 'LLO', label: 'LLO', text: 'low lunar orbit (LLO)', from: 20 * KM, to: 100 * KM, color: RC.low},
     ],
     spheres: [],
     orbits: [
@@ -79,19 +87,19 @@ export const REGIMES = {
       // account), drawn circular at 100 km: their eccentricities are small.
       ...[[27, 0], [50, 90], [76, 180], [86, 270]].map(([i, node]) => ({label: `frozen ${i}°`,
         text: `frozen low orbit, ${i}°: the mascons' tugs average out, and it lasts for years without burns`,
-        altitude: 100 * KM, i, node, color: 0x8fe0c0})),
+        altitude: 100 * KM, i, node, color: RC.frozen})),
       {label: 'LRO 2009–11', text: 'LRO\'s mapping orbit, 2009–11: 50 km, polar, held by burns of 143 m/s a year',
-        altitude: 50 * KM, i: 90, w: 90, node: 45, color: 0xfff07f},
+        altitude: 50 * KM, i: 90, w: 90, node: 45, color: RC.sunSync},
       {label: 'LRO', text: 'LRO since December 2011: frozen and polar, under 5 m/s a year; ' +
         'drawn as in 2015, 20 km over the south pole and 165 km over the north',
       a: (1737.4 + ((20 + 165) / 2)) * KM, e: (165 - 20) / ((2 * 1737.4) + 20 + 165), i: 90, w: 270, node: 45,
-      color: 0xffc07f},
+      color: RC.tundra},
       // The 30 h reference orbit of NASA's lunar relay and navigation
       // service (LCRNS): 1,750 by 17,400 km up.
       {label: 'ELFO', text: 'elliptical lunar frozen orbit (ELFO), 30 h: 1,750 by 17,400 km up, ' +
         'its apolune over the south pole; Earth\'s pull keeps it frozen',
       a: (1737.4 + ((1750 + 17400) / 2)) * KM, e: (17400 - 1750) / ((2 * 1737.4) + 1750 + 17400),
-      i: 59.37, w: 92.49, node: 135, color: 0xff9f9f},
+      i: 59.37, w: 92.49, node: 135, color: RC.molniya},
     ],
     notes: [
       'why most low lunar orbits don\'t last: the mascons, dense regions under the maria, pull unevenly, ' +

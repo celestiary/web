@@ -1,13 +1,16 @@
+import {readFileSync} from 'fs'
 import {AlwaysDepth, LOD, Matrix4, Object3D, PerspectiveCamera, Vector3} from 'three'
 import * as netgl from '@pablo-mayrgundter/portal-netgl/core'
-import {ASTRO_UNIT_METER} from '../../shared.js'
+import {ASTRO_UNIT_METER, DISPLAY_GAIN} from '../../shared.js'
 import {exposureAt, METER_EVERY_FRAMES, nightLightRadiance} from '../exposure.js'
 import {MeterCadence} from '../meterReadback.js'
 import {clearSharedImages, sharedObjectUrl} from '../sharedImage.js'
-import CesiumLayers, {BING_LOGO_SELECTOR, bingShown, bodyGain, meshRange, preloadNames, tilesReady} from './CesiumLayers.js'
+import CesiumLayers, {BING_LOGO_SELECTOR, bingShown, bodyGain, frameEncoding, meshRange, preloadNames, tilesReady} from './CesiumLayers.js'
 import GuestPages from './guestPages.js'
+import {sunlitShader} from './cesiumBody.js'
 import {CESIUM_BODIES} from './bodies.js'
 import {addCredit, clearCredits, getCredits, hasCredit} from '../../credits.js'
+import {SCREEN_STEP, sceneOfScreen} from '../screen.js'
 
 
 describe('meshRange', () => {
@@ -116,8 +119,24 @@ describe('crossfade', () => {
 
 describe('decode', () => {
   it('scales every body by DISPLAY_GAIN and its imagery against celestiary\'s texture', () => {
-    expect(bodyGain('earth')).toBeCloseTo(bodyGain('mars'), 10)
+    expect(bodyGain('earth')).toBeCloseTo(DISPLAY_GAIN, 10)
+    expect(bodyGain('mars') / bodyGain('earth')).toBeCloseTo(CESIUM_BODIES.mars.textureGain, 10)
     expect(bodyGain('moon') / bodyGain('earth')).toBeCloseTo(CESIUM_BODIES.moon.textureGain / CESIUM_BODIES.moon.imageryScale, 10)
+  })
+
+  it('reads each frame by its encoding: a tileset\'s log, a globe\'s sRGB, an old guest page\'s linear', () => {
+    expect(frameEncoding(CESIUM_BODIES.moon, {})).toBe(1)
+    expect(frameEncoding(CESIUM_BODIES.mars, {})).toBe(1)
+    expect(frameEncoding(CESIUM_BODIES.earth, {})).toBe(2)
+    expect(frameEncoding(CESIUM_BODIES.earth, {remote: true})).toBe(2)
+    expect(frameEncoding(CESIUM_BODIES.earth, {remote: true, guestVersion: 4})).toBe(2)
+    expect(frameEncoding(CESIUM_BODIES.earth, {remote: true, guestVersion: 3})).toBe(0)
+    const {fragmentShader, uniforms} = new CesiumLayers({}).decode.material
+    expect(uniforms.uEncoding.value).toBe(2)
+    expect(fragmentShader).toContain('uEncoding > 1.5 ? sRGBTransferEOTF(c).rgb')
+    const lights = new CesiumLayers({}).lights.material
+    expect(lights.uniforms.uSrgb.value).toBe(1)
+    expect(lights.fragmentShader).toContain('uSrgb > 0.5 ? sRGBTransferEOTF(c).rgb : c.rgb')
   })
 
   it('draws the globe over whatever its stencil admitted, depth or not', () => {
@@ -374,8 +393,10 @@ describe('night lights', () => {
     return new CesiumLayers({renderer: {toneMappingExposure: exposure}, isMeterFrame: () => cadence.isSampleFrame()})
   }
   const body = {night: {}, nightInView: true}
-  // The renderer's exposure at which the brightest light is a display step.
-  const step = (1 / 255) / nightLightRadiance()
+  // The renderer's exposure at which the brightest light shows as half a
+  // screen step (screen.js: through the tone map and the screen's encoding).
+  const half = sceneOfScreen(0.5 * SCREEN_STEP) / nightLightRadiance()
+  const step = half * 2
 
   it('are skipped with no night side in the frame, or no night layer', () => {
     expect(layers(step * 1e3, 1)._lightsShow({...body, nightInView: false})).toBe(false)
@@ -384,12 +405,12 @@ describe('night lights', () => {
 
   it('draw where the brightest could reach half a display step', () => {
     expect(layers(step, 1)._lightsShow(body)).toBe(true)
-    expect(layers(step * 0.6, 1)._lightsShow(body)).toBe(true)
+    expect(layers(half * 1.2, 1)._lightsShow(body)).toBe(true)
   })
 
   it('under it, are skipped but on the frames the meter reads', () => {
-    expect(layers(step * 0.4, 1)._lightsShow(body)).toBe(false)
-    expect(layers(step * 0.4, METER_EVERY_FRAMES * 3)._lightsShow(body)).toBe(true)
+    expect(layers(half * 0.8, 1)._lightsShow(body)).toBe(false)
+    expect(layers(half * 0.8, METER_EVERY_FRAMES * 3)._lightsShow(body)).toBe(true)
     // By day the lights are far under it: Earth's keyed exposure, gain 1.
     expect(layers(exposureAt(ASTRO_UNIT_METER), 2)._lightsShow(body)).toBe(false)
   })
@@ -399,7 +420,7 @@ describe('night lights', () => {
     // isSampleFrame), then _meter ends the frame with advance, metering when
     // it returns true.
     const cadence = new MeterCadence()
-    const L = new CesiumLayers({renderer: {toneMappingExposure: step * 0.4}, isMeterFrame: () => cadence.isSampleFrame()})
+    const L = new CesiumLayers({renderer: {toneMappingExposure: half * 0.8}, isMeterFrame: () => cadence.isSampleFrame()})
     const drawn = []
     const metered = []
     for (let f = 0; f < 4 * METER_EVERY_FRAMES; f++) {
@@ -1223,5 +1244,71 @@ describe('credits in the footer', () => {
     L._newYork = {status: 'ready', remote: true, step: null}
     L._creditNewYork()
     expect(hasCredit('new-york')).toBe(true)
+  })
+})
+
+
+describe('a tileset\'s shader', () => {
+  // Cesium, as far as sunlitShader uses it.
+  const Cesium = {
+    UniformType: {FLOAT: 'float', VEC3: 'vec3', SAMPLER_2D: 'sampler2D'},
+    Cartesian3: class {
+      constructor(x, y, z) {
+        Object.assign(this, {x, y, z})
+      }
+    },
+    LightingModel: {UNLIT: 'unlit'},
+    CustomShader: class {
+      constructor(options) {
+        Object.assign(this, options)
+      }
+    },
+  }
+
+  it('lights a picture\'s imagery decoded by sRGB\'s curve, and the Moon\'s linear map as stored', () => {
+    // Cesium's own decode (a 2.2 power) undone first, back to the stored value.
+    const mars = sunlitShader(Cesium, 0.02, {srgb: true}).fragmentShaderText
+    expect(mars).toContain('albedoOf(czm_linearToSrgb(material.diffuse)) * light')
+    expect(mars).toContain('mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c))')
+    const moon = sunlitShader(Cesium, 0, {lunar: true, srgb: false}).fragmentShaderText
+    expect(moon).toContain('albedoOf(czm_linearToSrgb(material.diffuse)) * light')
+    expect(moon).toContain('return c;')
+    expect(moon).not.toContain('step(0.04045, c)')
+  })
+})
+
+
+describe('the ground\'s light in the decode (CESIUM.md, "The ground\'s light")', () => {
+  // The decode's arithmetic, mirrored: the frame is albedo × (floor +
+  // (1 − floor) × Lambert); the albedo by the sphere's Lambert, mu.
+  const decode = (lit, floor, keep, mu, T, E) => {
+    const lam = floor + ((1 - floor) * Math.max(mu, 0))
+    const albedo = lit / Math.max(lam, floor > 0 ? floor : 0.005)
+    const sunLit = Math.max(lit - (albedo * floor), 0) / (1 - (floor * (1 - keep)))
+    return (albedo * floor * keep) + (sunLit * T) + (albedo * E)
+  }
+  const a = 0.3
+  const f = CESIUM_BODIES.earth.albedoFloor
+
+  it('lights Earth\'s albedo by the Sun through the air and the sky, its floor gone', () => {
+    expect(f).toBeGreaterThan(0)
+    for (const mu of [0.02, 0.3, 0.9]) {
+      expect(decode(a * (f + ((1 - f) * mu)), f, 0, mu, 0.6, 0.1)).toBeCloseTo(a * ((mu * 0.6) + 0.1), 12)
+    }
+    // The night side: the sky's light alone, from the floor's albedo.
+    expect(decode(a * f, f, 0, -0.02, 0, 0.004)).toBeCloseTo(a * 0.004, 12)
+  })
+
+  it('keeps a tileset\'s night floor (Mars\'s), and is the frame again with no air', () => {
+    const m = CESIUM_BODIES.mars.nightFloor
+    const frame = a * (m + ((1 - m) * 0.5))
+    expect(decode(frame, m, 1, 0.5, 1, 0)).toBeCloseTo(frame, 12)
+    expect(decode(frame, m, 1, 0.5, 0.7, 0.05)).toBeCloseTo(a * (m + ((1 - m) * 0.5 * 0.7) + 0.05), 12)
+  })
+
+  it('is the shader\'s', () => {
+    const source = readFileSync('./js/scene/cesium/CesiumLayers.js', 'utf8')
+    expect(source).toContain('vec3 sunLit = max(lit - albedo * uNightFloor, 0.0) / (1.0 - uNightFloor * (1.0 - uKeepFloor));')
+    expect(source).toContain('lit = albedo * uNightFloor * uKeepFloor + sunLit * groundSunT(0.0, mu) + albedo * groundSky(0.0, mu);')
   })
 })

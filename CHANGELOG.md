@@ -47,13 +47,42 @@ the Southern Ring, Stephan's Quintet, the Sombrero, Eta Carinae and more, with t
 images over the stars. Hubble's and JWST's surveys are in grey (the only colour ones online are
 unavailable for now); Rubin's Virgo field, also in the list, is in colour.
 
-- Date: 2026-11-20
+- Date: 2026-11-22
 - PR: [#370](https://github.com/celestiary/web/pull/370)
 - Issue: [#360](https://github.com/celestiary/web/issues/360)
 - Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
 - Permalink: [Open this view](https://celestiary.org/#sun@0,-90,23.604464Gm;t=9820.337596jd;cq=0.0036,-0.9956,0.0829,0.0436;fov=0.07deg;s=F;time:pause;sky:jwst-nircam)
 - Featured: yes
 
+### The ground lit through the air: dimmer and redder toward sunset
+
+The ground under an atmosphere was lit as if the air weren't there, as bright and white at sunset as at noon until the terminator.  Now sunlight reaches it through the air and the sky lights it too: Earth's land reddens and dims toward the terminator, the twilight ground keeps the sky's glow a few degrees past it, and Mars's ground darkens under its dust.  The Cesium layer matches across the terminator, and Earth's ground brightness follows the month's snow.
+
+- Date: 2026-11-22
+- PR: [#376](https://github.com/celestiary/web/pull/376)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@15,20.7446,20Mm;t=9233.1234jd;cq=-0.0108,0.9967,-0.0736,0.031;fov=45deg;s=alpoU)
+- Kind: fix
+
+### Earth's air as it really is: a blue limb, orange sunsets
+
+Earth's sky is now drawn from the measured air, at its physical brightness: a clear day's haze, the ozone layer and the standard atmosphere, in place of a sky turned up four and a half times.  From orbit the limb goes from black through a thin deep blue to the surface, as the astronauts' photographs show, with the land and clouds no longer veiled, and the haze over the land lighter and less blue; from the ground the noon sky has the luminance a clear day has, and sunsets glow orange.  A new Observer setting makes a camera the observer in place of the eye: with the Sun near the field its glare is a good lens's, tens of times fainter than the eye's, so the air over Earth's limb is seen as photographs show it, not through the eye's haze.
+
+- Date: 2026-11-21
+- PR: [#375](https://github.com/celestiary/web/pull/375)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: none
+- Featured: yes
+
+### Colours as they really are: pictures decoded, the screen encoded
+
+Surfaces are now lit in linear light and the frame is encoded for the screen, as a camera's would be: the planets come out at their measured albedos (Mercury and Mars no longer a magnitude and half a magnitude too bright), their colours no longer over-saturated, and labels and lines show their true colours.  The naked-eye star field is calibrated as before.
+
+- Date: 2026-11-21
+- PR: [#374](https://github.com/celestiary/web/pull/374)
+- Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
+- Permalink: [Open this view](https://celestiary.org/#saturn)
+- Kind: fix
 ### The Sun as SOHO and SDO show it: flares, eruptions and the corona
 
 Add `?sun=euv` to the address and the Sun is drawn as a space observatory's instruments show it, not

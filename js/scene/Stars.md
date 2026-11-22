@@ -66,7 +66,7 @@ warm white; 6,500 K is white, as D65 nearly is.
 the linear colour through sRGB's transfer function, normalised to a luma
 of 1 over the stored values, so a star's light scales it linearly.  The
 pipeline never encodes or decodes sRGB ([HDR.md, colour
-spaces](HDR.md#colour-spaces-stored-values)): a texture's stored values
+spaces](HDR.md#colour-spaces)): a texture's stored values
 are lit linearly and shown as they are, and the galaxy's colours are
 given in stored values (`galaxyModel.js` `COLORS`).  The linear
 chromaticity shown as stored values, which the stars and the discs were

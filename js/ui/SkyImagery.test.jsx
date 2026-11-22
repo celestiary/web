@@ -4,7 +4,7 @@ import {CacheProvider} from '@emotion/react'
 import React from 'react'
 import {renderToStaticMarkup} from 'react-dom/server'
 import * as sky from '../scene/sky/install.js'
-import {newTileMaterial} from '../scene/sky/tileMaterial.js'
+import {newTileMaterial, keyLinear} from '../scene/sky/tileMaterial.js'
 import SkyImagery from './SkyImagery.jsx'
 import * as section from './SkySection.jsx'
 
@@ -47,15 +47,18 @@ describe('the sky imagery section', () => {
 
 describe('a tile\'s key and negative', () => {
   it('keys black over the ramp asked for, and inverts only where asked', () => {
+    // The ramp is given in the picture's values and held decoded, as the texel is sampled.
     const plain = newTileMaterial(null, {keyBlack: true})
     expect(plain.uniforms.uKeyFrom.value).toBe(0)
-    expect(plain.uniforms.uKeyFull.value).toBe(2 / 255)
+    expect(plain.uniforms.uKeyFull.value).toBeCloseTo(2 / 255 / 12.92, 12)
     expect(plain.uniforms.uInvert.value).toBe(0)
     const hubble = newTileMaterial(null, {keyBlack: true, keyBlackFrom: 16 / 255, keyBlackFull: 24 / 255, invert: true})
-    expect(hubble.uniforms.uKeyFrom.value).toBe(16 / 255)
-    expect(hubble.uniforms.uKeyFull.value).toBe(24 / 255)
+    expect(hubble.uniforms.uKeyFrom.value).toBeCloseTo(keyLinear(16 / 255), 12)
+    expect(hubble.uniforms.uKeyFull.value).toBeCloseTo(keyLinear(24 / 255), 12)
+    expect(keyLinear(24 / 255)).toBeCloseTo(Math.pow(((24 / 255) + 0.055) / 1.055, 2.4), 12)
     expect(hubble.uniforms.uInvert.value).toBe(1)
-    // The key reads the texel as served, before the negative.
-    expect(hubble.fragmentShader.indexOf('smoothstep(uKeyFrom')).toBeLessThan(hubble.fragmentShader.indexOf('uInvert)'))
+    // The key reads the texel as served; the negative is of the picture's bytes.
+    expect(hubble.fragmentShader).toContain('smoothstep(uKeyFrom, uKeyFull, v)')
+    expect(hubble.fragmentShader).toContain('dec(1.0 - enc(rgb.r))')
   })
 })
