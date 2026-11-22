@@ -678,7 +678,8 @@ export default class SunLayers {
     const field = glareFieldWeight(offAxis)
     u.uFieldWeight.value = field * this.glareGain
     // The veil is the eye's: an instrument's view has none.
-    this.glare.visible = this.enabled.glare && this.view === VIEW_EYE &&
+    // Nor under a picture of the sky (ThreeUi.pictureInView, set by Star).
+    this.glare.visible = this.enabled.glare && this.view === VIEW_EYE && !this.underPicture &&
       field > 0 && reach > 0.1 && offAxis - halfDiag < reach &&
       fn(0.1) * scale > VISIBLE_FLOOR
   }

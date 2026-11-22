@@ -367,11 +367,14 @@ Sun's corona from inside its shell), and the eye adapts to a dark frame, so
 from the default seat, riding the Sun's orbit 24 Gm out, the corona and the
 zodiacal light at the dark-adapted gain (8.5e5) put 200 of 255 over the
 Pillars of Creation and the stars round them; at 60 Gm the zodiacal light
-alone 70, and 6 by 150 Gm.  So while a picture is being looked at
-(`ThreeUi.pictureInView`: imagery in the frame, `Scene.skyInView`, and the
-field at most 10°) that light isn't drawn: `_updateNightSkyShown` reads it,
-and `SunLayers.underPicture` hides the corona.  The stars and the bodies
-are drawn as ever, and the meter reads what's left.
+alone 70, and 6 by 150 Gm.  Within 100° of the Sun the eye's glare veils
+the frame too: 207 of 255 over Stephan's Quintet, 93° from the Sun at 56 Gm,
+at a gain of only 9.  So while a picture is in the frame
+(`ThreeUi.pictureInView`: `Scene.skyInView`, at any field; a cut at 10°
+popped to grey on the way out) that light isn't drawn:
+`_updateNightSkyShown` reads it, and `SunLayers.underPicture` hides the
+corona and the glare.  The stars and the bodies are drawn as ever, and the
+meter reads what's left.
 
 ## Hosts, and what the sandbox reaches
 
