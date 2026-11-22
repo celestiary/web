@@ -697,6 +697,24 @@ panel](../../DESIGN.md#performance-panel)) switches the glare off and on
 drew, and scales the veil by `SunLayers.glareGain` (default 1, through
 `uFieldWeight`; not in the link).
 
+**In step with the disc**: the veil's hole over the disc ("over the disc
+itself none") is cut at the Sun's direction in the camera's view
+(`uSunDir`), and that was taken in `SunLayers.update`, from the Star's
+`preAnimCb`, in the animation callback: before the `goTo` tween, the arrow
+keys, the ground keeper and AR move the camera.  The disc is drawn where
+the camera is at the render, so while the view turned the hole sat where
+the disc had been a frame before, a crescent of unveiled sky beside the
+disc (the user's black "difference region"; at 10° turning 0.5° a frame,
+12 px off on a disc 6.5 px in radius, 126 dark pixels by it).  The
+direction is taken again in the pass's `onBeforeRender`
+(`_glareDirection`), from the camera being drawn, as the disc
+(`discView`) and the corona (`_coronaView`) take theirs; `_glareView`
+still decides the reach from the update's.  Within the disc the Sun's
+point sprite adds to the disc's own light, and the two overflowed
+half-float at the disc's centre from the ground at a 45° field: the
+point's share is held to what the disc's shoulder leaves ([HDR.md, physical
+stars](HDR.md#physical-stars), "The Sun's disc").
+
 **A camera's** ([#375](https://github.com/celestiary/web/pull/375)): the
 eye's veil is the default, and a camera is the Settings' Observer row (`K`
 in a link's `s=`, [design/URLs.md](../../design/URLs.md)).  Against ISS

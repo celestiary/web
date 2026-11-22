@@ -127,6 +127,12 @@ uniform float uStarGain;
 uniform float uSunVisible;
 // Half-float's largest value, the scene buffer's.
 const float MAX_VALUE = 6.0e4;
+// The most a star's sprite adds where its disc's mesh may draw under it
+// (hdr.js LUMINOUS_GLOW_MAX: what the luminous shoulder's 5e4 leaves of
+// the buffer), and the disc's angular diameter from which it may: the
+// Star's LOD draws the mesh within a thousand radii, 2e-3 rad across.
+const float DISC_SHARE_MAX = 1.0e4;
+const float DISC_DRAWN_RAD = 1.9e-3;
 // The naked eye's field, INITIAL_FOV (45°): tan of its half.
 const float TAN_HALF_EYE_FOV = 0.41421356;
 const float RAD_TO_DEG = 57.2957795;
@@ -223,13 +229,24 @@ void main() {
   // the patch, so the mesh and a halo take over from the point.
   float discRad = 2.0 * radius / max(-mvPosition.z, 1.0);
   value *= min(1.0, (patchRad * patchRad) / max(discRad * discRad, 1.0e-30));
+  // Where the disc's mesh may be drawn the sprite adds on its pixels, so
+  // the two share the buffer: the disc's brightest channel up to the
+  // shoulder's 5e4, the sprite's the rest.  At 6e4 apiece they summed past
+  // 65,504 (Inf, NaN in the next pass: black pixels at the Sun's centre
+  // from the ground at a 45° field).  Its veil is the disc's glare pass,
+  // so it has no wing.  The cap is on the brightest channel, not the
+  // luminance: a colour at luminance 1 has red 1.11 for the Sun, 1.75 at
+  // 3000 K, and a point at 6e4 in luminance overflowed in red.
+  bool discDrawn = isSun || discRad > DISC_DRAWN_RAD;
+  float colorMax = max(max(color.r, color.g), max(color.b, 1.0e-6));
+  float maxValue = (discDrawn ? DISC_SHARE_MAX : MAX_VALUE) / colorMax;
 
   // The wing: the star's whole light (the pooled light over the pool's
   // share, in exposure units × steradians, as the eye receives it through
   // the field's magnification) times the eye's PSF at each pixel's angle
   // from the star, in the eye's degrees (stars.frag).
   vDegPerPx = pxRad * magnification * RAD_TO_DEG;
-  vWingScale = isSun ? 0.0 : value * patchRad * patchRad * magnification * magnification / uCoreShare;
+  vWingScale = discDrawn ? 0.0 : value * patchRad * patchRad * magnification * magnification / uCoreShare;
   float wingRadiusPx = wingRadiusDeg(vWingScale, WING_FLOOR) / vDegPerPx;
 
   // The core: the pooled light, L × patch², over a Gaussian of width
@@ -251,12 +268,12 @@ void main() {
     vSigma = 0.0;
     vSize = clamp(2.0 * floor(wingRadiusPx + 0.5) + 1.0, 1.0, uMaxStarSizePx);
     gl_PointSize = vSize;
-    vBrightness = min(value, MAX_VALUE);
+    vBrightness = min(value, maxValue);
     gl_Position = clipToW1(projectionMatrix * mvPosition);
     return;
   }
   vSigma = sigma0;
-  float peak = min(peak0, MAX_VALUE);
+  float peak = min(peak0, maxValue);
   float coreRadius = vSigma * sqrt(2.0 * log(max(peak / VISIBLE_VALUE, 1.0)));
   float visibleRadius = max(coreRadius, wingRadiusPx);
   vSize = clamp(2.0 * visibleRadius + 2.0, MIN_STAR_SIZE_PX, uMaxStarSizePx);

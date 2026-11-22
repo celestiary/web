@@ -16,7 +16,7 @@ import {readFileSync} from 'fs'
 import {EYE_GLSL} from './eye.js'
 import {EYE_PSF_GLSL} from './sun/glare.js'
 import {galaxyGlsl} from './galaxyModel.js'
-import {HDR_MAX_VALUE, HDR_MIN_NORMAL, emitted} from './hdr.js'
+import {HDR_MAX_VALUE, HDR_MIN_NORMAL, LUMINOUS_CEILING, LUMINOUS_GLOW_MAX, emitted} from './hdr.js'
 import {DARK_SKY_MAG, surfaceBrightnessValue} from './eye.js'
 import {LIMIT_SCREEN} from './observer/instrument.js'
 import {SCREEN_STEP, screenOf} from './screen.js'
@@ -976,6 +976,42 @@ describe('the shaders', () => {
     expect(vert).toMatch(/uniform float uEyePointRad;/)
     expect(vert).toMatch(/uniform float uCoreShare;/)
     expect(readFileSync('./js/shaders/stars.frag', 'utf8')).toMatch(/uniform float uPoolRadiusDeg;/)
+  })
+
+  it('stars.vert leaves a disc its buffer: a sprite over a disc adds at most what the shoulder leaves, in any channel', () => {
+    // The Sun's point and its disc add on the disc's pixels; at 6e4 each
+    // they passed half-float's 65,504 (black pixels at the Sun's centre).
+    const vert = readFileSync('./js/shaders/stars.vert', 'utf8')
+    const share = Number(vert.match(/const float DISC_SHARE_MAX = ([0-9.e+-]+);/)[1])
+    expect(share).toBe(LUMINOUS_GLOW_MAX)
+    expect(LUMINOUS_CEILING + share).toBeLessThanOrEqual(HDR_MAX_VALUE)
+    // From where the Star's LOD draws the mesh (a thousand radii: 2e-3 rad
+    // across, the most z along the view axis can make it).
+    const drawn = Number(vert.match(/const float DISC_DRAWN_RAD = ([0-9.e+-]+);/)[1])
+    expect(drawn).toBeLessThanOrEqual(2 / 1e3)
+    expect(drawn).toBeGreaterThan(1e-3)
+    expect(vert).toMatch(/bool discDrawn = isSun \|\| discRad > DISC_DRAWN_RAD;/)
+    // On the brightest channel: colours are at luminance 1, the Sun's red 1.11.
+    expect(vert).toMatch(/float maxValue = \(discDrawn \? DISC_SHARE_MAX : MAX_VALUE\) \/ colorMax;/)
+    expect(vert).toMatch(/vBrightness = min\(value, maxValue\);/)
+    expect(vert).toMatch(/float peak = min\(peak0, maxValue\);/)
+    expect(vert).toMatch(/vWingScale = discDrawn \? 0\.0 :/)
+  })
+
+  it('keeps the Sun\'s point and its disc within half-float, from the ground at a 45° field', () => {
+    // Measured headless (Sun.md, "Glare"): the disc's centre at 49,980 in red, then the
+    // point added 18,000 and the pixel overflowed.  The disc's brightest
+    // channel is held to the shoulder's ceiling; the point's to the rest.
+    const sunRed = 1.11
+    const discRad = 2 * 6.957e8 / 1.496e11
+    for (const gain of [1, 1e3, 1e6]) {
+      const sun = starSprite(1, gain, {fovDegrees: 45, heightPx: 300, discRad, discDrawn: true, colorMax: sunRed})
+      expect(sun.wingScale).toBe(0)
+      expect(LUMINOUS_CEILING + (sun.peak * sunRed)).toBeLessThanOrEqual(HDR_MAX_VALUE)
+    }
+    // Before, it was held only to the buffer's most, on its luminance.
+    const old = starSprite(1, 1e3, {fovDegrees: 45, heightPx: 300, discRad, wings: false})
+    expect(LUMINOUS_CEILING + (old.peak * sunRed)).toBeGreaterThan(65504)
   })
 
   it('stars.frag floors emitted radiance at the buffer\'s smallest normal value, the same constant as hdr.js', () => {
