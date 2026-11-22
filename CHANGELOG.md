@@ -39,6 +39,15 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### The Sun's glare stays with its disc, with no black pixels in it
+
+Looking at the Sun, its glare and its disc now move together as the view turns: before, the glare followed a frame behind, leaving a dark crescent beside the disc.  The few black pixels at the centre of the Sun's disc, seen from the ground with a wide field, are gone too.
+
+- Date: 2026-11-22
+- PR: [#378](https://github.com/celestiary/web/pull/378)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@7.0316,-7.5554,624m;t=9819.841738jd;cq=0,0.9613,0,0.2755;fov=45deg;s=alpoGF;time:pause)
+- Kind: fix
+
 ### The ground lit through the air: dimmer and redder toward sunset
 
 The ground under an atmosphere was lit as if the air weren't there, as bright and white at sunset as at noon until the terminator.  Now sunlight reaches it through the air and the sky lights it too: Earth's land reddens and dims toward the terminator, the twilight ground keeps the sky's glow a few degrees past it, and Mars's ground darkens under its dust.  The Cesium layer matches across the terminator, and Earth's ground brightness follows the month's snow.
