@@ -24,8 +24,10 @@ import {DEFAULT_TONE_MAP_GLSL, newAtmospherePass} from './scene/atmos/Atmosphere
 import {atmosphereBody, atmosphereResolvable} from './scene/atmos/atmosphereBody.js'
 import {setDrawingBuffer} from './scene/farPoint.js'
 import {
-  mieParams, ozoneParams, precomputeInScatter, precomputeInScatterMs, precomputeMultiScatter, precomputeTransmittance,
+  groundAlbedo, mieParams, ozoneParams, precomputeInScatter, precomputeInScatterMs, precomputeMultiScatter,
+  precomputeTransmittance,
 } from './scene/atmos/AtmospherePrecompute'
+import {groundAlbedoStale} from './scene/atmos/groundLight.js'
 import CesiumLayers from './scene/cesium/CesiumLayers'
 import {
   adaptMeterGain, approachExposure, arrivalGain, easeExposure, exposureAt, exposureRelative,
@@ -2200,6 +2202,16 @@ export default class ThreeUi {
       u.tTransmittance.value = this._transmittanceRT.texture
       u.uUseTransmittanceLUT.value = 1.0
       u.tInScatter.value = this._inScatterRT.texture
+      u.tMultiScatter.value = this._multiScatterRT.texture
+      u.tInScatterMs.value = this._inScatterMsRT.texture
+    } else if (groundAlbedoStale(atmos, groundAlbedo(atmos, atmTarget.props.albedo).toArray())) {
+      // The month's ground (groundLight.js): only the tables that read it.
+      this._multiScatterRT.dispose()
+      this._inScatterMsRT.dispose()
+      this._multiScatterRT = precomputeMultiScatter(
+          this.renderer, atmos, R, this._transmittanceRT, atmTarget.props.albedo ?? 0)
+      this._inScatterMsRT = precomputeInScatterMs(
+          this.renderer, atmos, R, this._transmittanceRT, this._multiScatterRT)
       u.tMultiScatter.value = this._multiScatterRT.texture
       u.tInScatterMs.value = this._inScatterMsRT.texture
     }

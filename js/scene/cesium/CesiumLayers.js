@@ -48,6 +48,7 @@ import {HDR_MAX_VALUE, NEUTRAL_GLSL} from '../hdr.js'
 import {DECODE_DISTANCE_GLSL, distanceScale} from './distance.js'
 import {detailScale} from './detail.js'
 import {LOG_DECODE_GLSL, earthshineFraction} from './encoding.js'
+import {GROUND_LIGHT_GLSL, newGroundLightUniforms, updateGroundLight} from '../atmos/groundLight.js'
 import {
   DEFAULT_FAR,
   absoluteUrl,
@@ -458,6 +459,23 @@ export default class CesiumLayers {
     u.uEncoding.value = frameEncoding(CESIUM_BODIES[name], this.bodies[name])
     u.uProjection.value.copy(this.ui.camera.projectionMatrix)
     u.uProjectionInverse.value.copy(this.ui.camera.projectionMatrixInverse)
+    // The ground's light through the air, as celestiary's surface takes it
+    // (groundLight.js; CESIUM.md, "The ground's light"): the body's sphere
+    // and the Sun in view space, for each pixel's Sun.
+    updateGroundLight(u, node.props.atmosphere)
+    const {camera} = this.ui
+    node.getWorldPosition(this._lightsCenter)
+    u.uSun.value.copy(this._sunPos).sub(this._lightsCenter).normalize().transformDirection(camera.matrixWorldInverse)
+    u.uCenter.value.copy(this._lightsCenter).applyMatrix4(camera.matrixWorldInverse)
+    u.uRadius.value = node.props.radius.scalar
+    // The frame's floor, which the decode recovers the albedo by: a globe's
+    // albedoFloor, taken out (none from a guest page before GUEST_VERSION
+    // 5); a tileset's nightFloor (Mars's), kept.
+    const config = CESIUM_BODIES[name] ?? {}
+    const body = this.bodies[name]
+    const albedoFloor = body?.remote && (body.guestVersion ?? GUEST_VERSION) < 5 ? 0 : (config.albedoFloor ?? 0)
+    u.uNightFloor.value = albedoFloor || (config.nightFloor ?? 0)
+    u.uKeepFloor.value = albedoFloor ? 0 : 1
     renderer.setRenderTarget(sceneRT)
     const autoClear = renderer.autoClear
     renderer.autoClear = false
@@ -1950,6 +1968,12 @@ function newDecodeMaterial() {
       uEncoding: {value: 2},
       uProjection: {value: new Matrix4()},
       uProjectionInverse: {value: new Matrix4()},
+      uCenter: {value: new Vector3()},
+      uSun: {value: new Vector3(0, 0, -1)},
+      uRadius: {value: 1},
+      uNightFloor: {value: 0},
+      uKeepFloor: {value: 1},
+      ...newGroundLightUniforms(),
     },
     vertexShader: `
       varying vec2 vUv;
@@ -1961,6 +1985,12 @@ function newDecodeMaterial() {
       uniform sampler2D tCesium;
       uniform float uHdr;
       uniform float uGain;
+      uniform vec3 uCenter;
+      uniform vec3 uSun;
+      uniform float uRadius;
+      uniform float uNightFloor;
+      uniform float uKeepFloor;
+      ${GROUND_LIGHT_GLSL}
       uniform float uDistanceScale;
       uniform float uEncoding;
       uniform mat4 uProjection;
@@ -1978,6 +2008,19 @@ function newDecodeMaterial() {
         // A tileset's frame comes log-encoded (encoding.js), a globe's
         // sRGB-encoded (frameEncoding).
         vec3 lit = uEncoding > 1.5 ? sRGBTransferEOTF(c).rgb : uEncoding > 0.5 ? cesiumLogDecode(c.rgb) : c.rgb;
+        vec4 v = uProjectionInverse * vec4(vUv * 2.0 - 1.0, -1.0, 1.0);
+        vec3 dir = normalize(v.xyz / v.w);
+        if (uGroundLightOn > 0.5 || uKeepFloor < 0.5) {
+          // albedo × (floor + (1 − floor)·Lambert): the albedo by the sphere's Lambert.
+          float along = dot(uCenter, dir);
+          float t = along - sqrt(max(uRadius * uRadius - dot(uCenter, uCenter) + along * along, 0.0));
+          float mu = dot(normalize(dir * max(t, 0.0) - uCenter), uSun);
+          float lam = uNightFloor + (1.0 - uNightFloor) * max(mu, 0.0);
+          vec3 albedo = lit / max(lam, uNightFloor > 0.0 ? uNightFloor : 0.005);
+          // The Sun's share, (1 − floor) of Lambert's: whole where the floor goes.
+          vec3 sunLit = max(lit - albedo * uNightFloor, 0.0) / (1.0 - uNightFloor * (1.0 - uKeepFloor));
+          lit = albedo * uNightFloor * uKeepFloor + sunLit * groundSunT(0.0, mu) + albedo * groundSky(0.0, mu);
+        }
         vec3 rgb = min(lit * uGain, vec3(${HDR_MAX_VALUE.toFixed(1)}));
         if (uHdr < 0.5) {
           rgb = neutralToneMap(rgb);
@@ -1985,8 +2028,6 @@ function newDecodeMaterial() {
         // The distance becomes this pixel's depth, for the atmosphere pass
         // (terrain above and below the sphere), written while depthWrite is
         // on (_decodeInto).
-        vec4 v = uProjectionInverse * vec4(vUv * 2.0 - 1.0, -1.0, 1.0);
-        vec3 dir = normalize(v.xyz / v.w);
         // At the encoding's limit the distance is "at least 5.5 D"
         // (distance.js MAX_U), and that is the depth: a surface that far,
         // which the pass hazes as one.  Not the ground sphere's depth where

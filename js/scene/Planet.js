@@ -5,6 +5,7 @@ import {
   MeshPhongMaterial,
   Object3D,
   SRGBColorSpace,
+  ShaderChunk,
   Texture,
   Vector3,
 } from 'three'
@@ -38,6 +39,7 @@ import {sharedImage} from './sharedImage.js'
 import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, toRad} from '../shared.js'
 import {exposureAt, nightLightRadiance} from './exposure.js'
 import {lunarSurfaceShaderMod, newLunarSurfaceUniforms, updateLunarSurface} from './lunarSurface.js'
+import {groundLightShaderMod, newGroundLightUniforms, setGroundMonth, updateGroundLight} from './atmos/groundLight.js'
 import CloudMap from './clouds/CloudMap.js'
 import {newCloudShell} from './clouds/CloudShell.js'
 import CloudVolume from './clouds/CloudVolume.js'
@@ -432,6 +434,10 @@ export default class Planet extends Object {
         return
       }
       wanted = month
+      // The ground under the air follows the month too (groundLight.js).
+      if (this.props.atmosphere) {
+        setGroundMonth(this.props.atmosphere, month)
+      }
       sharedImage(dataUrl(`textures/${monthlyPath(pattern, month)}.jpg`)).then((image) => {
         if (month === wanted) {
           map.image = image
@@ -585,6 +591,14 @@ export default class Planet extends Object {
     if (lunarUniforms) {
       shaderMods.push(lunarSurfaceShaderMod(lunarUniforms))
     }
+    // A body with air: its ground lit through it, while the pass draws it
+    // (groundLight.js; composition.md, "The ground's light").  Airless
+    // bodies' shaders are as they were.
+    const atmos = this.props.atmosphere
+    const groundUniforms = atmos && !lunar ? newGroundLightUniforms() : null
+    if (groundUniforms) {
+      shaderMods.push(groundLightShaderMod(groundUniforms, ShaderChunk.lights_fragment_begin))
+    }
     // While its maps load, stand-ins (standInMaps.js; Planet.md, "While the
     // maps load"): the colour map's mean, a flat normal.  So the surface
     // is drawn from the first frame it's wanted, as bright as it will be,
@@ -607,7 +621,7 @@ export default class Planet extends Object {
     // doesn't.  Read when the program is built, so after Rings chains its
     // own onBeforeCompile (Saturn's ring shadow).
     surfaceMaterial.customProgramCacheKey = function() {
-      return `${this.onBeforeCompile.toString()}|mods:${modCount}${lunar ? '|lunar' : ''}`
+      return `${this.onBeforeCompile.toString()}|mods:${modCount}${lunar ? '|lunar' : ''}${groundUniforms ? '|ground' : ''}`
     }
 
     // Bump surface resolution from sphere()'s default (128 segs ≈ 16k tris,
@@ -628,6 +642,9 @@ export default class Planet extends Object {
     const radius = this.props.radius.scalar
     surface.onBeforeRender = (renderer, scene, camera) => {
       updateSmallDisc(discUniforms, renderer, camera, surface, radius)
+      if (groundUniforms) {
+        updateGroundLight(groundUniforms, atmos)
+      }
       if (lunarUniforms) {
         // The Sun is at the world group's origin (Scene: rebased to the target).
         const world = this.scene.worldGroup
@@ -712,7 +729,7 @@ export default class Planet extends Object {
     // Drawn once the surface under it is, while the clouds are on
     // (Scene.toggleClouds).
     return newCloudShell(radius, map, {ready: () => planet.surfaceReady() && (this.scene?.cloudsShown?.() ?? true),
-      volume})
+      volume, atmos: this.props.atmosphere})
   }
 
 

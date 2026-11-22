@@ -919,8 +919,9 @@ sky) in it.  As the ground's it counted both twice: the air's own
 backscatter scattered again, and clouds under a clear sky, which are drawn
 on their shell, over the ground they cover.  Earth's tables now take its
 drawn ground's mean, the decoded Blue Marble's (`textureMeans.json`,
-0.0976 / 0.0934 / 0.0878), which `atmosphere.test.js` holds to the
-texture's.  The other bodies keep their `albedo`: Mars's 0.15 and the
+0.0976 / 0.0934 / 0.0878 in January; one a month since, [by the
+month](#the-grounds-albedo-by-the-month)), which `atmosphere.test.js` holds
+to the texture's.  The other bodies keep their `albedo`: Mars's 0.15 and the
 giants' are near their ground's or their cloud tops', and Venus's and
 Titan's ground is under a thick atmosphere whose fit was made with it.
 
@@ -1031,19 +1032,15 @@ darker frame (gain 1.27 to 1.44), and the canvas's disc goes from 0.196 /
 0.228 / 0.336 to 0.207 / 0.232 / 0.337 (B/R 1.72 to 1.63).  The limb
 there is 0.323 / 0.432 / 0.672 → 0.320 / 0.409 / 0.661, deep blue still.
 
-**What is still wrong, and moves the other way**: the ground is lit by
+**What was still wrong, and moved the other way**: the ground was lit by
 the Sun above the air.  Its light reaches the ground through the air's
 transmittance, 0.615 / 0.522 / 0.354 at the frame's centre (μ_s 0.38),
 and the sky's light adds 0.153 / 0.184 / 0.216 of E₀μ_s by single
-scattering (a CPU hemisphere of rays), about 0.2 / 0.24 / 0.3 with the
-higher orders: the ground's irradiance is about 0.81 / 0.76 / 0.65 of
-what it is drawn with.  Drawn so, the desert's pixel would be about
-0.137 / 0.147 / 0.214, bluer still (B/R 1.56 with the ground warmer and
-darker).  It matters more toward the terminator, where the ground should
-redden and dim, and it needs the ground's irradiance (Bruneton's
-irradiance table, or the direct beam through the transmittance table and
-the sky's from Ψ) in the planet's material and in Cesium's; not done
-(known gaps, below).
+scattering (a CPU hemisphere of rays).  Now it is lit so ([the ground's
+light](#the-grounds-light), below): the ground's light over the frame went
+to 0.79 / 0.75 / 0.67 of what it was, and the pixel to 0.148 / 0.166 /
+0.240, bluer still (B/R 1.62 against 1.50), and the ground reddens toward
+the terminator.
 
 **And the rest is the observer's.**  The model's colours are linear sRGB
 relative to the Sun's light, white: a camera's white balance, auto or set
@@ -1051,6 +1048,131 @@ to daylight under a bluish scene, and the contrast and dehaze applied to
 the photographs, aren't in it.  A regional aerosol (the Aral's and the
 Kyzylkum's dust, a lower Ångström exponent and a lower albedo in the
 blue) would warm the haze too; Earth has one aerosol.
+
+## The ground's light
+
+A surface under an atmosphere is lit by the Sun through the air and by
+the sky: Bruneton 2017's ground irradiance, the Sun's irradiance times its
+transmittance to the point, plus the sky's irradiance there.  Until this
+the ground (celestiary's and Cesium's) was lit by the Sun above the air,
+the same at noon and at sunset but for Lambert's law, and with no light
+past the terminator.
+
+**The table** (`precomputeGroundLight`, made with the multiple
+scattering, from the transmittance table and Ψ, and disposed with them;
+`groundLight.js` has its layout and lookup): 128 columns over the Sun's
+zenith cosine from −0.2 to 1, and two halves of 32 rows over the height:
+the Sun's transmittance to the point (the delta-M beam's, so Mars's
+narrow lobe, scattered within a few degrees of the Sun, is the Sun's
+light; none under the horizon), and the sky's irradiance on a level
+surface, per unit of the Sun's above the air: 64 directions over the upper
+hemisphere, each marched 24 steps for its single scattering (the phase
+functions, the Sun through the transmittance table) and the light
+scattered more than once (σ_s·Ψ), by their cosine.  128×64 floats, 4M
+samples: next to the in-scatter atlas's 134M, nothing.  Earth's, at the
+ground:
+
+| μ_s (the Sun's elevation) | the Sun's transmittance r / g / b | the sky's irradiance / E₀ |
+|---|---|---|
+| 1 (90°) | 0.841 / 0.793 / 0.689 | 0.084 / 0.117 / 0.186 |
+| 0.707 (45°) | 0.784 / 0.722 / 0.592 | 0.077 / 0.106 / 0.166 |
+| 0.378 (22°, Aydar Lake) | 0.635 / 0.544 / 0.375 | 0.062 / 0.084 / 0.126 |
+| 0.1 (5.7°) | 0.214 / 0.124 / 0.033 | 0.030 / 0.038 / 0.048 |
+| 0.02 (1.1°) | 0.0049 / 0.0007 / 0 | 0.0094 / 0.011 / 0.015 |
+| 0 | 0 | 0.0053 / 0.0067 / 0.0099 |
+| −0.02 | 0 | 0.0029 / 0.0037 / 0.0059 |
+| −0.1 | 0 | 5e-5 / 8e-5 / 1.8e-4 |
+
+At noon the ground's light is 0.93 / 0.91 / 0.88 of the Sun's above the
+air (a clear day's global irradiance is about 0.9 of it); at the Aydar
+view's 22° the sky's single scattering by a CPU hemisphere was 0.153 /
+0.184 / 0.216 of E₀μ_s, the table's 0.163 / 0.222 / 0.333 with the higher
+orders.  The sky's light at sunset, 0.7% of E₀, is the 400 to 1000 lux
+measured then.
+
+**Celestiary's ground** (Planet.js, `groundLightShaderMod`): three's
+point light (the Sun's irradiance) times the transmittance at the
+fragment's Sun, for the direct diffuse and specular, and the sky's
+irradiance as indirect diffuse light, Bruneton's (1 + n·up) / 2 of it on
+a normal-mapped slope; up is the sphere's normal.  Only for a body with an
+`atmosphere` (not the Moon's photometry), and only while its tables are
+the pass's (ThreeUi makes one body's at a time): otherwise the uniform
+gives 1 and 0, and an airless body's shader hasn't the mod at all.  The
+far cloud shell takes the same at its 6 km (CloudShell); the volumetric
+clouds were lit so already (the transmittance table and Ψ).  Cesium's
+frames take it in their decode (CESIUM.md, "The ground's light").
+
+**Measured** (SwiftShader 320×200, Cesium off, the scene buffer per unit
+of the exposure):
+
+- The Aydar view: the ground over the frame 0.144 / 0.118 / 0.082 →
+  0.113 / 0.088 / 0.055; the composite 0.167 / 0.181 / 0.250 → 0.148 /
+  0.166 / 0.240.
+- Earth from 20,000 km, gibbous, the ground binned by μ_s (clouds off):
+
+| μ_s | after / before r / g / b |
+|---|---|
+| 0.7 to 1 | 0.894 / 0.874 / 0.811 |
+| 0.35 to 0.5 | 0.817 / 0.785 / 0.719 |
+| 0.2 to 0.35 | 0.735 / 0.696 / 0.630 |
+| 0.1 to 0.2 | 0.585 / 0.552 / 0.514 |
+| 0.05 to 0.1 | 0.453 / 0.448 / 0.479 |
+| 0 to 0.02 | 0.64 / 0.77 / 1.14 |
+| −0.02 to 0 | from 2e-5 to 1.2e-3 (the sky's light) |
+
+  The ground reddens toward the terminator (blue loses most from μ_s 0.1
+  up), the last few degrees are the sky's light, bluish, and past the
+  terminator the twilight ground is lit by the sky to about −4° (5e-5 of
+  a noon white at −0.04).
+- Mars: its ground under the dust 25-35% darker (0.111 / 0.065 / 0.059 →
+  0.084 / 0.045 / 0.040 at the low horizon view), from 12,000 km 16-21%.
+- The Moon: no mod in its shader; the frame's mean unchanged.
+- The Dead Sea's shore, the Sun 5.5° up: the ground's light 0.44 / 0.40 /
+  0.30 of before; at noon 0.89 / 0.87 / 0.80.
+
+**Exposure.**  The keyed exposure is the Sun's above the air (π ×
+`DISPLAY_GAIN` over the irradiance) and doesn't move: a white surface
+facing the Sun at noon is now 0.93 of 1.5 rather than 1.5, and the meter,
+which reads the frame, lifts a darker frame as it would any other (the
+Aydar view's gain 1.44 → 1.52).  The stand-in maps (`textureMeans.json`)
+are lit by the same shader, so the hand-over doesn't move.  The far point
+(`farPoint.js`, a body a few pixels across) is lit by the texture's mean
+above the air: for Earth while its tables are the pass's, 5-15% over its
+disc at the hand-off.
+
+### The ground's albedo by the month
+
+The ground under the air ([above](#the-ground-under-the-air)) follows the
+month, as the surface's map does: Earth's `groundAlbedo` is twelve values,
+the decoded Blue Marble's mean each month (`textureMeans.json` `monthly`,
+`tools/textureMeans.py`), and `groundAlbedo` takes the simulation's
+(`groundLight.js` `setGroundMonth`, which `Planet.monthlyMap` sets when the
+month changes):
+
+| month | r / g / b | month | r / g / b |
+|---|---|---|---|
+| Jan | 0.0976 / 0.0934 / 0.0878 | Jul | 0.0612 / 0.0555 / 0.0463 |
+| Feb | 0.1003 / 0.0948 / 0.0881 | Aug | 0.0608 / 0.0547 / 0.0457 |
+| Mar | 0.0967 / 0.0902 / 0.0822 | Sep | 0.0656 / 0.0589 / 0.0504 |
+| Apr | 0.0892 / 0.0825 / 0.0736 | Oct | 0.0757 / 0.0695 / 0.0619 |
+| May | 0.0816 / 0.0752 / 0.0661 | Nov | 0.0847 / 0.0794 / 0.0726 |
+| Jun | 0.0676 / 0.0618 / 0.0518 | Dec | 0.0947 / 0.0906 / 0.0846 |
+
+The northern winter's snow puts February at 1.6 times August's.  At the
+Aydar view in November the sky over the ground with July's albedo is
+2.2 / 1.7 / 1.1% under January's (November's, between, 0.8 / 0.6 / 0.4%),
+and the ground's light 0.3%: about 0.25% of the sky per 0.004 of albedo.
+So the tables are made again only when the month's value is off theirs
+by over 0.004 in a channel (`GROUND_ALBEDO_REBUILD`; month to month it
+steps 0.0004, July to August, to 0.014), and only the ones that read it:
+the multiple scattering, its in-scatter atlas and the ground's light
+(ThreeUi `_updateAtmUniforms`), never the transmittance or the
+single-scatter atlases.  Measured: November to July made them once, and
+the next day nothing.  The value steps with the month, as the map does;
+blending the map between months is a later change, and the albedo can
+follow it then (a blend by the day would still rebuild only past the
+threshold).  The volumetric clouds' light from below reads the month's
+value each frame.
 
 ## Knobs you might want to tune
 
@@ -1128,16 +1250,14 @@ move only where the haze, now heavier near the ground, covers both sides
   `METERED_GAIN`) were settled on Earth's sky at a gain of 21, and want
   re-measuring with the physical one.
 
-- **The ground's light through the air.**  Celestiary's ground (and
-  Cesium's) is lit by the Sun above the air: no transmittance on the
-  Sun's path to it, and no sky light.  At the Aydar view its irradiance
-  is about 0.81 / 0.76 / 0.65 of what it is drawn with ([the disc from low
-  orbit](#the-disc-from-low-orbit)); toward the terminator the ground
-  should redden and dim.  Bruneton's irradiance table (or the direct beam
-  through the transmittance table and the sky's light from Ψ) in the
-  planet's material, and the same in Cesium's lighting, so parity holds.
-  The disc from orbit gets bluer with it, not warmer: its colour at an
-  oblique view and a low Sun is its air's.
+- **The ground's light on slopes, in Cesium's frame.**  The decode takes
+  the albedo by the sphere's Lambert ([the ground's
+  light](#the-grounds-light)); on ion's terrain a slope's sky light is
+  its albedo's estimate by the sphere's, off by the ratio of the two
+  Lambert's (none on the ellipsoid, which no-ion builds draw).  The exact
+  way is in Cesium's globe shader (a patch: the table as a uniform, the
+  light per fragment).  The ground's height is taken as the sphere's for
+  both sides (the table has the heights; a mountain's air is thinner).
 - **Twilight's stars.**  The metered exposure is a whole-frame meter;
   at −10° the horizon band toward the Sun (1.8e-3 of a sunlit white) or
   away from it (5.7e-4) caps the gain at a few hundred to a thousand,

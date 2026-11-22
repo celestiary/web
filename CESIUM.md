@@ -391,6 +391,53 @@ same with the same data, so the two sides of the swap agree:
   stored-value frame of before, and its frames are read linear
   (`frameEncoding` 0) until it is redeployed.
 
+### The ground's light
+
+Celestiary's ground under an atmosphere is lit by the Sun through the air
+and by the sky (composition.md, [the ground's
+light](js/scene/atmos/composition.md#the-grounds-light)), from a table of
+the Sun's transmittance and the sky's irradiance by the Sun's elevation.
+Cesium's frames take the same in the composite's decode, not in Cesium:
+
+- **In the decode.**  Each pixel's Sun is the view ray's hit on the body's
+  sphere (as the night lights' decode has it), and the frame's light,
+  albedo × Lambert, becomes albedo × (Lambert × the transmittance + the
+  sky's irradiance), the albedo recovered by the sphere's Lambert.  The
+  table is celestiary's, in its own context; inside Cesium it would need
+  a patch to `GlobeFS` (a uniform table and the light per fragment) and a
+  copy of the table into Cesium's context each time it is made, for a
+  term the decode gets right on the ellipsoid.
+- **A floor for the albedo.**  Lambert is 0 on the night side, where the
+  sky still lights the ground to about −4°, and near 0 at the terminator,
+  where dividing by it is noise.  So Earth's globe is lit with a floor,
+  `albedoFloor` 0.05 (`litSurfaceOnly`: `vertexShadowDarkness` 0.05 and
+  both Lambert multipliers 0.95, settings our patch already exposes),
+  and its frame is albedo × (0.05 + 0.95 × Lambert) everywhere: the decode
+  takes the albedo from it by the sphere's (0.05 + 0.95 × μ_s), and the
+  floor out.  A tileset's `nightFloor` (Mars's 2%) is kept, as before; the
+  Moon, airless, decodes as it did.  A guest page before `GUEST_VERSION` 5
+  draws no floor, and is decoded without one.
+- **On slopes** (ion's terrain) the frame's Lambert is the terrain's, the
+  albedo's estimate the sphere's: the direct light stays exact, the sky's
+  is off by the ratio of the two (composition.md, known gaps).
+
+Measured without ion (the Blue Marble on the ellipsoid; SwiftShader, the
+scene buffer per unit of the exposure, Cesium forced on against off):
+
+| | before (the Sun above the air on both sides) | after |
+|---|---|---|
+| Earth from 20,000 km, μ_s 0.5 to 1 | 0.94 / 0.93 / 0.91 | 0.94 / 0.94 / 0.93 |
+| μ_s 0.1 to 0.2 | 0.88 / 0.87 / 0.80 | 0.89 / 0.89 / 0.85 |
+| μ_s 0.02 to 0.05 | 0.82 / 0.80 / 0.79 | 0.91 / 0.92 / 0.92 |
+| μ_s 0 to 0.02 | 0.68 / 0.66 / 0.61 | 0.90 / 0.91 / 0.92 |
+| μ_s −0.02 to 0 (the sky's light alone after) | 0.01 / 0.02 / 0.08 | 0.98 / 0.99 / 1.00 |
+| the Aydar view, 400 km, the whole frame | 0.91 / 0.88 / 0.81 | 0.92 / 0.90 / 0.88 |
+| from 7.5 km over the Ganges, the whole frame | — / 0.99 / 0.99 | — / 1.00 / 1.00 |
+
+The floor's arithmetic, checked in one page: the frame with the floor and
+without, both decoded, agree to 0.03%.  The 6-10% on the disc from afar
+is as it was (the minified imagery).
+
 ### Activation
 
 A Cesium frame costs the same whether its body fills the screen or none

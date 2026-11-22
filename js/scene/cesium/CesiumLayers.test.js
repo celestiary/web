@@ -1,3 +1,4 @@
+import {readFileSync} from 'fs'
 import {AlwaysDepth, LOD, Matrix4, Object3D, PerspectiveCamera, Vector3} from 'three'
 import * as netgl from '@pablo-mayrgundter/portal-netgl/core'
 import {ASTRO_UNIT_METER, DISPLAY_GAIN} from '../../shared.js'
@@ -1273,5 +1274,41 @@ describe('a tileset\'s shader', () => {
     expect(moon).toContain('albedoOf(czm_linearToSrgb(material.diffuse)) * light')
     expect(moon).toContain('return c;')
     expect(moon).not.toContain('step(0.04045, c)')
+  })
+})
+
+
+describe('the ground\'s light in the decode (CESIUM.md, "The ground\'s light")', () => {
+  // The decode's arithmetic, mirrored: the frame is albedo × (floor +
+  // (1 − floor) × Lambert); the albedo by the sphere's Lambert, mu.
+  const decode = (lit, floor, keep, mu, T, E) => {
+    const lam = floor + ((1 - floor) * Math.max(mu, 0))
+    const albedo = lit / Math.max(lam, floor > 0 ? floor : 0.005)
+    const sunLit = Math.max(lit - (albedo * floor), 0) / (1 - (floor * (1 - keep)))
+    return (albedo * floor * keep) + (sunLit * T) + (albedo * E)
+  }
+  const a = 0.3
+  const f = CESIUM_BODIES.earth.albedoFloor
+
+  it('lights Earth\'s albedo by the Sun through the air and the sky, its floor gone', () => {
+    expect(f).toBeGreaterThan(0)
+    for (const mu of [0.02, 0.3, 0.9]) {
+      expect(decode(a * (f + ((1 - f) * mu)), f, 0, mu, 0.6, 0.1)).toBeCloseTo(a * ((mu * 0.6) + 0.1), 12)
+    }
+    // The night side: the sky's light alone, from the floor's albedo.
+    expect(decode(a * f, f, 0, -0.02, 0, 0.004)).toBeCloseTo(a * 0.004, 12)
+  })
+
+  it('keeps a tileset\'s night floor (Mars\'s), and is the frame again with no air', () => {
+    const m = CESIUM_BODIES.mars.nightFloor
+    const frame = a * (m + ((1 - m) * 0.5))
+    expect(decode(frame, m, 1, 0.5, 1, 0)).toBeCloseTo(frame, 12)
+    expect(decode(frame, m, 1, 0.5, 0.7, 0.05)).toBeCloseTo(a * (m + ((1 - m) * 0.5 * 0.7) + 0.05), 12)
+  })
+
+  it('is the shader\'s', () => {
+    const source = readFileSync('./js/scene/cesium/CesiumLayers.js', 'utf8')
+    expect(source).toContain('vec3 sunLit = max(lit - albedo * uNightFloor, 0.0) / (1.0 - uNightFloor * (1.0 - uKeepFloor));')
+    expect(source).toContain('lit = albedo * uNightFloor * uKeepFloor + sunLit * groundSunT(0.0, mu) + albedo * groundSky(0.0, mu);')
   })
 })

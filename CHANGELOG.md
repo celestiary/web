@@ -39,6 +39,16 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### The ground lit through the air: dimmer and redder toward sunset
+
+The ground under an atmosphere was lit as if the air weren't there, as bright and white at sunset as at noon until the terminator.  Now sunlight reaches it through the air and the sky lights it too: Earth's land reddens and dims toward the terminator, the twilight ground keeps the sky's glow a few degrees past it, and Mars's ground darkens under its dust.  The Cesium layer matches across the terminator, and Earth's ground brightness follows the month's snow.
+
+- Date: 2026-11-22
+- PR: [#376](https://github.com/celestiary/web/pull/376)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@15,20.7446,20Mm;t=9233.1234jd;cq=-0.0108,0.9967,-0.0736,0.031;fov=45deg;s=alpoU)
+- Kind: fix
+
 ### Earth's air as it really is: a blue limb, orange sunsets
 
 Earth's sky is now drawn from the measured air, at its physical brightness: a clear day's haze, the ozone layer and the standard atmosphere, in place of a sky turned up four and a half times.  From orbit the limb goes from black through a thin deep blue to the surface, as the astronauts' photographs show, with the land and clouds no longer veiled, and the haze over the land lighter and less blue; from the ground the noon sky has the luminance a clear day has, and sunsets glow orange.  A new Observer setting makes a camera the observer in place of the eye: with the Sun near the field its glare is a good lens's, tens of times fainter than the eye's, so the air over Earth's limb is seen as photographs show it, not through the eye's haze.
