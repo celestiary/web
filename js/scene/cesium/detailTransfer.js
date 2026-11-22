@@ -218,16 +218,55 @@ export class BaseSampler {
    * @returns {Promise<void>}
    */
   load(west, east, south, north) {
+    return Promise.all(this.tilesUnder(west, east, south, north).map(([x, y]) => this._tile(x, y))).then(() => undefined)
+  }
+
+
+  /**
+   * The tiles under a region (with a texel's margin), wrapped round the
+   * antimeridian and clamped at the poles, each once.
+   *
+   * @param {number} west Degrees
+   * @param {number} east
+   * @param {number} south
+   * @param {number} north
+   * @returns {Array<Array<number>>} [column, row] each
+   */
+  tilesUnder(west, east, south, north) {
     const [x0, y0] = this._pixel(west, north)
     const [x1, y1] = this._pixel(east, south)
     const ts = this.tileSize
-    const wanted = []
+    const seen = new Map()
     for (let ty = Math.floor((y0 - 1) / ts); ty <= Math.floor((y1 + 1) / ts); ty++) {
       for (let tx = Math.floor((x0 - 1) / ts); tx <= Math.floor((x1 + 1) / ts); tx++) {
-        wanted.push(this._tile(tx, ty))
+        const [x, y, key] = this._key(tx, ty)
+        seen.set(key, [x, y])
       }
     }
-    return Promise.all(wanted).then(() => undefined)
+    return [...seen.values()]
+  }
+
+
+  /**
+   * @param {number} x Column
+   * @param {number} y Row
+   * @returns {boolean} Whether the tile's pixels are in
+   */
+  has(x, y) {
+    return Boolean(this.tiles.get(this._key(x, y)[2])?.data)
+  }
+
+
+  /**
+   * Put a tile's pixels in, as fetchTile would have.
+   *
+   * @param {number} x Column
+   * @param {number} y Row
+   * @param {Uint8ClampedArray} data RGBA
+   */
+  put(x, y, data) {
+    const [, , key] = this._key(x, y)
+    this.tiles.set(key, {data, loaded: Promise.resolve()})
   }
 
 
@@ -358,5 +397,130 @@ export class PromiseCache {
       this.map.delete(this.map.keys().next().value)
     }
     return p
+  }
+}
+
+
+/**
+ * A Map that forgets its least recently used entries past a size.
+ */
+export class LruMap {
+  /** @param {number} max */
+  constructor(max) {
+    this.max = max
+    this.map = new Map()
+  }
+
+
+  /**
+   * @param {string} key
+   * @returns {*} The value, now the most recently used, or undefined
+   */
+  get(key) {
+    if (!this.map.has(key)) {
+      return undefined
+    }
+    const v = this.map.get(key)
+    this.map.delete(key)
+    this.map.set(key, v)
+    return v
+  }
+
+
+  /**
+   * @param {string} key
+   * @param {*} value
+   */
+  set(key, value) {
+    this.map.delete(key)
+    this.map.set(key, value)
+    while (this.map.size > this.max) {
+      this.map.delete(this.map.keys().next().value)
+    }
+  }
+}
+
+
+/** Bing's tiles' ratios kept, across months (256 KB each). */
+export const RATIO_CACHE = 96
+/** Bing's ancestors' luminances kept (256 KB each). */
+export const LOW_CACHE = 32
+/** A month's Blue Marble tiles kept as pixels (1 MB each), all months together. */
+export const BASE_CACHE = 32
+
+
+/**
+ * The detail's tiles, made from pixels: the ratios and ancestors' and the
+ * months' Blue Marble tiles kept between tiles.  Synchronous and pure but
+ * for its caches, so the worker (detailWorker.js) and the main thread's
+ * fallback make the same bytes.
+ */
+export class DetailComposer {
+  /** */
+  constructor() {
+    this.ratios = new LruMap(RATIO_CACHE)
+    this.lows = new LruMap(LOW_CACHE)
+    this.samplers = new Map()
+    this.baseTiles = 0
+  }
+
+
+  /**
+   * @param {number} month
+   * @param {{tilesX: number, tilesY: number, tileSize: number}} grid
+   * @returns {BaseSampler} The month's, its tiles put in by compose
+   */
+  samplerFor(month, grid) {
+    let sampler = this.samplers.get(month)
+    if (!sampler) {
+      sampler = new BaseSampler(() => Promise.reject(new Error('put, not fetched')), grid)
+      this.samplers.set(month, sampler)
+    }
+    return sampler
+  }
+
+
+  /**
+   * @param {object} job
+   * @param {string} job.key The tile's, `x/y/level`
+   * @param {string} job.lowKey Its ancestor's
+   * @param {{x: number, y: number, level: number, lowLevel: number, size: number}} job.tile
+   * @param {{west: number, south: number, east: number, north: number}} job.rect Radians
+   * @param {boolean} job.mercator
+   * @param {number} job.month
+   * @param {{tilesX: number, tilesY: number, tileSize: number}} job.grid The base's
+   * @param {function(): ?Float32Array} job.fineLuma The tile's luminance, or null (discarded)
+   * @param {function(): ?Float32Array} job.lowLuma Its ancestor's, or null
+   * @param {function(number, number): Uint8ClampedArray} job.basePixels A base tile's RGBA
+   * @returns {Uint8ClampedArray} The detail tile, RGBA, row 0 the north
+   */
+  compose({key, lowKey, tile, rect, mercator, month, grid, fineLuma, lowLuma, basePixels}) {
+    let ratios = this.ratios.get(key)
+    if (ratios === undefined) {
+      let low = this.lows.get(lowKey)
+      if (low === undefined) {
+        low = lowLuma()
+        this.lows.set(lowKey, low)
+      }
+      const fine = fineLuma()
+      ratios = fine && low ? detailRatios(fine, low, tile) : null
+      this.ratios.set(key, ratios)
+    }
+    const sampler = this.samplerFor(month, grid)
+    const deg = 180 / Math.PI
+    const wanted = sampler.tilesUnder(rect.west * deg, rect.east * deg, rect.south * deg, rect.north * deg)
+    const missing = wanted.filter(([x, y]) => !sampler.has(x, y))
+    if (this.baseTiles + missing.length > BASE_CACHE) {
+      // Forget them all: the next tiles bring theirs.
+      for (const s of this.samplers.values()) {
+        s.tiles.clear()
+      }
+      this.baseTiles = 0
+    }
+    for (const [x, y] of wanted.filter((t) => !sampler.has(t[0], t[1]))) {
+      sampler.put(x, y, basePixels(x, y))
+      this.baseTiles++
+    }
+    return transferTile(ratios, tileLonLats(rect, tile.size, mercator), sampler)
   }
 }

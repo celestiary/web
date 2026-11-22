@@ -119,6 +119,10 @@ export default class Animation {
     // animate / animateAtJD, the same in TT, and the rotation from the
     // ecliptic of J2000 (mean elements, IAU poles) to the scene's, of date.
     this.jd = null
+    // setDate's last date and ephemeris, and its own copy of the places.
+    this._dateJd = null
+    this._dateVsop = null
+    this._dateCoords = {}
     this.jde = J2000_JD
     this.precession = new Quaternion
     this._orbitQuat = new Quaternion
@@ -295,7 +299,18 @@ export default class Animation {
    */
   setDate(jd) {
     this.jd = jd
-    this.curVsopCoords = this.planetCoords(jd)
+    // The same date as last frame (the clock paused, or a frame between
+    // its ticks), on the same ephemeris and not gliding between two: the
+    // places are those already worked out.  A VSOP87C call is about 2 ms,
+    // and was made every frame while paused.
+    if (jd === this._dateJd && this.vsop === this._dateVsop && this._handover === null) {
+      return
+    }
+    this._dateJd = jd
+    this._dateVsop = this.vsop
+    // A copy: VSOP87C overwrites the object it returns at its next call,
+    // which others make (vsopAt), and these places are kept across frames.
+    this.curVsopCoords = copyCoords(this.planetCoords(jd), this._dateCoords)
     this.jde = utcToTtJulianDay(jd)
     precessionQuaternion(J2000_JD, this.jde, this.precession)
     this.updateMoon(jd)
@@ -887,4 +902,20 @@ function runOn(el, mDeg) {
   const nu = 2 * Math.atan2(Math.sqrt(1 + el.e) * Math.sin(E / 2), Math.sqrt(1 - el.e) * Math.cos(E / 2)) *
     180 / Math.PI
   return {m, nu: ((nu % 360) + 360) % 360, meanLongitude: (((el.peri + m) % 360) + 360) % 360}
+}
+
+
+/**
+ * @param {object} from Each body's {x, y, z}
+ * @param {object} to Overwritten, its entries kept
+ * @returns {object} to
+ */
+function copyCoords(from, to) {
+  for (const [name, c] of Object.entries(from)) {
+    const d = to[name] ?? (to[name] = {x: 0, y: 0, z: 0})
+    d.x = c.x
+    d.y = c.y
+    d.z = c.z
+  }
+  return to
 }

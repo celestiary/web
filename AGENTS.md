@@ -327,7 +327,10 @@ tried and dropped.
   grows over half a second of frames, so step frames after `setTime`.  To see
   ion's detail without ion, stub `/v1/assets/2/endpoint` with `externalType:
   'URL_TEMPLATE'` and a local tile server; `?detail=raw` shows the detail
-  layer's own tiles, as before the transfer.  A shader mod that replaces a
+  layer's own tiles, as before the transfer, and `?detailWorker=0` makes
+  the detail tiles on the main thread (the fallback, the worker's bytes
+  exactly); a `PerformanceObserver` for `longtask` in an init script counts
+  what the tiles cost the main thread.  A shader mod that replaces a
   chunk another mod also replaces (`map_fragment`: the small disc's) silently
   drops the other's code, and the program fails to compile: collect
   `Shader Error` from the console.

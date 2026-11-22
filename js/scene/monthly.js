@@ -29,6 +29,9 @@ export function monthlyPath(pattern, month) {
 }
 
 
+let lastBlend = null
+
+
 /**
  * The two months whose maps a date shows, and how much of the second: each
  * month's map is its middle's, so a date at a month's middle shows that
@@ -44,6 +47,21 @@ export function monthlyPath(pattern, month) {
  *   a, and w in [0, 1): the share of b
  */
 export function monthBlendOfJulianDay(jd) {
+  // Asked every frame by the surface and the Cesium layer: the same date
+  // (paused) gives the same blend, with no Dates made.
+  if (lastBlend?.jd === jd) {
+    return lastBlend.blend
+  }
+  lastBlend = {jd, blend: blendOf(jd)}
+  return lastBlend.blend
+}
+
+
+/**
+ * @param {number} jd
+ * @returns {{a: number, b: number, w: number}}
+ */
+function blendOf(jd) {
   const ms = fromJulianDay(jd)
   const d = new Date(ms)
   const y = d.getUTCFullYear()

@@ -139,6 +139,29 @@ describe('the planets before VSOP87C has loaded', () => {
     expect(anim.curVsopCoords).toBe(first)
   })
 
+  it('aren\'t worked out again for the same date, on the same ephemeris (the clock paused)', () => {
+    let calls = 0
+    const series = (jd) => {
+      calls++
+      return vsop87c(jd)
+    }
+    const {anim, clock} = newAnimation(series)
+    anim.setDate(JD_2026)
+    // Through the hand-over's glide, every frame.
+    clock.ms += 1e6
+    anim.setDate(JD_2026)
+    const after = calls
+    const earth = {...anim.curVsopCoords.earth}
+    // VSOP87C overwrites its result at its next call: the places are a copy.
+    series(JD_2026 + 100)
+    anim.setDate(JD_2026)
+    anim.setDate(JD_2026)
+    expect(calls).toBe(after + 1)
+    expect(anim.curVsopCoords.earth).toEqual(earth)
+    anim.setDate(JD_2026 + 1)
+    expect(calls).toBe(after + 2)
+  })
+
   it('stay on the stand-in with the series not loaded, however the clock runs', () => {
     const {anim, clock} = newAnimation(null)
     const {root, earth} = newSystem()

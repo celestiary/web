@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import esbuild from 'esbuild'
-import config, {cesiumGuestConfig, layerConfig, skyConfig} from './common.js'
+import config, {cesiumGuestConfig, detailWorkerConfig, layerConfig, skyConfig} from './common.js'
 import {createProxyServer} from './proxy.js'
 
 
@@ -19,6 +19,8 @@ await (await esbuild.context(layerConfig)).watch()
 await (await esbuild.context(cesiumGuestConfig)).watch()
 // The sky guest, into docs/sky/ (common.js skyConfig; design/SkyGuest.md).
 await (await esbuild.context(skyConfig)).watch()
+// The detail tiles' worker, into docs/cesium/ (common.js detailWorkerConfig).
+await (await esbuild.context(detailWorkerConfig)).watch()
 
 
 /**

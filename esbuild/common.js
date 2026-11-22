@@ -105,3 +105,24 @@ export const cesiumGuestConfig = {
   outdir: `${buildDir}/cesium-guest`,
   define: {...config.define},
 }
+
+
+/**
+ * The worker that makes the detail tiles over Earth's Blue Marble
+ * (js/scene/cesium/detailWorker.js; CESIUM.md, "Detail over the month's
+ * colour"), one script beside Cesium's own workers, in docs/cesium/, which
+ * the Cesium guest's deploy copies too.  A classic script, not a module:
+ * no splitting, nothing shared with the app's chunks, so the first load is
+ * as it was; fetched once the detail is first wanted.
+ */
+export const detailWorkerConfig = {
+  entryPoints: ['./js/scene/cesium/detailWorker.js'],
+  outfile: `${buildDir}/cesium/detail-worker.js`,
+  format: 'iife',
+  platform: 'browser',
+  target: config.target,
+  bundle: true,
+  minify: config.minify,
+  sourcemap: true,
+  logLevel: 'info',
+}

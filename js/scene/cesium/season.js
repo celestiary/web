@@ -102,31 +102,23 @@ export function monthlyTileLayer(Cesium, imagery, month) {
 
 
 /**
- * A month's Blue Marble tile at the pyramid's finest level, as RGBA, for the
- * detail's colour.  The URL is the tile layer's, so the browser's cache has
- * it when the globe has drawn it.
+ * A month's Blue Marble tile at the pyramid's finest level, decoded off the
+ * main thread (createImageBitmap), for the detail's colour.  The URL is the
+ * tile layer's, so the browser's cache has it when the globe has drawn it.
  *
  * @param {object} imagery A body's monthlyImagery config
  * @param {number} month
- * @returns {function(number, number): Promise<Uint8ClampedArray>}
+ * @returns {function(number, number): Promise<ImageBitmap>}
  */
 function baseTileFetcher(imagery, month) {
   const pattern = absoluteUrl(dataUrl(monthlyPath(imagery.url, month)))
-  const size = imagery.tileSize
   return async (x, y) => {
     const url = pattern.replace('{z}', String(imagery.maximumLevel)).replace('{x}', String(x)).replace('{y}', String(y))
     const response = await fetch(url)
     if (!response.ok) {
       throw new Error(`${url}: HTTP ${response.status}`)
     }
-    const bitmap = await createImageBitmap(await response.blob())
-    const canvas = typeof OffscreenCanvas === 'function' ?
-      new OffscreenCanvas(size, size) :
-      Object.assign(document.createElement('canvas'), {width: size, height: size})
-    const ctx = canvas.getContext('2d', {willReadFrequently: true})
-    ctx.drawImage(bitmap, 0, 0, size, size)
-    bitmap.close?.()
-    return ctx.getImageData(0, 0, size, size).data
+    return createImageBitmap(await response.blob())
   }
 }
 
@@ -290,6 +282,7 @@ function detailLayer(body, config, month) {
   // The detail's code is a chunk of its own, wanted only once ion is asked.
   const code = import('./detailImagery.js')
   const provider = Promise.all([season.ion, code]).then(([inner, {detailProvider}]) => detailProvider(Cesium, inner, {
+    month,
     fetchBaseTile: baseTileFetcher(imagery, month),
     grid: {tilesX: 2 * (2 ** imagery.maximumLevel), tilesY: 2 ** imagery.maximumLevel, tileSize: imagery.tileSize},
     raw,

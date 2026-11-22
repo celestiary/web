@@ -570,14 +570,31 @@ texels (`detailTransfer.js`, `detailImagery.js`):
   `(Y + 0.003) / (Y_low + 0.003)` clamped to [1/3, 3] (`LUMA_EPS`,
   `RATIO_MIN`, `RATIO_MAX`): a floor for dark ground, and no blow-outs from
   glints or snow on a dark low.
-- **On the CPU, per tile**, in a provider that wraps ion's
-  (`detailProvider`): Bing's tile and its ancestor (cached, 32 kept), the
-  month's Blue Marble at the tile (the pyramid's level-3 512 px tiles, the
-  tile layer's own URLs, decoded once each), and the product encoded back to
-  sRGB.  256 px tiles: a few ms each, once per tile and month.  The ratios
-  are Bing's alone, cached across the months (96 kept), so a second month's
-  tile costs only its colour.  Bing's tiles come decoded flipped (an
-  ImageBitmap with Cesium's `flipY`), and are read bottom up.
+- **On the CPU, per tile, in a worker**, behind a provider that wraps
+  ion's (`detailProvider`).  The main thread only gathers each tile's
+  images, all ImageBitmaps decoded off it by `createImageBitmap`: Bing's
+  tile and its ancestor (Cesium's own requests), and the month's Blue
+  Marble tiles under it (the pyramid's level-3 512 px tiles, the tile
+  layer's own URLs), each kept for the next month's tile (24, 32 and 48
+  kept).  A worker (`detailWorker.js`, its own build,
+  `docs/cesium/detail-worker.js`, beside Cesium's workers) reads their
+  pixels on an OffscreenCanvas and makes the tile (`DetailComposer`), and
+  the buffer comes back transferred, for Cesium to upload as ImageData.
+  Two workers, a tile going to the one its key hashes to so its ratios are
+  cached once (96 kept, 256 KB each; ancestors' luminance 32; Blue Marble
+  pixels 32 tiles); three tiles in flight each, the rest queued on the main
+  thread, where a tile Cesium has given up (its request cancelled) is
+  dropped before it is sent.  The bitmaps are cloned to the worker, not
+  transferred, since the main thread keeps them.  Bing's tiles come decoded
+  flipped (an ImageBitmap with Cesium's `flipY`), and are read bottom up.
+- **The main thread, before the worker**, did all of that in the tiles'
+  promise chains: on the maintainer's M2 (Chrome, ANGLE Metal) at 3.7 Mm
+  over the steppe, 89 tasks over 50 ms (the longest 438 ms) in a trace,
+  the frame interval 58 ms on average and 192 ms at p95 (17 fps), against
+  55 fps with `?detail=raw`.  Where there's no worker or OffscreenCanvas, or
+  a worker fails, the same composer runs on the main thread, as before
+  (`?detailWorker=0` forces it, for comparison): its tiles are the
+  worker's byte for byte.
 - **One detail layer per month shown**, in the months' order over all their
   bases, with alphas that make the result `(1 − d) × the months' Blue Marble
   + d × the months' details`, mixed by the same shares

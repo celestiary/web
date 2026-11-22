@@ -136,7 +136,10 @@ export const STATIC_BUDGET = {
   // shares' easing in monthly.js, Cesium's month stacks in cesium/season.js,
   // 3 KB).  The detail over the month's colour (detailTransfer.js,
   // detailImagery.js) is a chunk of its own, loaded once ion is asked.
-  totalMinifiedKB: 2502,
+  // 2,502 and a fraction with the ion token, so 2,503, with the planets'
+  // places kept while the date stands (Animation.setDate's copy, a few
+  // hundred bytes); the detail's worker is a script of its own.
+  totalMinifiedKB: 2503,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,

@@ -1,5 +1,5 @@
 import {
-  BaseSampler, LUMA_EPS, PromiseCache, RATIO_MAX, RATIO_MIN, ancestorTile, decodeByte, detailRatios, encodeByte,
+  BaseSampler, DetailComposer, LUMA_EPS, PromiseCache, RATIO_MAX, RATIO_MIN, ancestorTile, decodeByte, detailRatios, encodeByte,
   lowpassLevel, lumaOf, sampleBilinear, tileLonLats, transferTile,
 } from './detailTransfer.js'
 import {srgbDecode} from '../srgb.js'
@@ -141,5 +141,62 @@ describe('the detail transfer (detailTransfer.js)', () => {
     await cache.get('x', () => Promise.reject(new Error('no'))).catch(() => undefined)
     await Promise.resolve()
     expect(cache.map.has('x')).toBe(false)
+  })
+})
+
+
+describe('DetailComposer', () => {
+  const grid = {tilesX: 2, tilesY: 1, tileSize: 2}
+  const brown = new Uint8ClampedArray([140, 110, 70, 255, 140, 110, 70, 255, 140, 110, 70, 255, 140, 110, 70, 255])
+  const job = (over = {}) => {
+    const reads = {fine: 0, low: 0, base: 0}
+    return {
+      reads,
+      job: {
+        key: '1/0/1', lowKey: '0/0/0', month: 11, grid, mercator: false,
+        tile: {x: 1, y: 0, level: 1, lowLevel: 0, size: SIZE},
+        rect: {west: 0, east: Math.PI / 2, south: 0, north: Math.PI / 4},
+        fineLuma: () => {
+          reads.fine++
+          return new Float32Array(SIZE * SIZE).fill(0.2)
+        },
+        lowLuma: () => {
+          reads.low++
+          return new Float32Array(SIZE * SIZE).fill(0.1)
+        },
+        basePixels: () => {
+          reads.base++
+          return brown
+        },
+        ...over,
+      },
+    }
+  }
+
+  it('reads each image once: a second month\'s tile reads only its own Blue Marble', () => {
+    const c = new DetailComposer()
+    const first = job()
+    const a = c.compose(first.job)
+    expect(first.reads).toEqual({fine: 1, low: 1, base: 2})
+    const again = job()
+    expect(c.compose(again.job)).toEqual(a)
+    expect(again.reads).toEqual({fine: 0, low: 0, base: 0})
+    const other = job({month: 12})
+    c.compose(other.job)
+    expect(other.reads).toEqual({fine: 0, low: 0, base: 2})
+  })
+
+  it('makes the base times the ratio, clamped', () => {
+    const {job: j} = job()
+    const out = new DetailComposer().compose(j)
+    // Ratio (0.2 + eps) / (0.1 + eps), about 1.97.
+    const r = (0.2 + LUMA_EPS) / (0.1 + LUMA_EPS)
+    expect(out[0]).toBe(encodeByte(decodeByte(140) * r))
+  })
+
+  it('makes the base alone for a discarded tile', () => {
+    const {job: j} = job({fineLuma: () => null})
+    const out = new DetailComposer().compose(j)
+    expect(Array.from(out.slice(0, 4))).toEqual([140, 110, 70, 255])
   })
 })
