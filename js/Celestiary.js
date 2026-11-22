@@ -2420,6 +2420,17 @@ export default class Celestiary {
     if (!frame || frame.path !== this.loader.pathByName.earth) {
       return ms
     }
+    // A link's steps start before its camera is hung (_restoreClock runs
+    // before _restoreView), so the turning _onDaySteps asks for is asked
+    // again here, where the camera now rides Earth's orbit.
+    this._turnForDaySteps()
+    // Turning asked for and not yet hung (syncFollow hangs it after this
+    // frame's animation): the step waits, as from the orbit the ground
+    // slips a degree a day under the camera.
+    const mode = this.scene.cameraMode?.()
+    if (mode?.mode === 'orbit' && this.scene._spinHold === 'on') {
+      return this.time.simTime
+    }
     const camWorldPos = this.ui.camera.getWorldPosition(new THREE.Vector3())
     const {lng} = worldToLatLngAlt(camWorldPos, frame.pos, frame.quat, frame.radius)
     return Number.isFinite(lng) ? solarNoonNear(ms, lng, this._sunAt()) : ms
@@ -2440,17 +2451,26 @@ export default class Celestiary {
       return
     }
     this._daySteps = steps
-    const mode = this.scene.cameraMode?.()
     if (steps > 0) {
-      if (mode?.mode === 'orbit' && mode.body === 'earth') {
-        this.scene.setCameraMode('turning')
-        this._daySpun = true
-      }
+      this._turnForDaySteps()
     } else if (this._daySpun) {
       this._daySpun = false
-      if (mode?.mode === 'turning') {
+      if (this.scene.cameraMode?.().mode === 'turning') {
         this.scene.setCameraMode('auto')
       }
+    }
+  }
+
+
+  /**
+   * While the clock steps by days, turn with Earth if riding its orbit by
+   * the height's choice (_onDaySteps); riding held by hand (`y`) is left.
+   */
+  _turnForDaySteps() {
+    const mode = this.scene.cameraMode?.()
+    if (this.time.stepDays > 0 && mode?.mode === 'orbit' && mode.auto && mode.body === 'earth') {
+      this.scene.setCameraMode('turning')
+      this._daySpun = true
     }
   }
 

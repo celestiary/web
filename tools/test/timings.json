@@ -184,6 +184,7 @@
     "js/search/providers/PlacesProvider.test.js": 0.1,
     "js/search/providers/SatellitesProvider.test.js": 0.1,
     "js/search/providers/SceneProvider.test.js": 0.1,
+    "js/solarNoon.test.js": 3.0,
     "js/staleBuild.test.js": 0.1,
     "js/store/LayersSlice.test.js": 0.1,
     "js/store/SearchSlice.test.js": 0.1,

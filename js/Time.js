@@ -172,6 +172,11 @@ export default class Time {
    */
   setTime(unixTime) {
     this._setSimTime(unixTime)
+    // The clock runs on from now, not from its last update: a link's date
+    // set after a load of seconds would otherwise jump by them × the rate
+    // at the first frame (a day-step link, months, before its camera turned
+    // with Earth).
+    this.lastUpdate = Date.now()
     this.setTimeStr(timeToDateStr(this.simTime))
     this._notifyScaleChange()
   }

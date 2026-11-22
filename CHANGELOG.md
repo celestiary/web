@@ -39,6 +39,17 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### A breathing Earth: step the clock from noon to noon, and watch the seasons go round
+
+A new way to run time: *Step by day (solar noon)* in the time panel jumps the clock a whole day at a time, always landing at local noon under the camera, so the Sun stays put over the ground while the year runs by at 30 days a second.  The snow comes and goes, the land greens and browns, and the line between day and night rocks north and south with the seasons.  Links also keep the exact speed you give them now: a day a second stays a day a second.
+
+- Date: 2026-11-22
+- PR: [#379](https://github.com/celestiary/web/pull/379)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@50,69.8893,7Mm;t=9504.810753jd;cq=-0.5614,0.2476,0.1411,0.7769;fov=45deg;s=alpoFY;time:step=1d,rate=30)
+- Featured: yes
+- Kind: feature
+
 ### Earth through the seasons: the months blend day by day, and close-up detail keeps the season
 
 Earth's surface used to jump at the start of each month; now each day shows a mix of the two nearest months' pictures, so speed up time and the steppe browns, the snow creeps south and the spring greens come back smoothly.  Flying low with Cesium's detail imagery, the ground keeps the season's colours: the close-up photographs (mostly taken in summer) now add only their fine texture, fields, rivers and relief, over the month's colour, so November's brown steppe no longer turns into a green square as you descend.

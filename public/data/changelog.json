@@ -1,6 +1,27 @@
 {
   "entries": [
     {
+      "id": "2026-11-22-a-breathing-earth-step-the-clock-from-noon-to",
+      "date": "2026-11-22",
+      "headline": "A breathing Earth: step the clock from noon to noon, and watch the seasons go round",
+      "text": "A new way to run time: Step by day (solar noon) in the time panel jumps the clock a whole day at a time, always landing at local noon under the camera, so the Sun stays put over the ground while the year runs by at 30 days a second.  The snow comes and goes, the land greens and browns, and the line between day and night rocks north and south with the seasons.  Links also keep the exact speed you give them now: a day a second stays a day a second.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 379,
+          "url": "https://github.com/celestiary/web/pull/379"
+        }
+      ],
+      "epic": {
+        "number": 118,
+        "title": "Navigation, time and sharing",
+        "url": "https://github.com/celestiary/web/issues/118"
+      },
+      "permalink": "#sun/earth@50,69.8893,7Mm;t=9504.810753jd;cq=-0.5614,0.2476,0.1411,0.7769;fov=45deg;s=alpoFY;time:step=1d,rate=30",
+      "image": null,
+      "featured": true
+    },
+    {
       "id": "2026-11-22-earth-through-the-seasons-the-months-blend-day",
       "date": "2026-11-22",
       "headline": "Earth through the seasons: the months blend day by day, and close-up detail keeps the season",

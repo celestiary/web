@@ -405,6 +405,12 @@ Decisions:
     the orbit the ground turns under the camera a degree a day against the
     Sun, so a year of noons would turn the globe once round in view.  It
     goes back to the height's choice when the steps end, if they chose it.
+    Riding held by hand (`y`) is left alone.  A step waits while turning is
+    asked for and not yet hung (a link's first frame), and the clock runs on
+    from when its date was set (`Time.setTime`), not from its last update:
+    before, a link's first frame jumped by the load's seconds × the rate,
+    months of noons with the camera still on the orbit, 6.5° off the link's
+    meridian.
   - *Earth only.*  With the camera at another body, or a star, the steps are
     whole days of the clock (no noon).
   - *The clouds hold the day they had* while the steps run (CloudShell): a
