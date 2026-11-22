@@ -12,6 +12,7 @@ import ARDebugHUD from './ui/ARDebugHUD'
 import CreditsFooter from './ui/CreditsFooter'
 import DragModeToggle from './ui/DragModeToggle'
 import CameraModeControl from './ui/CameraModeControl'
+import CompassControl from './ui/CompassControl'
 import ExposureReadout from './ui/ExposureReadout'
 import Homepage from './ui/Homepage'
 import LayersButton from './ui/LayersButton'
@@ -98,6 +99,7 @@ export default function App() {
         {floating &&
           <TooltipIconButton tip='Widgets' onClick={() => dispatchWidgets({type: 'toggle'})} icon={<WidgetsIcon/>}/>}
         {floating && <TimePanel time={celestiary.time} timeStr={timeStr} isPaused={isPaused} setIsPaused={setIsPaused}/>}
+        {floating && <CompassControl celestiary={celestiary}/>}
         {floating && <CameraModeControl celestiary={celestiary}/>}
         {floating && <DragModeToggle/>}
         {floating && <LayersButton celestiary={celestiary}/>}
@@ -119,6 +121,8 @@ export default function App() {
         <Route path='/about'>
           <About/>
         </Route>}
+      {celestiary && isMobile && homePhase === 'hidden' &&
+        <div className='compass-phone'><CompassControl celestiary={celestiary}/></div>}
       {celestiary && isMobile && homePhase === 'hidden' &&
         <PhoneDock celestiary={celestiary} timeStr={timeStr} isPaused={isPaused} setIsPaused={setIsPaused}/>}
       {celestiary && <ExposureReadout celestiary={celestiary}/>}

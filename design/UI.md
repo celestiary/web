@@ -311,13 +311,21 @@ ground, quiet, and the place you go when the view is confusing.
 2. **The label and its menu** (done, #361's second PR):
    `ui/CameraModeControl.jsx` over `Scene.cameraMode` and
    `setCameraMode`, in the controls and the dock's More panel; `y`; `Y`.
-   Left: the readout still says "Following on/off" for `f`.
-3. **The compass**: north-up, level, the ring.
+   Left: the readout still says "Following on/off" for `f`.  From the ground (*Standing on Earth*) each
+   choice takes off that way, where the camera is (the review of step 3:
+   greyed, the menu read as broken); `f` still keeps a landed camera
+   pinned, so its key isn't shown there.
+3. **The compass** (done, #361's third PR): `js/compass.js` (heading,
+   pitch, the orientation for them), `Scene.cameraHeading`, `turnCamera`
+   and `compassTap`, `ui/CompassControl.jsx`: an inline SVG dial turned
+   each animation frame by its style, above the label on desktop and at
+   the top right of the scene on a phone (in the column, it fell on the
+   info sheet).  Using it turns facing the target off.
 
 ### Open questions
 
-- Above which height does the compass hide?  Proposed: 3 radii, where the
-  body is a disc rather than a ground.
+- Above which height does the compass hide?  3 radii (`COMPASS_RADII`),
+  as proposed, where the body is a disc rather than a ground.
 - Should "Standing on Earth" be in the menu at all, since it needs a
   place?  Proposed: shown when landed, greyed otherwise, with "double-click
   the ground" as its hint.

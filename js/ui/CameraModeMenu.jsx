@@ -16,16 +16,18 @@ export function cameraModeChoices(state, label, {canLeave = true} = {}) {
   const b = label(state.body)
   const standing = state.mode === 'standing'
   const riding = state.mode === 'orbit' || state.mode === 'turning'
+  // Landed, each choice takes off that way (Scene.setCameraMode); `f` keeps
+  // a landed camera pinned, so its key isn't offered there.
+  const f = standing ? null : 'f'
   return [
-    {id: 'fixed', text: 'Fixed in space', key: 'f', checked: state.mode === 'fixed',
-      disabled: standing || !canLeave, hint: standing ? 'Go somewhere to leave the ground' :
-        (canLeave ? `${b} moves on without you` : `Nothing above ${b} to leave`)},
-    {id: 'orbit', text: `Riding ${b}'s orbit`, key: 'f', checked: state.mode === 'orbit' && !state.auto,
-      disabled: standing, hint: `${b} turns under you`},
+    {id: 'fixed', text: 'Fixed in space', key: f, checked: state.mode === 'fixed',
+      disabled: !canLeave, hint: canLeave ? `${b} moves on without you` : `Nothing above ${b} to leave`},
+    {id: 'orbit', text: `Riding ${b}'s orbit`, key: f, checked: state.mode === 'orbit' && !state.auto,
+      disabled: false, hint: `${b} turns under you`},
     {id: 'turning', text: `Turning with ${b}`, key: 'y', checked: state.mode === 'turning' && !state.auto,
-      disabled: standing, hint: 'The ground stays put under you'},
+      disabled: false, hint: 'The ground stays put under you'},
     {id: 'auto', text: 'By height (auto)', key: null, checked: riding && state.auto,
-      disabled: standing, hint: 'Turning below 30 km, riding the orbit above'},
+      disabled: false, hint: 'Turning below 30 km, riding the orbit above'},
     {id: 'standing', text: `Standing on ${b}`, key: null, checked: standing,
       disabled: true, hint: standing ? null : 'Double-click the ground'},
   ]

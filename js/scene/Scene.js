@@ -44,6 +44,7 @@ import {planetsApprox} from './planetsApprox.js'
 import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
 import {faceKeepingRoll} from '../faceKeepingRoll.js'
 import {rehangPlatform} from '../follow.js'
+import {headingOf, orientationFor} from '../compass.js'
 import {newGaiaPopulation} from './gaia/gaiaPopulation.js'
 import {pickSurfaceLatLng} from './Picker.js'
 import {SATELLITES_LOAD_DIST} from './satellites/names.js'
@@ -89,6 +90,15 @@ export const SPIN_IN_M = 30e3
 /** See SPIN_IN_M. */
 export const SPIN_OUT_M = 40e3
 
+/**
+ * The compass shows within this many radii of the body the camera is at
+ * (cameraHeading): nearer, the body is ground under the camera; farther, a
+ * disc in the sky (design/UI.md, the camera control).
+ */
+export const COMPASS_RADII = 3
+/** A heading or pitch within this of the one asked for counts as there (compassTap), radians. */
+const COMPASS_SLACK = 0.5 * Math.PI / 180
+
 
 /**
  * Format lat/lng as a compact, human-readable string for the dblclick
@@ -108,6 +118,13 @@ export function formatLatLng(lat, lng) {
 
 
 const STEP_BACK = 10
+// Scratch for the compass.
+const _cmpCam = new Vector3()
+const _cmpUp = new Vector3()
+const _cmpPole = new Vector3()
+const _cmpFwd = new Vector3()
+const _cmpQ = new Quaternion()
+const _cmpPlat = new Quaternion()
 // Scratch for _syncSpin.
 const _spinCam = new Vector3()
 const _spinBodyPos = new Vector3()
@@ -3175,15 +3192,17 @@ export default class Scene {
    * off), `orbit` and `turning` ride it (as `f` on) and hold riding its
    * orbit or turning with it at any height, `auto` lets the height choose
    * again.  `standing` isn't set here: it needs a place (land).  Landed,
-   * nothing changes but `auto`: the camera is pinned to the ground until a
-   * go leaves it.
+   * each takes off that way, from where the camera is (_leaveGround): the
+   * camera control's choices work from the ground too, where `f` still
+   * keeps a landed camera pinned.
    *
    * @param {string} mode 'fixed', 'orbit', 'turning' or 'auto'
    */
   setCameraMode(mode) {
-    if (Shared.targets.landed) {
+    if (!['fixed', 'orbit', 'turning', 'auto'].includes(mode)) {
       return
     }
+    this._leaveGround()
     if (mode === 'fixed') {
       if (Shared.targets.follow) {
         this.setFollowing(false)
@@ -3196,6 +3215,29 @@ export default class Scene {
       this.syncFollow()
     }
     this.onSettingsChange?.()
+  }
+
+
+  /**
+   * A landed camera no longer landed, where it is: it rides the body it stood
+   * on, turning with it (the platform stays on its spinning node, now as
+   * `_spinBody`), and leaves its seat if it had one (the Rubin
+   * Observatory's).  The drag mode stays the user's.
+   */
+  _leaveGround() {
+    if (!Shared.targets.landed) {
+      return
+    }
+    const body = Shared.targets.cur
+    this.leaveSeat()
+    Shared.targets.landed = false
+    this.ui.useStore?.getState?.()?.setLanded?.(false)
+    if (body && this.ui.camera.platform.parent === body) {
+      this._spinBody = body
+    }
+    if (!Shared.targets.follow && body?.orbitPosition) {
+      Shared.targets.follow = body.orbitPosition
+    }
   }
 
 
@@ -3218,6 +3260,95 @@ export default class Scene {
     if (on && Shared.targets.follow && !Shared.targets.landed) {
       this._spinHold = 'on'
     }
+  }
+
+
+  /**
+   * The camera's heading and pitch over the ground of the body it is at, for
+   * the compass (js/compass.js), or null at a star or farther than
+   * COMPASS_RADII radii.
+   *
+   * @returns {?{heading: number, pitch: number, alt: number, body: string}}
+   *   Radians (heading east of north, pitch above the horizon), metres over
+   *   the body's sphere
+   */
+  cameraHeading() {
+    const body = Shared.targets.cur
+    const r = body?.props?.radius?.scalar
+    const platform = this.ui.camera.platform
+    if (!(r > 0) || !platform.parent || platform.parent === this._starAnchor) {
+      return null
+    }
+    this._compassFrame(body)
+    const d = _cmpUp.length()
+    if (d > COMPASS_RADII * r || d === 0) {
+      return null
+    }
+    _cmpUp.divideScalar(d)
+    const {heading, pitch} = headingOf(_cmpUp, _cmpPole, _cmpFwd)
+    return {heading, pitch, alt: d - r, body: body.props.name}
+  }
+
+
+  /**
+   * Turn the camera where it is to a heading and pitch over the ground, with
+   * no roll (js/compass.js orientationFor).  Facing the target (`t`) is
+   * turned off, or it would turn the camera back.  Not while a go travels.
+   *
+   * @param {number} heading Radians east of north
+   * @param {number} pitch Radians above the horizon
+   */
+  turnCamera(heading, pitch) {
+    const body = Shared.targets.cur
+    if (!(body?.props?.radius?.scalar > 0) || Shared.targets.tween) {
+      return
+    }
+    if (Shared.targets.track) {
+      this.setTracking(false)
+    }
+    this._compassFrame(body)
+    _cmpUp.normalize()
+    orientationFor(_cmpUp, _cmpPole, heading, Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch)), _cmpQ)
+    const camera = this.ui.camera
+    camera.platform.getWorldQuaternion(_cmpPlat)
+    camera.quaternion.copy(_cmpPlat.invert().multiply(_cmpQ))
+    this.ui.onCameraChange?.()
+  }
+
+
+  /**
+   * The compass's tap: north up, keeping the pitch; tapped again when north
+   * is up, level, to the horizon low down (below SPIN_IN_M) or straight down
+   * from higher.
+   */
+  compassTap() {
+    const h = this.cameraHeading()
+    if (!h) {
+      return
+    }
+    if (Math.abs(h.heading) > COMPASS_SLACK) {
+      this.turnCamera(0, h.pitch)
+    } else {
+      this.turnCamera(0, h.alt < SPIN_IN_M ? 0 : -Math.PI / 2)
+    }
+  }
+
+
+  /**
+   * The camera's up over the body (unnormalized: camera minus centre), the
+   * body's pole and the camera's forward, in the world, into the compass's
+   * scratch vectors.
+   *
+   * @param {object} body
+   */
+  _compassFrame(body) {
+    const camera = this.ui.camera
+    body.updateWorldMatrix(true, false)
+    camera.updateWorldMatrix(true, false)
+    camera.getWorldPosition(_cmpCam)
+    _cmpUp.copy(_cmpCam).sub(body.getWorldPosition(_cmpPole))
+    _cmpPole.set(0, 1, 0).applyQuaternion(body.getWorldQuaternion(_cmpQ))
+    _cmpFwd.set(0, 0, -1).applyQuaternion(camera.getWorldQuaternion(_cmpQ))
   }
 
 

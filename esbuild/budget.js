@@ -143,13 +143,17 @@ export const STATIC_BUDGET = {
   // steps, solarNoon.js, the time panel's toggle).  2,506 and a fraction, so
   // 2,508, with the Earth breathing app's way in (its tray entry, search view
   // and constants; its panel is a chunk of its own, breathingApp.js).
+  // With the compass (#361 step 3: js/compass.js, Scene cameraHeading,
+  // turnCamera and compassTap, ui/CompassControl.jsx, its dial an inline
+  // SVG; and the camera menu from the ground, Scene._leaveGround), 2,512
+  // (2,513 with the ion token), so 2,514.
   // 1.7 KB more with the layers control's sky imagery (#360): the Layers
   // button everywhere, the loader of its sky section (SkyImagery.jsx; the
   // section, the surveys and the turn to a field are lazy, handed the first
   // load's MUI and React so the split leaves MUI's chunks alone), LayerSwitch
   // shared with the New York toggle, the `sky:` token and the store's list,
-  // and the wheel's field zoom: 2,510.
-  totalMinifiedKB: 2510,
+  // and the wheel's field zoom: 2,516.
+  totalMinifiedKB: 2516,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -180,8 +184,10 @@ export const STATIC_BUDGET = {
   // albedo by the month (as above; a fraction more with the ion token).
   // 777, so 778, with the months blended by the day (as above).  778 and a
   // fraction, so 779, with the day steps and the Earth breathing app.
-  // 0.7 KB more with the layers control's sky imagery (#360, as above): 780.
-  totalGzipKB: 780,
+  // 780 and a fraction with the ion token, so 781, with the compass (#361
+  // step 3, as above).
+  // 0.7 KB more with the layers control's sky imagery (#360, as above): 782.
+  totalGzipKB: 782,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,
