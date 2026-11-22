@@ -507,7 +507,8 @@ export default class SunLayers {
       // Nothing to draw where the brightest of it is under the floor at
       // this exposure: the bare disc's stopped-down frames, and from afar.
       // An instrument's view draws it at its own level, whatever the exposure.
-      this.corona.visible = this.enabled.corona &&
+      // Nor under a picture of the sky (ThreeUi.pictureInView, set by Star).
+      this.corona.visible = this.enabled.corona && !this.underPicture &&
         (this.view !== VIEW_EYE || this.discValue() * offDiscBrightest(1.0001) > VISIBLE_FLOOR)
     }
   }

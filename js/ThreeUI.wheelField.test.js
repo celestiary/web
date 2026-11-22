@@ -52,3 +52,14 @@ describe('the wheel over sky imagery', () => {
     expect(uiWith(true).wheelField(NaN)).toBe(false)
   })
 })
+
+
+describe('a picture of the sky in view', () => {
+  it('is sky imagery in the frame at a telescope\'s field', () => {
+    const ui = uiWith(true)
+    expect(ui.pictureInView()).toBe(true)
+    ui.camera.fov = 45
+    expect(ui.pictureInView()).toBe(false)
+    expect(uiWith(false).pictureInView()).toBe(false)
+  })
+})

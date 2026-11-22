@@ -102,6 +102,9 @@ const SEAT_ZOOM_LEAVES = 1e-9
 // most one event counts for (a notch of a mouse wheel is about 100).
 const WHEEL_FIELD_RATE = 0.002
 const WHEEL_FIELD_MAX_PX = 120
+// The widest field, in degrees, at which sky imagery in the frame is a picture
+// being looked at (pictureInView).
+const PICTURE_FIELD_DEG = 10
 
 
 export default class ThreeUi {
@@ -1437,6 +1440,24 @@ export default class ThreeUi {
 
 
   /**
+   * Whether the frame is a look at a picture of the sky: a survey's imagery
+   * in it (Scene.skyInView) and the field down to a telescope's
+   * (PICTURE_FIELD_DEG).  The sky's own diffuse light is then not drawn
+   * (the zodiacal light, the galaxy's march, airglow: _updateNightSkyShown;
+   * the Sun's corona from inside it: SunLayers.underPicture), as a picture
+   * is a photograph of that sky, its black the screen's: riding the Sun's
+   * orbit 24 Gm out, the default seat, the corona and the zodiacal light at
+   * the dark-adapted gain put 200 of 255 over the Pillars of Creation
+   * (Sky.md, "A picture's black").
+   *
+   * @returns {boolean}
+   */
+  pictureInView() {
+    return this.camera.fov <= PICTURE_FIELD_DEG && Boolean(this.sceneManager?.skyInView?.())
+  }
+
+
+  /**
    * The asynchronous readback (meterReadback.js), made on first use, or null
    * for the synchronous path: no WebGL2 sync objects, the LDR fallback, or
    * `?meter=sync` (for comparing the two on a machine at hand).
@@ -1604,7 +1625,10 @@ export default class ThreeUi {
     const glow = this._lastAtmPlanet ? (airglowOf(this._lastAtmPlanet.props.atmosphere)?.zenithValue ?? 0) * 7 : 0
     const brightest = (GALAXY_BRIGHTEST + zodiacal + glow) * exposure *
       extendedGain(exposure, this._galaxyOutsideWeight())
-    this._nightSkyShown = this.hdr && brightest > NIGHT_SKY_SKIP_VALUE && !this._groundFillsView()
+    // Nor under a picture of the sky (pictureInView): the picture holds that
+    // sky's light already, and this light added over it greyed its black.
+    this._nightSkyShown = this.hdr && brightest > NIGHT_SKY_SKIP_VALUE && !this._groundFillsView() &&
+      !this.pictureInView()
     this._milkyWay ??= this.scene.getObjectByName('MilkyWay') ?? null
     if (this._milkyWay?.userData.galaxy) {
       this._milkyWay.userData.galaxy.skip = this.hdr && !this._nightSkyShown

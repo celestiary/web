@@ -358,6 +358,21 @@ with the pointer over the sky: JWST NIRCam and Hubble WFC3 from 0.07° to
 Virgo view from 3.5° to 1.29° and back; the same view with no survey on,
 the field unchanged and the camera moved, as before.
 
+## A picture's black
+
+A picture is a photograph of its sky, display-referred: its black is the
+screen's.  The sky's own diffuse light is drawn over the scene (the
+zodiacal light, the galaxy's march and airglow in the atmosphere pass; the
+Sun's corona from inside its shell), and the eye adapts to a dark frame, so
+from the default seat, riding the Sun's orbit 24 Gm out, the corona and the
+zodiacal light at the dark-adapted gain (8.5e5) put 200 of 255 over the
+Pillars of Creation and the stars round them; at 60 Gm the zodiacal light
+alone 70, and 6 by 150 Gm.  So while a picture is being looked at
+(`ThreeUi.pictureInView`: imagery in the frame, `Scene.skyInView`, and the
+field at most 10°) that light isn't drawn: `_updateNightSkyShown` reads it,
+and `SunLayers.underPicture` hides the corona.  The stars and the bodies
+are drawn as ever, and the meter reads what's left.
+
 ## Hosts, and what the sandbox reaches
 
 - **CDS** (`alasky.cds.unistra.fr`): from the sandbox its static HiPS
