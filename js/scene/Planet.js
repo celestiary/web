@@ -34,7 +34,8 @@ import {meanElements} from './meanElements.js'
 import {ORBIT_LINE_POINTS, unitEllipse} from './orbitPath.js'
 import {newWideLineStrip} from './wideLines.js'
 import {dataUrl} from '../dataUrl.js'
-import {monthOfJulianDay, monthlyPath} from './monthly.js'
+import {monthBlendOfJulianDay, monthlyPath} from './monthly.js'
+import MonthMaps, {monthMapShaderMod} from './monthMaps.js'
 import {sharedImage} from './sharedImage.js'
 import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, toRad} from '../shared.js'
 import {exposureAt, nightLightRadiance} from './exposure.js'
@@ -416,36 +417,34 @@ export default class Planet extends Object {
 
 
   /**
-   * A colour map that follows the simulation date's month (monthly.js).
-   * One texture, whose image is replaced when the month changes, once the
-   * new month's has loaded: no shader rebuild, and the old month shows
-   * meanwhile rather than nothing.  The month's image is the one the clouds
-   * and Cesium's base layer take from too (sharedImage.js): fetched once.
+   * A colour map that follows the simulation date, two months' pictures
+   * blended by the day (monthMaps.js; Planet.md, "The months blended by
+   * day").  Its second texture and the mix are `this.monthMaps.uniforms`,
+   * for the surface shader (monthMapShaderMod).  A month's picture is the
+   * one the clouds and Cesium's base layer take from too (sharedImage.js):
+   * fetched once.
    *
    * @param {string} pattern Under textures/, with `{MM}` for the month
    * @returns {Texture}
    */
   monthlyMap(pattern) {
-    const map = new Texture()
-    let wanted = 0
+    const maps = new MonthMaps(
+        (month) => sharedImage(dataUrl(`textures/${monthlyPath(pattern, month)}.jpg`)),
+        Material.colorMapSpace(this.props),
+        () => this.scene?.revealed !== true)
+    this.monthMaps = maps
+    let last = null
     this.preAnimCb = (time) => {
-      const month = monthOfJulianDay(time.simTimeJulianDay())
-      if (month === wanted) {
-        return
-      }
-      wanted = month
-      // The ground under the air follows the month too (groundLight.js).
+      const now = performance.now()
+      const blend = monthBlendOfJulianDay(time.simTimeJulianDay())
+      maps.step(blend, last === null ? 0 : (now - last) / 1000)
+      last = now
+      // The ground under the air follows the months too (groundLight.js).
       if (this.props.atmosphere) {
-        setGroundMonth(this.props.atmosphere, month)
+        setGroundMonth(this.props.atmosphere, blend)
       }
-      sharedImage(dataUrl(`textures/${monthlyPath(pattern, month)}.jpg`)).then((image) => {
-        if (month === wanted) {
-          map.image = image
-          map.needsUpdate = true
-        }
-      }).catch((err) => console.warn(`[${this.name}] couldn't load the month's colour map`, err))
     }
-    return map
+    return maps.map
   }
 
 
@@ -503,6 +502,11 @@ export default class Planet extends Object {
     // onBeforeCompile (Three.js calls onBeforeCompile exactly once when
     // the shader is first compiled).
     const shaderMods = []
+    // Two months' maps mixed by the date (monthMaps.js).
+    if (monthly) {
+      // For a probe: the months shown and their mix.
+      surfaceMaterial.userData.monthMaps = this.monthMaps
+    }
     let nightSunDirUniform = null
     if (this.props.texture_hydrosphere) {
       const hydroTex = Material.pathTexture(`${texDir}${this.name}_hydro`)
@@ -611,6 +615,11 @@ export default class Planet extends Object {
     // whatever the mods above added.
     const discUniforms = newSmallDiscUniforms()
     shaderMods.push(smallDiscShaderMod(discUniforms))
+    // After it: two months' maps mixed by the date, in every sample of the
+    // map, the small disc's too (monthMaps.js).
+    if (monthly) {
+      shaderMods.push(monthMapShaderMod(this.monthMaps.uniforms))
+    }
     const modCount = shaderMods.length
     surfaceMaterial.onBeforeCompile = (shader) => {
       for (const fn of shaderMods) {
@@ -621,7 +630,8 @@ export default class Planet extends Object {
     // doesn't.  Read when the program is built, so after Rings chains its
     // own onBeforeCompile (Saturn's ring shadow).
     surfaceMaterial.customProgramCacheKey = function() {
-      return `${this.onBeforeCompile.toString()}|mods:${modCount}${lunar ? '|lunar' : ''}${groundUniforms ? '|ground' : ''}`
+      const flags = `${lunar ? '|lunar' : ''}${groundUniforms ? '|ground' : ''}${monthly ? '|monthly' : ''}`
+      return `${this.onBeforeCompile.toString()}|mods:${modCount}${flags}`
     }
 
     // Bump surface resolution from sphere()'s default (128 segs ≈ 16k tris,

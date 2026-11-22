@@ -131,7 +131,12 @@ export const STATIC_BUDGET = {
   // brighten when it came.  2,497 and a fraction, so 2,498, with the
   // ground's albedo by the month (groundLight.js's month and threshold,
   // ThreeUi's rebuild of the tables that read it, 1 KB).
-  totalMinifiedKB: 2498,
+  // 2,501, so 2,502, with the months blended by the day (Planet.md, "The
+  // months blended by day": monthMaps.js and the planet material's mod, the
+  // shares' easing in monthly.js, Cesium's month stacks in cesium/season.js,
+  // 3 KB).  The detail over the month's colour (detailTransfer.js,
+  // detailImagery.js) is a chunk of its own, loaded once ion is asked.
+  totalMinifiedKB: 2502,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -160,7 +165,8 @@ export const STATIC_BUDGET = {
   // with the ion token baked in, as CI's and the precommit hook's builds are).
   // 774 and a fraction, so 776, with the ground lit through the air and its
   // albedo by the month (as above; a fraction more with the ion token).
-  totalGzipKB: 776,
+  // 777, so 778, with the months blended by the day (as above).
+  totalGzipKB: 778,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,

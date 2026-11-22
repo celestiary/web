@@ -490,17 +490,25 @@ on screen always did; a body never shown warms up first (UX, above).
   month's Blue Marble as its base imagery, bundled with celestiary and cut
   from the same mosaics as its own Earth texture (bodies.js
   `monthlyImagery`; Planet.md), so the two match across the swap.  Two
-  layers: the month's 4096×2048 map, the file celestiary's own Earth is
+  layers a month: the month's 4096×2048 map, the file celestiary's own Earth is
   textured with (given as a `blob:` URL of the download celestiary's Earth
   and the clouds already share, `sharedImage.js`, so no request of its own),
   over the whole globe, and over it the 512 px tiles, levels 0-3, only from globe
   level 3 (`fromLevel`; the tiles' levels 0-2 are no sharper than the map,
-  and took ten requests, popping in as they came).  When the month changes,
-  the new month's two layers go in above the old, which are dropped once
-  the tiles and the map are in.  With a Cesium ion token, ion's World
-  Terrain loads with the globe, and ion's world imagery (Bing) adds detail
-  from globe tile level 5 (`detailFromLevel`), below which the base's ~5 km
-  texels would show: from orbit the Earth is Blue Marble.  Bing is
+  and took ten requests, popping in as they came).  The globe shows the two
+  months a date falls between, mixed by the day as celestiary's Earth mixes
+  them (Planet.md, [the months blended by
+  day](js/scene/Planet.md#the-months-blended-by-day); `season.js`): each
+  month's layers go in over the others' at alpha 0, and the alphas
+  (`overAlphas`) make the stack the mix of the months by their shares, a
+  month's share growing from 0 once its map is in and the globe's tiles are
+  (or 3 s after, where the tiles never settle); a month the blend has left
+  goes once its share is 0.  With a Cesium ion token, ion's World
+  Terrain loads with the globe, and ion's world imagery (Bing) adds its
+  detail, not its colour, over each month's Blue Marble from globe tile
+  level 5 (`detailFromLevel`), below which the base's ~5 km texels would
+  show: from orbit the Earth is Blue Marble ([Detail over the month's
+  colour](#detail-over-the-months-colour)).  Bing is
   requested only once the camera is near ([Cesium ion
   sessions](#cesium-ion-sessions)); the terrain is not, since it gives the
   globe its lighting ([Earth's lighting needs the terrain](#earths-lighting-needs-the-terrain)).
@@ -527,6 +535,67 @@ on screen always did; a body never shown warms up first (UX, above).
   range, so views away from Earth, the Moon and Mars don't load it. Its static assets (Workers, Assets,
   ThirdParty) are copied into `docs/cesium/` by the build;
   `window.CESIUM_BASE_URL` points there.
+
+### Detail over the month's colour
+
+ion's world imagery (Bing) is a mosaic of summers.  Shown whole, from about
+3.5 Mm (where the globe's tiles reach level 5 and it took over) a November
+view had a hard-edged greener square over the brown steppe, with other snow
+than the Blue Marble's.  So Bing gives only its detail, finer than the Blue
+Marble resolves, and the month's Blue Marble its colour, at its own ~5 km
+texels (`detailTransfer.js`, `detailImagery.js`):
+
+    shown = BlueMarble(month) × Y(Bing) / Y(Bing at lowLevel)
+
+- **The low pass is Bing's own ancestor** at the level whose texels are the
+  Blue Marble's (`lowpassLevel`: 8192 texels round, Bing's 256 px tiles two
+  across at level 0, so level 4), sampled bilinearly at each pixel.  A tile's
+  own mip levels would low-pass only within the tile, and deep tiles (100 m
+  across) would each have their own mean, a seam at every edge; the ancestor
+  is the same field across them (its own edges, every ~2,500 km, clamp).  At
+  `lowLevel` the ratio is 1, so the layer starts a level finer
+  (`minimumLevel`), and each level adds an octave of detail to the one
+  before: there is no level where the colour changes, and so no edge
+  between tiles of different levels beyond the octave any imagery has.
+- **Luminance, not a ratio per channel.**  Bing's colour is the summer's; a
+  ratio per channel carries its green into the finer scales (a field's
+  colour against its 5 km mean), and is noisy where a channel is dark
+  (water, shadow: Bing's blue over the steppe is a few codes).  The
+  luminance ratio keeps the Blue Marble's hue and season at every scale and
+  takes Bing's texture: fields, rivers, roads, relief's shading.  What's
+  lost is colour finer than 5 km that the Blue Marble doesn't have (a small
+  lake's blue shows as a dark patch of the steppe's colour).
+- **In linear light** (Bing's and the Blue Marble's bytes decoded from sRGB,
+  as the patched globe decodes every layer), Y Rec. 709's, the ratio
+  `(Y + 0.003) / (Y_low + 0.003)` clamped to [1/3, 3] (`LUMA_EPS`,
+  `RATIO_MIN`, `RATIO_MAX`): a floor for dark ground, and no blow-outs from
+  glints or snow on a dark low.
+- **On the CPU, per tile**, in a provider that wraps ion's
+  (`detailProvider`): Bing's tile and its ancestor (cached, 32 kept), the
+  month's Blue Marble at the tile (the pyramid's level-3 512 px tiles, the
+  tile layer's own URLs, decoded once each), and the product encoded back to
+  sRGB.  256 px tiles: a few ms each, once per tile and month.  The ratios
+  are Bing's alone, cached across the months (96 kept), so a second month's
+  tile costs only its colour.  Bing's tiles come decoded flipped (an
+  ImageBitmap with Cesium's `flipY`), and are read bottom up.
+- **One detail layer per month shown**, in the months' order over all their
+  bases, with alphas that make the result `(1 − d) × the months' Blue Marble
+  + d × the months' details`, mixed by the same shares
+  (`overAlphas([1 − d, ...shares × d])`).  `d`, the detail's strength, grows
+  from 0 to 1 over 1.5 s once ion's first layer is ready (`DETAIL_FADE_S`),
+  so the detail's arrival is a fade, not a pop.
+- **Why not a shader patch.**  A patched `GlobeFS` could multiply a layer
+  into the colour under it (a per-layer blend mode, its uniform arrays in
+  `GlobeSurfaceShaderSet` and `GlobeSurfaceTileProvider`), with the ratio
+  from a mip of the tile, on the GPU.  It would need a fork branch, specs,
+  and a patch on three more of Cesium's files, and its low pass would end at
+  each tile's edge.  The provider needs nothing of Cesium's but its
+  interface, runs in bun's tests, and its only costs are the CPU's few ms a
+  tile and a second detail texture per tile while two months are shown.
+  Cesium's own layer options (brightness, contrast, hue, saturation, gamma)
+  are one number a layer, and can't take a colour from another layer.
+- **`?detail=raw`** puts Bing's own tiles in the detail layers, as before,
+  for comparison.
 
 ### Cesium ion sessions
 
@@ -570,12 +639,15 @@ screen pixels:
   was requested with the imagery in the first version of this change, and
   the night side then showed the day surface.
 - Once requested, the imagery stays, however the camera moves: a
-  re-request may open another session.  The layer is inserted under the
-  night lights layer, above the base.
+  re-request may open another session.  It is asked for once
+  (`createWorldImageryAsync`) and shared by the months' detail layers
+  (`season.js` `addDetail`), which go under the night lights, over the
+  months' bases; a month added later wraps the same provider, with no new
+  request to ion.
 - A failure degrades quietly to the base.  ion refusing the endpoint
-  (a 401 or 403 from the token or the quota, or no network) fires the
-  layer's `errorEvent`, which removes the layer; Bing's tile errors do not
-  retry, and a 401 or 403 from them removes it too.  One `console.warn`
+  (a 401 or 403 from the token or the quota, or no network) rejects the
+  provider, and the detail layers go; Bing's tile errors do not
+  retry, and a 401 or 403 from them removes them too.  One `console.warn`
   line says the HTTP status and nothing else: ion's error bodies echo the
   access token, so the error object is never logged.  The globe keeps the
   Blue Marble, and the ellipsoid if terrain failed.
@@ -1844,6 +1916,12 @@ New:
   (`stageLink`). Pure.
 - `js/scene/cesium/ionImagery.js` (+ test) — the altitude under which Earth
   asks ion for Bing imagery (Cesium ion sessions). Pure.
+- `js/scene/cesium/season.js` (+ test) — Earth's months on the globe, blended
+  by the day, and ion's detail layers over them (Data; Detail over the
+  month's colour).
+- `js/scene/cesium/detailTransfer.js` (+ test), `detailImagery.js` — the
+  detail's arithmetic (pure), and the provider wrapping ion's that makes each
+  tile on the CPU (Detail over the month's colour).
 - `js/store/LayersSlice.js` — `layerBody` (in-range capable body or
   null), `bodyLayers` (per-body choice; `bodyLayer()` applies the
   default), New York's `newYorkOn`, `newYorkNear`, `newYorkStatus`.

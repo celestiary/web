@@ -318,6 +318,19 @@ tried and dropped.
   Earth turns to the new time only when the frame animates. To compare
   with and without clouds, move the shell off its layer
   (`clouds.layers.set(31)`); its `visible` is rewritten every frame.
+- **Earth's months headless** (Planet.md, [the months blended by
+  day](js/scene/Planet.md#the-months-blended-by-day)): celestiary's
+  surface's `material.userData.monthMaps` (the `planet surface` mesh under
+  `c.scene.objects.earth`) has the two slots' months and `uniforms.uMonthMix`;
+  Cesium's is `c.ui.layers.bodies.earth.season` (`entries` with each month's
+  share and layers, `detail` the detail's strength).  A new month's share
+  grows over half a second of frames, so step frames after `setTime`.  To see
+  ion's detail without ion, stub `/v1/assets/2/endpoint` with `externalType:
+  'URL_TEMPLATE'` and a local tile server; `?detail=raw` shows the detail
+  layer's own tiles, as before the transfer.  A shader mod that replaces a
+  chunk another mod also replaces (`map_fragment`: the small disc's) silently
+  drops the other's code, and the program fails to compile: collect
+  `Shader Error` from the console.
 - **Overlays and the chrome come in with the first load's reveal**
   (DESIGN.md [the first load](DESIGN.md#the-first-load)): held hidden
   until the scene is in, then faded in over about 1.3 s.  A probe that

@@ -1,4 +1,4 @@
-import {dataUrl, isAbsoluteUrl} from '../../dataUrl.js'
+import {dataUrl} from '../../dataUrl.js'
 import {DISPLAY_GAIN} from '../../shared.js'
 import {CESIUM_BODIES} from './bodies.js'
 import {DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL} from './distance.js'
@@ -6,8 +6,7 @@ import {baseTexelMeters, ionImageryAltitude} from './ionImagery.js'
 import {LOG_ENCODE_GLSL} from './encoding.js'
 import {RELIEF_GLSL} from './relief.js'
 import {LUNAR_PHOTOMETRY_GLSL} from '../lunarPhotometry.js'
-import {monthlyPath} from '../monthly.js'
-import {sharedObjectUrl} from '../sharedImage.js'
+import {absoluteUrl, addDetail, createSeason, monthlyBaseLayer, updateSeason} from './season.js'
 
 
 /**
@@ -51,6 +50,7 @@ export function createWidget(Cesium, name, {container, contextOptions, creditCon
   const body = {name, Cesium, credits: creditContainer, month, frames: 0, distanceScale: DISTANCE_SCALE_M}
   const ellipsoid = Cesium.Ellipsoid[config.ellipsoid]
   Cesium.Ellipsoid.default = ellipsoid
+  const monthBase = config.monthlyImagery ? monthlyBaseLayer(Cesium, config.monthlyImagery, month) : null
   const surface = config.ionTileset ?
     // An ion 3D-tiles body (Moon, Mars): no globe, the tileset is the surface.
     {globe: false, baseLayer: false} :
@@ -58,7 +58,7 @@ export function createWidget(Cesium, name, {container, contextOptions, creditCon
     // so it draws whatever ion does (requestIon): for Earth the month's
     // Blue Marble, bundled with celestiary; else Cesium's Natural Earth II.
     config.monthlyImagery ?
-      {baseLayer: monthlyBaseLayer(Cesium, config.monthlyImagery, month)} :
+      {baseLayer: monthBase} :
       {baseLayer: Cesium.ImageryLayer.fromProviderAsync(
           Cesium.TileMapServiceImageryProvider.fromUrl(Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')))}
   const widget = new Cesium.CesiumWidget(container, {
@@ -103,8 +103,9 @@ export function createWidget(Cesium, name, {container, contextOptions, creditCon
         })
         .catch(onError)
   }
+  // The months' Blue Marble, blended by the day, and ion's detail over it (season.js).
   if (config.monthlyImagery) {
-    widget.imageryLayers.add(monthlyTileLayer(Cesium, config.monthlyImagery, month))
+    body.season = createSeason(Cesium, widget, monthBase, config.monthlyImagery, month)
   }
   const night = widget.scene.globe && config.nightImagery ?
     addNightLights(Cesium, widget, config.nightImagery) : null
@@ -200,7 +201,9 @@ export function createWidget(Cesium, name, {container, contextOptions, creditCon
  *   fovyRad, heightM, distanceScale: the host's vertical fov, the camera's
  *     height over the sphere, and the scale of the distance in alpha;
  *   sunDirection: the direction the Sun's light travels, ECEF;
- *   month: 1-12;
+ *   month: 1-12, and monthBlend: {a, b, w}, the two months the date falls
+ *     between and the share of b (monthly.js monthBlendOfJulianDay); a host
+ *     that sends no blend has the month alone;
  *   earthshine: {level, direction} for the Moon's shader, or null
  */
 export function applyView(body, view) {
@@ -235,8 +238,8 @@ export function applyView(body, view) {
     body.tileset.maximumScreenSpaceError = TILE_SCREEN_SPACE_ERROR * view.detail
   }
   requestIon(body, body.name, view.fovyRad, height)
-  if (config.monthlyImagery) {
-    updateMonthlyImagery(body, config, view.month)
+  if (body.season) {
+    updateSeason(body, config, view.monthBlend ?? {a: view.month, b: view.month, w: 0})
   }
   widget.scene.light.direction = new Cesium.Cartesian3(...view.sunDirection)
   if (view.earthshine && body.customShader) {
@@ -264,42 +267,8 @@ export function requestIon(body, name, fovyRad, heightPx) {
   const imageryBelow = ionImageryAltitude(baseTexelMeters(config.monthlyImagery, config.radii[0]), fovyRad, heightPx)
   if (body.heightM < imageryBelow) {
     ion.imagery = true
-    addIonImagery(body.Cesium, body.widget, config.detailFromLevel, body.night)
+    addDetail(body, config, ionFailure)
   }
-}
-
-
-/**
- * Keep a body's monthly base imagery on the simulation date's month.  The
- * new month's layer goes in above the old one, which is removed once the
- * globe's tiles are in again, so the globe never shows without imagery.
- *
- * @param {object} body
- * @param {object} config
- * @param {number} month 1-12
- */
-export function updateMonthlyImagery(body, config, month) {
-  const {Cesium, widget} = body
-  const layers = widget.imageryLayers
-  // Once the new month's tiles are in and its map has loaded (an async
-  // layer, which the globe's tiles don't wait for).
-  if (body.oldBase && widget.scene.globe.tilesLoaded && body.newBase?.ready !== false) {
-    for (const layer of body.oldBase) {
-      layers.remove(layer, true)
-    }
-    body.oldBase = null
-    body.newBase = null
-  }
-  if (month === body.month || body.oldBase) {
-    return
-  }
-  body.month = month
-  // The old month's map and tiles, the first two layers; the new month's
-  // go in above them, under any detail layer and the lights.
-  body.oldBase = [layers.get(0), layers.get(1)]
-  body.newBase = monthlyBaseLayer(Cesium, config.monthlyImagery, month)
-  layers.add(body.newBase, 2)
-  layers.add(monthlyTileLayer(Cesium, config.monthlyImagery, month), 3)
 }
 
 
@@ -406,53 +375,6 @@ function addIonTerrain(Cesium, widget) {
 
 
 /**
- * Add ion's world imagery (Bing, asset 2) to the Earth globe, as detail over
- * the base's: shown only from globe tile level `detailFromLevel`.  Calling
- * this opens an ion imagery session (billed), so the caller does it once,
- * and only when the base's texels would show (ionImagery.js).  If ion
- * can't give it (no network, a token scoped to other assets, a 401 or 403
- * from the token or the account's quota) the layer is removed and the base
- * imagery stays, with one line in the console and no error thrown.
- *
- * @param {object} Cesium
- * @param {object} widget
- * @param {number} [detailFromLevel]
- * @param {object} [above] An imagery layer to go under, if any (the night
- *   lights', which stays on top)
- */
-function addIonImagery(Cesium, widget, detailFromLevel, above) {
-  const imagery = Cesium.ImageryLayer.fromWorldImagery({minimumTerrainLevel: detailFromLevel})
-  let dropped = false
-  const drop = (why) => {
-    if (dropped) {
-      return
-    }
-    dropped = true
-    console.warn(`[cesium layer] ion imagery unavailable (${why}); using the base imagery`)
-    if (!widget.isDestroyed()) {
-      widget.imageryLayers.remove(imagery)
-    }
-  }
-  // The endpoint request failed: no provider.
-  imagery.errorEvent.addEventListener((err) => drop(ionFailure(err)))
-  // Tile errors from Bing's side: no retries, and a layer that is refused is
-  // dropped, rather than failing tile by tile.
-  imagery.readyEvent.addEventListener((provider) => {
-    provider.errorEvent.addEventListener((err) => {
-      err.retry = false
-      const failure = ionFailure(err)
-      if (failure === 'HTTP 401' || failure === 'HTTP 403') {
-        drop(failure)
-      }
-    })
-  })
-  const layers = widget.imageryLayers
-  const at = above ? layers.indexOf(above) : -1
-  layers.add(imagery, at >= 0 ? at : undefined)
-}
-
-
-/**
  * Add a globe's night lights imagery layer, with alpha 0: its tiles load
  * and stay cached, and the day frame skips it (Cesium draws no layer at
  * alpha 0); _drawNightLights turns it on for its own frame.  On top of the
@@ -522,68 +444,7 @@ export function renderNightLights(body, render) {
 }
 
 
-/**
- * @param {string} url Absolute, or relative to the page's base
- * @returns {string} Absolute
- */
-export function absoluteUrl(url) {
-  return isAbsoluteUrl(url) ? url : new URL('.', document.baseURI).href + url
-}
-
-
-/**
- * The Blue Marble of a month as one image: the map celestiary's own Earth is
- * textured with, laid over the whole globe, at every level.  It is all the
- * globe has until its tiles reach `fromLevel` (monthlyTileLayer), and the
- * tiles' own levels 0-2 are no better (4096 px across is level 2 of 512 px
- * tiles): so it is one request, where the tiles took ten (levels 0 and 1),
- * popping in as they came.  Async: the layer is ready once the image has
- * loaded.  Celestiary's own Earth and its clouds have fetched the image
- * already (or are fetching it), so Cesium is given a `blob:` URL of the
- * same bytes (sharedImage.js) and makes no request; if that fetch failed, it
- * is given the image's URL to try itself.
- *
- * @param {object} Cesium
- * @param {object} imagery A body's monthlyImagery config (bodies.js)
- * @param {number} month 1-12
- * @returns {object} Cesium.ImageryLayer
- */
-function monthlyBaseLayer(Cesium, imagery, month) {
-  const url = dataUrl(monthlyPath(imagery.singleUrl, month))
-  const provider = sharedObjectUrl(url)
-      .catch(() => absoluteUrl(url))
-      .then((src) => Cesium.SingleTileImageryProvider.fromUrl(src, {credit: imagery.credit}))
-  return Cesium.ImageryLayer.fromProviderAsync(provider)
-}
-
-
-/**
- * The Blue Marble of a month as tiles, over its map (monthlyBaseLayer):
- * shown from globe level `fromLevel`, and asking for nothing above it.
- * `minimumLevel` as well as `minimumTerrainLevel`: a globe tile at level 3
- * would pick the imagery level by its texel size, and might pick 2.
- *
- * @param {object} Cesium
- * @param {object} imagery A body's monthlyImagery config (bodies.js)
- * @param {number} month 1-12
- * @returns {object} Cesium.ImageryLayer
- */
-function monthlyTileLayer(Cesium, imagery, month) {
-  const {url, tileSize, maximumLevel, fromLevel, credit} = imagery
-  return new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({
-    // Cesium wants an absolute URL: the data base URL if the build has one
-    // (DESIGN.md, data policy), else the page's base (celestiary may be
-    // served under a path).  Not new URL(url, base), which escapes the
-    // {z}/{x}/{y} placeholders.
-    url: absoluteUrl(dataUrl(monthlyPath(url, month))),
-    tilingScheme: new Cesium.GeographicTilingScheme(),
-    tileWidth: tileSize,
-    tileHeight: tileSize,
-    minimumLevel: fromLevel,
-    maximumLevel,
-    credit,
-  }), {minimumTerrainLevel: fromLevel})
-}
+export {absoluteUrl}
 
 
 /**
