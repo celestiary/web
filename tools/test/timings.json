@@ -190,6 +190,7 @@
     "js/store/SearchSlice.test.js": 0.1,
     "js/store/WidgetsSlice.test.js": 0.1,
     "js/store/appTokens.test.js": 0.1,
+    "js/store/breathingApp.test.js": 0.5,
     "js/targetPath.test.js": 0.1,
     "js/tonight.test.js": 0.8,
     "js/tour.test.js": 0.2,

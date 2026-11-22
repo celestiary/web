@@ -1640,6 +1640,10 @@ Thin MUI-based overlay panels:
   ([Colonization.md](js/scene/Colonization.md))
 - `SuntanApp` — the Suntan app's panel: a concept mission to the Sun's
   surface, its play controls and sensors ([Suntan.md](js/scene/suntan/Suntan.md))
+- `breathingApp.js` — the Earth breathing app's panel, a lazy chunk with its
+  dependencies handed in from `apps.jsx` (`BREATHING_DEPS`): the clock's day
+  steps at solar noon over the seasons ([design/URLs.md, Earth
+  breathing](design/URLs.md#earth-breathing-breathing))
 - `Settings` — keyboard shortcut reference
 - `About` — app info and star catalog stats
 - `CreditsFooter` — every attribution on screen in one line along the bottom,
@@ -1654,7 +1658,11 @@ Thin MUI-based overlay panels:
 
 Optional tools ("apps") live in a drawer on the right, opened by the
 Widgets button (top right).  `ui/apps.jsx` lists them: a name, an icon, a
-panel, and a `stop` that removes whatever the app added to the scene.
+panel, a `stop` that removes whatever the app added to the scene, and
+optionally a `start` the tray's tile runs on opening it (Earth breathing's
+flight to its view; a link that restores the app doesn't run it).  Human
+Expansion, Rubin Observatory, Suntan and Earth breathing; the search finds
+them by their views (`store/appViews.js`).
 State is `store/WidgetsSlice.js`, a pure reducer (tested without a DOM):
 
 - **Three states.** Closed; open, the drawer over the right of the canvas,

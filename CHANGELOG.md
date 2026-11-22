@@ -39,14 +39,14 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
-### A breathing Earth: step the clock from noon to noon, and watch the seasons go round
+### Earth breathing: an app that steps the clock from noon to noon, and watches the seasons go round
 
-A new way to run time: *Step by day (solar noon)* in the time panel jumps the clock a whole day at a time, always landing at local noon under the camera, so the Sun stays put over the ground while the year runs by at 30 days a second.  The snow comes and goes, the land greens and browns, and the line between day and night rocks north and south with the seasons.  Links also keep the exact speed you give them now: a day a second stays a day a second.
+Open *Earth breathing* from the apps drawer, or search for it, and the camera flies to Earth over Central Asia while the clock jumps a whole day at a time, always landing at local noon under the camera: the Sun stays put over the ground while a year runs by in 11 seconds.  The snow comes and goes, the land greens and browns, and the line between day and night rocks north and south with the seasons.  Its panel plays and pauses, sets the days a second and scrubs through the year; the time panel's *Step by day (solar noon)* does the same from wherever you are.  Links also keep the exact speed you give them now: a day a second stays a day a second.
 
 - Date: 2026-11-22
 - PR: [#379](https://github.com/celestiary/web/pull/379)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
-- Permalink: [Open this view](https://celestiary.org/#sun/earth@50,69.8893,7Mm;t=9504.810753jd;cq=-0.5614,0.2476,0.1411,0.7769;fov=45deg;s=alpoFY;time:step=1d,rate=30)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@50,69.8893,7Mm;t=9504.810753jd;cq=-0.5614,0.2476,0.1411,0.7769;fov=45deg;s=FY;time:step=1d,rate=32;apps:open,view=breathing)
 - Featured: yes
 - Kind: feature
 

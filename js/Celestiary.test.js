@@ -8,6 +8,7 @@
  * Mocked: ThreeUI (no WebGL), ControlPanel, Keys, Loader (filesystem),
  *         scene/SpriteSheet (no canvas), vsop (fixed coordinates).
  */
+import {BREATHING_VIEW, stopBreathing} from './store/breathingApp.js'
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock, setSystemTime} from 'bun:test'
 import {readFileSync} from 'fs'
 import {descriptorUrl} from './bodyBundle.js'
@@ -1384,6 +1385,16 @@ describe('the target in the link', () => {
       expect(stepped.permalink()).not.toContain('step=')
       clearTimeout(app._permalinkTimer)
       clearTimeout(stepped._permalinkTimer)
+    })
+
+    it('the Earth breathing app\'s view steps by day, and its stop returns to real time', async () => {
+      const app = await open(BREATHING_VIEW)
+      expect([app.time.stepDays, app.time.timeScale, app.time.isPaused]).toEqual([1, 32 * 86400, false])
+      expect(app.time.noonNear).toBeInstanceOf(Function)
+      stopBreathing(app)
+      expect([app.time.stepDays, app.time.timeScale]).toEqual([0, 1])
+      expect(app.permalink()).not.toContain('time:')
+      clearTimeout(app._permalinkTimer)
     })
 
     it('a link without the token runs at real time, whatever the clock was doing', async () => {

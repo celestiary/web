@@ -332,6 +332,7 @@ Each feature has its own label:
 "apps.<id>":        one running app's own state, a sub-namespace of apps
 "apps.expansion":   the Human Expansion app
 "apps.rubin":       the Rubin Observatory app
+                    (Earth breathing, `breathing`, has no token of its own)
 "news":             the changelog tour: a link that starts it (read, never
                     written)
 ```
@@ -783,6 +784,35 @@ paths=0            the trajectory hidden, the craft's marks kept (drawn by
 - **The clock is the `t=` and `time:` tokens'.**  The panel's events, speeds
   and timeline set the app's clock, which the link carries as ever.
 - **A bad value is its default.**
+
+#### Earth breathing (`breathing`)
+
+The Earth breathing app (`store/breathingApp.js`, its panel the lazy chunk
+`ui/breathingApp.js`): the seasons from noon to noon, the clock's day steps
+([the time token](#time-token)'s `step=`) with a panel for them.  It has no
+`apps.breathing` token: everything it shows is the view's and the clock's,
+which the link carries already.
+
+```
+#sun/earth@50,69.8893,7Mm;t=9504.810753jd;cq=-0.5614,0.2476,0.1411,0.7769;fov=45deg;s=FY;time:step=1d,rate=32;apps:open,view=breathing
+```
+
+- **Opening it flies to its view** (`BREATHING_VIEW`, `startBreathing`):
+  Earth from 7 Mm over 50° N 69.9° E (the steppe, Siberia's snow and the
+  Himalaya), from solar noon on 8 January 2026, stepping a day at a time at
+  32 days a second, the camera turning with Earth (`Y`).  Always that view,
+  from midwinter, not the camera's own place: the time panel's *Step by day
+  (solar noon)* steps from wherever the camera is.  The tray's tile and the
+  search's *Earth breathing* (also "breathing", "seasons") open it; a link
+  naming it runs it without the flight (the link's own view and clock).
+- **The panel:** play and pause (play starts the steps if the time panel
+  ended them), the speed in days a second (1, 4, 8, 16, 32, 64: the
+  clock's own steps), the month, day of the year and date, and a scrubber
+  over the year that lands on the day's noon under the camera.
+- **Stopping it** (its X, or the drawer closed with it unpinned) ends the
+  steps and runs the clock at real time, continuously (paused stays
+  paused), and gives the camera back to the height's choice from turning
+  with Earth.
 
 ### News Token
 
