@@ -39,6 +39,21 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### Lay JWST's and Hubble's images on the sky, and fly to their famous fields
+
+The layers control (top right, or *Layers* on a phone) now has *Sky imagery*, on every view: switch on
+JWST's NIRCam or MIRI, or one of Hubble's cameras, and buttons take you to the Pillars of Creation,
+the Southern Ring, Stephan's Quintet, the Sombrero, Eta Carinae and more, with the telescopes' own
+images over the stars. Hubble's and JWST's surveys are in grey (the only colour ones online are
+unavailable for now); Rubin's Virgo field, also in the list, is in colour.
+
+- Date: 2026-11-22
+- PR: [#370](https://github.com/celestiary/web/pull/370)
+- Issue: [#360](https://github.com/celestiary/web/issues/360)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: [Open this view](https://celestiary.org/#sun@0,-90,23.604464Gm;t=9820.337596jd;cq=0.0036,-0.9956,0.0829,0.0436;fov=0.07deg;s=F;time:pause;sky:jwst-nircam)
+- Featured: yes
+
 ### A compass near a planet: north up, or level, in a tap
 
 Near a planet a small compass shows which way north is on the ground below. Tap it to turn north up, tap again to
@@ -109,7 +124,6 @@ Surfaces are now lit in linear light and the frame is encoded for the screen, as
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
 - Permalink: [Open this view](https://celestiary.org/#saturn)
 - Kind: fix
-
 ### The Sun as SOHO and SDO show it: flares, eruptions and the corona
 
 Add `?sun=euv` to the address and the Sun is drawn as a space observatory's instruments show it, not

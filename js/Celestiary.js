@@ -28,7 +28,7 @@ import {latLngAltToBodyFixed, latLngAltToLocal, worldToLatLngAlt} from './coords
 import {
   decodeCraftToken, decodeInfoToken, decodeLayersToken, decodeOrbitsFade, decodeOrbitsToken, decodePeriodicToken, decodePermalink,
   decodeSettings, decodeTimeToken, encodeCraftToken, encodeInfoToken, encodeLayersToken, encodeOrbitsToken, encodePeriodicToken,
-  encodePermalink, encodeTimeToken, decodePopulationToken, encodePopulationToken,
+  encodePermalink, encodeTimeToken, decodePopulationToken, encodePopulationToken, decodeSkyToken, encodeSkyToken,
   linkTimeMs, pathFromFragment, permalinkHref,
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
@@ -280,12 +280,23 @@ export default class Celestiary {
     this._registerSearchProviders()
     this._subscribePreview()
     // The widgets drawer and its apps are in the permalink too, and the
-    // optional layers (`layers:`, the New York toggle).
+    // optional layers (`layers:`, the New York toggle) and the sky surveys
+    // on (`sky:`), which the scene follows.
     this.useStore.subscribe((state, prev) => {
-      if (state.widgets !== prev.widgets || state.newYorkOn !== prev.newYorkOn) {
+      if (state.skyOn !== prev.skyOn) {
+        this.scene.setSkySurveys?.(state.skyOn)
+      }
+      if (state.widgets !== prev.widgets || state.newYorkOn !== prev.newYorkOn || state.skyOn !== prev.skyOn) {
         this._schedulePermalinkUpdate()
       }
     })
+    // `?sky=<key>[,<key>]` in the query string switches surveys on, as the
+    // `sky:` token does (sky/Sky.md, "The control"): the token is canonical,
+    // and is written once the link is.
+    const skyParam = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('sky')
+    if (skyParam) {
+      this._switchSkyOn(decodeSkyToken(skyParam))
+    }
     // The chrome ('v'), hidden from the first paint (CHROME_HIDDEN_CLASS)
     // until the reveal; _setNav fades it.
     this.navVisible = false
@@ -1018,6 +1029,21 @@ export default class Celestiary {
   _restoreLayers(pl) {
     if (decodeLayersToken(pl.tokens?.layers).newYork) {
       this.useStore.getState().setNewYorkOn?.(true)
+    }
+    this._switchSkyOn(decodeSkyToken(pl.tokens?.sky))
+  }
+
+
+  /**
+   * Switch sky surveys on (the `sky:` token, `?sky=`), keeping those on
+   * already: as the `layers:` token, a link only turns them on.
+   *
+   * @param {Array<string>} keys
+   */
+  _switchSkyOn(keys) {
+    if (keys.length) {
+      const state = this.useStore.getState()
+      state.setSkyOn([...state.skyOn, ...keys])
     }
   }
 
@@ -3624,6 +3650,7 @@ export default class Celestiary {
       craft: encodeCraftToken(this.scene.getCraft()),
       pop: encodePopulationToken(this.scene.getPopulationState()),
       layers: encodeLayersToken({newYork: this.useStore.getState().newYorkOn === true}),
+      sky: encodeSkyToken(this.useStore.getState().skyOn),
       ...encodeAppTokens(this.useStore.getState().widgets),
     }
     return encodePermalink(

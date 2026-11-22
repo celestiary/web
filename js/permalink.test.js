@@ -8,9 +8,11 @@ import {
   decodeOrbitsToken,
   decodeCraftToken,
   decodeLayersToken,
+  decodeSkyToken,
   decodePeriodicToken,
   encodeCraftToken,
   encodeLayersToken,
+  encodeSkyToken,
   encodePeriodicToken,
   decodeSettings,
   decodeTimeToken,
@@ -992,5 +994,35 @@ describe('the population token', () => {
       counts: new Map([['starlink', 2000]])})
     // A count that isn't a whole number is dropped.
     expect(decodePopulationToken('earth.starlink=lots').has('earth')).toBe(false)
+  })
+})
+
+
+describe('the sky token', () => {
+  it('writes the surveys on by key, sorted, and nothing when none is', () => {
+    expect(encodeSkyToken(['jwst-nircam', 'hst-acs'])).toBe('hst-acs,jwst-nircam')
+    expect(encodeSkyToken(['hst-acs', 'hst-acs'])).toBe('hst-acs')
+    expect(encodeSkyToken([])).toBeNull()
+    expect(encodeSkyToken(undefined)).toBeNull()
+    expect(encodeSkyToken(['a;b', 'hst-wfc3'])).toBe('hst-wfc3')
+  })
+
+  it('reads them back, any case, unknown keys kept for the scene to skip, repeats for the store to drop', () => {
+    expect(decodeSkyToken('hst-acs,jwst-nircam')).toEqual(['hst-acs', 'jwst-nircam'])
+    expect(decodeSkyToken('JWST-NIRCam,later')).toEqual(['jwst-nircam', 'later'])
+    expect(decodeSkyToken('')).toEqual([])
+    expect(decodeSkyToken(undefined)).toEqual([])
+    // `?sky=` in the query string takes the same list (Celestiary).
+    expect(decodeSkyToken(new URLSearchParams('?sky=jwst-nircam').get('sky'))).toEqual(['jwst-nircam'])
+  })
+
+  it('round-trips through a link: the Pillars of Creation in Hubble WFC3 and JWST NIRCam', () => {
+    const link = encodePermalink('sun/earth', 9792.377067, 40.5025, -74.0298, 780,
+        {x: 0.2348, y: -0.1201, z: -0.2007, w: 0.9435}, 0.07, null, {sky: encodeSkyToken(['jwst-nircam', 'hst-wfc3'])})
+    expect(link).toContain(';sky:hst-wfc3,jwst-nircam')
+    const back = decodePermalink(link)
+    expect(decodeSkyToken(back.tokens.sky)).toEqual(['hst-wfc3', 'jwst-nircam'])
+    expect(encodePermalink(back.path, back.d2000, back.lat, back.lng, back.alt, back.quat, back.fov, null,
+        {sky: encodeSkyToken(decodeSkyToken(back.tokens.sky))})).toBe(link)
   })
 })

@@ -147,7 +147,13 @@ export const STATIC_BUDGET = {
   // turnCamera and compassTap, ui/CompassControl.jsx, its dial an inline
   // SVG; and the camera menu from the ground, Scene._leaveGround), 2,512
   // (2,513 with the ion token), so 2,514.
-  totalMinifiedKB: 2514,
+  // 1.7 KB more with the layers control's sky imagery (#360): the Layers
+  // button everywhere, the loader of its sky section (SkyImagery.jsx; the
+  // section, the surveys and the turn to a field are lazy, handed the first
+  // load's MUI and React so the split leaves MUI's chunks alone), LayerSwitch
+  // shared with the New York toggle, the `sky:` token and the store's list,
+  // and the wheel's field zoom: 2,516.
+  totalMinifiedKB: 2516,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -180,7 +186,8 @@ export const STATIC_BUDGET = {
   // fraction, so 779, with the day steps and the Earth breathing app.
   // 780 and a fraction with the ion token, so 781, with the compass (#361
   // step 3, as above).
-  totalGzipKB: 781,
+  // 0.7 KB more with the layers control's sky imagery (#360, as above): 782.
+  totalGzipKB: 782,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,
@@ -231,7 +238,11 @@ export const RUNTIME_BUDGET = {
   // for the runs' spread.
   // #377's month blend (two map slots in the planet shader, about 3 KB
   // minified) with #378's sprite caps took a CI run to 1,039.0: 1,041.
-  ready: {requests: 28, kb: 1041},
+  // The compass (#361 step 3) and the layers control's sky imagery (#360:
+  // about 0.9 KB of it here, main 1,039.5 and this 1,040.4 on one machine)
+  // each fitted alone; together a CI run took 1,043.1: 1,045, for the runs'
+  // spread.
+  ready: {requests: 28, kb: 1045},
   // After #259: 39 requests, 3,918 KB.  Raised from #258's 29 requests:
   // the catalogue's faint tiers are 12 packs where stars.dat was one file,
   // by design (a deep link needs only its field's; DESIGN.md "The star

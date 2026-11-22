@@ -340,6 +340,7 @@ export default class Star extends Object {
       if (Shared.targets.pos) {
         this.shaderMaterial.uniforms.iTime.value = noiseTime(time.simTimeElapsed)
       }
+      this.sunLayers.underPicture = Boolean(this.ui?.pictureInView?.())
       this.sunLayers.update(time, this.ui?.camera, this.ui?.sceneManager?.objects)
     }
   }

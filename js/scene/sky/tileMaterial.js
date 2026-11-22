@@ -14,10 +14,19 @@ export const FAR_PLANE_INSIDE = 0.999999
 export const TILE_RENDER_ORDER = 10
 /** With `keyBlack`, the picture's value (0 to 1, sRGB) from which a tile is opaque. */
 export const KEY_BLACK_FULL = 2 / 255
-// Decoded, as the texel is sampled: in sRGB's linear segment (under 0.04045),
-// so exactly over 12.92.  Not srgb.js's srgbDecode: this module is in lazy
-// chunks that import nothing of the first load's (AGENTS.md).
-const KEY_BLACK_FULL_LINEAR = KEY_BLACK_FULL / 12.92
+
+
+/**
+ * A picture's value decoded, as the texel is sampled.  Not srgb.js's
+ * srgbDecode: this module is in lazy chunks that import nothing of the first
+ * load's (AGENTS.md).
+ *
+ * @param {number} v sRGB, 0 to 1
+ * @returns {number} Linear
+ */
+export function keyLinear(v) {
+  return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+}
 
 
 /**
@@ -27,11 +36,32 @@ const KEY_BLACK_FULL_LINEAR = KEY_BLACK_FULL / 12.92
  *   what's under it through: a HiPS tile covers its whole cell, and one
  *   with no alpha (Rubin's webp) is black where the survey has nothing,
  *   which hid the stars round the image
+ * @param {number} [opts.keyBlackFrom] The picture's value (0 to 1, sRGB)
+ *   up to which a keyed tile is clear: 0, or a jpeg survey's (a manifest's
+ *   `keyBlack`, in counts: the compression rings round the edge of the data,
+ *   out to 16 counts into the no-data black; Sky.md, "Black as no data")
+ * @param {number} [opts.keyBlackFull] The picture's value from which it's
+ *   opaque: KEY_BLACK_FULL, or a jpeg survey's
+ * @param {boolean} [opts.invert] Show the tile's negative: ESASky's Hubble
+ *   tiles are stretched dark-on-light (stars black, the sky near white),
+ *   with black, keyed out first, where there's no data; the key then reads
+ *   the darkest of the texel's neighbours too, so the edge of the data
+ *   doesn't show as a bright rim
  * @returns {ShaderMaterial}
  */
-export function newTileMaterial(sceneReferred = null, {keyBlack = false} = {}) {
+export function newTileMaterial(sceneReferred = null, {
+  keyBlack = false, keyBlackFrom = 0, keyBlackFull = KEY_BLACK_FULL, invert = false,
+} = {}) {
   const material = new ShaderMaterial({
-    uniforms: {map: {value: null}, uOpacity: {value: 1}, uKeyBlack: {value: keyBlack ? 1 : 0}},
+    uniforms: {
+      map: {value: null},
+      uOpacity: {value: 1},
+      uKeyBlack: {value: keyBlack ? 1 : 0},
+      // Decoded, as the texel is.
+      uKeyFrom: {value: keyLinear(keyBlackFrom)},
+      uKeyFull: {value: keyLinear(keyBlackFull)},
+      uInvert: {value: invert ? 1 : 0},
+    },
     vertexShader: `varying vec2 vUv;
 void main() {
   vUv = uv;
@@ -50,15 +80,42 @@ void main() {
     // screen's encoding shows as the picture's bytes.  A tile's alpha (a HiPS
     // PNG's blank sky) lets what's under it through, and so does black where
     // it's keyed: none at 0, all from 2/255 of the picture's (the darkest sky
-    // a survey holds is a few counts over it), decoded as the texel is.
+    // a survey holds is a few counts over it; a jpeg survey's ramp is wider),
+    // decoded as the texel is.  An inverted survey is keyed on its texel as
+    // served, then shown as its negative, taken of the picture's bytes
+    // (encoded, 1 less it, decoded); and keyed on the darkest of its
+    // neighbours a screen pixel and a half off (or a texel and a half), as
+    // the edge of its data is a blend of the no-data black and the sky, which
+    // the negative turns into a bright rim (Sky.md, "Black as no data").
     fragmentShader: `uniform sampler2D map;
 uniform float uOpacity;
 uniform float uKeyBlack;
+uniform float uKeyFrom;
+uniform float uKeyFull;
+uniform float uInvert;
 varying vec2 vUv;
+float level(vec2 uv) {
+  vec3 t = texture2D(map, uv).rgb;
+  return max(t.r, max(t.g, t.b));
+}
+float enc(float c) {
+  return c <= 0.0031308 ? c * 12.92 : (1.055 * pow(c, 1.0 / 2.4)) - 0.055;
+}
+float dec(float c) {
+  return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4);
+}
 void main() {
   vec4 texel = texture2D(map, vUv);
-  float lit = smoothstep(0.0, ${KEY_BLACK_FULL_LINEAR.toExponential(6)}, max(texel.r, max(texel.g, texel.b)));
-  gl_FragColor = vec4(texel.rgb, texel.a * uOpacity * mix(1.0, lit, uKeyBlack));
+  float v = max(texel.r, max(texel.g, texel.b));
+  vec3 rgb = texel.rgb;
+  if (uInvert > 0.5) {
+    vec2 d = max(fwidth(vUv) * 1.5, vec2(1.5 / 512.0));
+    v = min(min(v, min(level(vUv + d), level(vUv - d))),
+        min(level(vUv + vec2(d.x, -d.y)), level(vUv - vec2(d.x, -d.y))));
+    rgb = vec3(dec(1.0 - enc(rgb.r)), dec(1.0 - enc(rgb.g)), dec(1.0 - enc(rgb.b)));
+  }
+  float lit = smoothstep(uKeyFrom, uKeyFull, v);
+  gl_FragColor = vec4(rgb, texel.a * uOpacity * mix(1.0, lit, uKeyBlack));
 }`,
     transparent: true,
     depthWrite: false,

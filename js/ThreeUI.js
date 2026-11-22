@@ -98,6 +98,10 @@ const SUNLIT_TYPES = new Set(['planet', 'moon', 'spacecraft'])
 const SEAT_NEAR_M = 0.3
 /** A zoom that moves the camera this much of its distance, relative, leaves a seat. */
 const SEAT_ZOOM_LEAVES = 1e-9
+// Over sky imagery the wheel narrows the field: per pixel of wheel, and the
+// most one event counts for (a notch of a mouse wheel is about 100).
+const WHEEL_FIELD_RATE = 0.002
+const WHEEL_FIELD_MAX_PX = 120
 
 
 export default class ThreeUi {
@@ -468,6 +472,17 @@ export default class ThreeUi {
   /** */
   initControls(camera) {
     // TrackballControls, its touch bookkeeping fixed (TouchSafeTrackballControls).
+    // Over sky imagery (Scene.skyInView: a survey's tiles in the frame) the
+    // wheel and the trackpad's two fingers narrow and widen the field, as
+    // the `,` and `.` keys do, in place of moving the camera: a picture at
+    // infinity is the same from anywhere, so the move showed nothing.  Before
+    // the controls' own listener, and kept from it.
+    this.threeContainer.addEventListener('wheel', (event) => {
+      if (this.wheelField(event.deltaY)) {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+    }, {capture: true, passive: false})
     const controls = new TouchSafeTrackballControls(camera, this.threeContainer)
     // Rotation speed is changed in scene.js depending on target
     // type: faster for sun, slow for planets.
@@ -586,6 +601,23 @@ export default class ThreeUi {
   setFieldLimit(on) {
     this.fieldLimit = on !== false
     this.setFov(this.camera.fov)
+  }
+
+
+  /**
+   * A wheel step taken as a change of field, while sky imagery is in the
+   * frame: down or apart widens, up or together narrows, as the wheel's
+   * zoom does.
+   *
+   * @param {number} deltaY The wheel event's, pixels
+   * @returns {boolean} Whether it was taken (else the wheel moves the camera)
+   */
+  wheelField(deltaY) {
+    if (!this.sceneManager?.skyInView?.() || !Number.isFinite(deltaY) || deltaY === 0) {
+      return false
+    }
+    this.multFov(Math.exp(Math.max(-WHEEL_FIELD_MAX_PX, Math.min(WHEEL_FIELD_MAX_PX, deltaY)) * WHEEL_FIELD_RATE))
+    return true
   }
 
 
@@ -1405,6 +1437,26 @@ export default class ThreeUi {
 
 
   /**
+   * Whether the frame is a look at a picture of the sky: a survey's imagery
+   * in it (Scene.skyInView), at any field (a cut at 10° popped to grey as
+   * the maintainer zoomed out past it).  The sky's own diffuse light is
+   * then not drawn (the zodiacal light, the galaxy's march, airglow:
+   * _updateNightSkyShown; the Sun's corona from inside it and the eye's
+   * glare round the Sun: SunLayers.underPicture), as a picture is a
+   * photograph of that sky, its black the screen's: riding the Sun's orbit
+   * 24 Gm out, the default seat, the corona and the zodiacal light at the
+   * dark-adapted gain put 200 of 255 over the Pillars of Creation, and the
+   * glare the same over Stephan's Quintet, 93° from the Sun (Sky.md, "A
+   * picture's black").
+   *
+   * @returns {boolean}
+   */
+  pictureInView() {
+    return Boolean(this.sceneManager?.skyInView?.())
+  }
+
+
+  /**
    * The asynchronous readback (meterReadback.js), made on first use, or null
    * for the synchronous path: no WebGL2 sync objects, the LDR fallback, or
    * `?meter=sync` (for comparing the two on a machine at hand).
@@ -1572,7 +1624,10 @@ export default class ThreeUi {
     const glow = this._lastAtmPlanet ? (airglowOf(this._lastAtmPlanet.props.atmosphere)?.zenithValue ?? 0) * 7 : 0
     const brightest = (GALAXY_BRIGHTEST + zodiacal + glow) * exposure *
       extendedGain(exposure, this._galaxyOutsideWeight())
-    this._nightSkyShown = this.hdr && brightest > NIGHT_SKY_SKIP_VALUE && !this._groundFillsView()
+    // Nor under a picture of the sky (pictureInView): the picture holds that
+    // sky's light already, and this light added over it greyed its black.
+    this._nightSkyShown = this.hdr && brightest > NIGHT_SKY_SKIP_VALUE && !this._groundFillsView() &&
+      !this.pictureInView()
     this._milkyWay ??= this.scene.getObjectByName('MilkyWay') ?? null
     if (this._milkyWay?.userData.galaxy) {
       this._milkyWay.userData.galaxy.skip = this.hdr && !this._nightSkyShown

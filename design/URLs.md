@@ -327,6 +327,7 @@ Each feature has its own label:
 "periodic":         the three-body orbits shown, and their manifolds
 "craft":            the craft flown, with their departures
 "layers":           the optional layers switched on (New York's city)
+"sky":              the sky-imagery surveys switched on
 "apps":             the widgets drawer and dock: open, docked, the app
                     showing, the apps pinned and running
 "apps.<id>":        one running app's own state, a sub-namespace of apps
@@ -687,6 +688,41 @@ Decisions:
   the view shows.
 - **Unknown flags and named values are ignored**, so a link from a newer
   build still opens.
+
+### Sky Token
+
+The sky-imagery surveys switched on, from the layers control's *Sky
+imagery* ([js/scene/sky/Sky.md](../js/scene/sky/Sky.md#the-control)), as
+flags: each a survey manifest's key, sorted.
+
+```
+jwst-nircam    JWST NIRCam, all filters merged, in grey
+jwst-miri      JWST MIRI, the same
+hst-acs        Hubble ACS, all filters merged, in grey
+hst-wfc3       Hubble WFC3, the same
+hst-wfpc2      Hubble WFPC2, the same
+rubin-virgo    Rubin's First Look, the Virgo Cluster, in colour
+```
+
+```
+#sun@0,-90,23.604464Gm;t=9820.33jd;cq=...;fov=0.03deg;time:pause;sky:jwst-nircam
+                                    the Southern Ring Nebula in JWST NIRCam
+```
+
+Decisions:
+
+- **Its own label, not a `layers:` flag.**  The `layers:` token's flags are
+  a body's layers (New York's city on Earth's Cesium layer); a survey is on
+  the sky, anywhere, and there are many, named by their manifests' keys, a
+  list that grows with each manifest.
+- **Canonical over `?sky=`.**  `?sky=<key>[,<key>]` in the query string
+  (the first form, from #365) still turns surveys on at load, joins the
+  same list, and the fragment then carries the token; the query stays as
+  it was in the address bar.
+- **It says "on", as `layers:` does.**  Read on every link with a view; it
+  only turns surveys on, so a link without it leaves those on as they are.
+- **Unknown keys are kept and skipped by the scene**, so a link from a
+  newer build still opens.
 
 ### Apps Token
 

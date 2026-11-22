@@ -1,8 +1,8 @@
 import {describe, expect, it} from 'bun:test'
 import {Group, PerspectiveCamera, Vector3} from 'three'
-import HipsLayer, {FALLBACK_ORDERS, GRID, MAX_LOADING} from './HipsLayer.js'
+import HipsLayer, {FALLBACK_ORDERS, GRID, MAX_LOADING, tileKey} from './HipsLayer.js'
 import {apply, frameMatrix, lonLatToVec, newCoverage} from './hips.js'
-import {JWST_NIRCAM, RUBIN_FIRST_LOOK} from './surveys.js'
+import {HST_ACS, HST_WFC3, HST_WFPC2, JWST_NIRCAM, RUBIN_FIRST_LOOK, RUBIN_VIRGO, SURVEYS, surveyCovers} from './surveys.js'
 
 
 const M16 = [274.70, -13.84]
@@ -189,7 +189,7 @@ describe('the format', () => {
 
 
 describe('the manifests', () => {
-  for (const s of [RUBIN_FIRST_LOOK, JWST_NIRCAM]) {
+  for (const s of SURVEYS) {
     it(`describes ${s.id}`, () => {
       for (const k of ['id', 'title', 'credit', 'licence', 'source']) {
         expect(typeof s[k]).toBe('string')
@@ -208,9 +208,44 @@ describe('the manifests', () => {
       const fraction = cells / (12 * (4 ** 8))
       expect(cov.maxOrder).toBe(8)
       expect(fraction).toBeGreaterThan(s.skyFraction)
-      expect(fraction).toBeLessThan(s.skyFraction * 25)
+      // An archive of small pointings fills more: Hubble WFC3's 3′ fields,
+      // each in a 14′ cell, come to 29 times its own.
+      expect(fraction).toBeLessThan(s.skyFraction * 40)
     })
   }
+
+  for (const s of SURVEYS.filter((m) => m.fields)) {
+    it(`gives ${s.id} a title, a line and showpiece fields inside its coverage`, () => {
+      expect(s.title.length).toBeLessThan(40)
+      expect(s.about.length).toBeLessThan(90)
+      expect(s.fields.length).toBeGreaterThan(0)
+      expect(new Set(s.fields.map((f) => f.key)).size).toBe(s.fields.length)
+      for (const f of s.fields) {
+        expect(f.key).toMatch(/^[a-z0-9-]+$/)
+        expect(typeof f.label).toBe('string')
+        expect(f.fovDeg).toBeGreaterThan(0)
+        expect(f.fovDeg).toBeLessThanOrEqual(5)
+        // The field's centre holds survey data (Sky.md, "Showpieces": each checked on its tiles).
+        expect(surveyCovers(s, f.raDeg, f.decDeg, 0.001)).toBe(true)
+      }
+    })
+  }
+
+  it('says where a survey is grey: every survey but Rubin\'s, whose tiles are colour', () => {
+    for (const s of SURVEYS.filter((m) => m.fields)) {
+      expect(s.about).toContain(s.key === 'rubin-virgo' ? 'in colour' : 'in grey')
+    }
+  })
+
+  it('keys the Hubble surveys\' jpeg black over a wider ramp, and shows their negative', () => {
+    for (const s of [HST_ACS, HST_WFC3, HST_WFPC2]) {
+      expect(s.formats).toEqual(['jpeg'])
+      expect(tileKey(s)).toEqual({keyBlack: true, invert: true, keyBlackFrom: 16 / 255, keyBlackFull: 24 / 255})
+    }
+    // The others: the default key, as served.
+    expect(tileKey(JWST_NIRCAM)).toEqual({keyBlack: true, invert: false})
+    expect(tileKey(RUBIN_VIRGO)).toEqual({keyBlack: true, invert: false})
+  })
 
   it('has Rubin\'s First Look as its MocServer record has it', () => {
     // CDS's record (2026-11-20; Sky.md, "Surveys").

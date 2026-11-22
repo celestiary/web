@@ -1,6 +1,7 @@
 import {BufferGeometry, Float32BufferAttribute, Group, Mesh, Quaternion, TextureLoader, Vector3} from 'three'
 import {angle, applyTransposed, cellGrid, cellsInDisc, formatOrder, frameMatrix, newCoverage, selectOrder,
   tilePath} from './hips.js'
+import {noDataCleared} from './noData.js'
 import {TILE_RENDER_ORDER, disposeTileMesh, newTileMaterial, prepareTileTexture} from './tileMaterial.js'
 
 
@@ -31,6 +32,25 @@ const MAX_MISSING = 4096
 
 const toRad = Math.PI / 180
 const tmpQuat = new Quaternion
+
+
+/**
+ * A survey's black key and look, for its tiles' material: black keyed out
+ * as no data, over the manifest's `keyBlack` ramp (`[from, full]` in counts
+ * of 255: a jpeg survey's, wider, Sky.md "Black as no data") or the
+ * default's, and its negative shown where the manifest says `invert`.
+ *
+ * @param {object} survey A manifest
+ * @returns {{keyBlack: boolean, keyBlackFrom?: number, keyBlackFull?: number, invert: boolean}}
+ */
+export function tileKey(survey) {
+  const out = {keyBlack: true, invert: survey.invert === true}
+  if (Array.isArray(survey.keyBlack)) {
+    out.keyBlackFrom = survey.keyBlack[0] / 255
+    out.keyBlackFull = survey.keyBlack[1] / 255
+  }
+  return out
+}
 const tmpDir = new Vector3
 const tmpPos = new Vector3
 const tmpScale = new Vector3
@@ -64,13 +84,16 @@ export default class HipsLayer extends Group {
    * @param {(url: string) => Promise<object>} [opts.loadTexture] A three Texture's promise
    * @param {boolean} [opts.webp] Whether webp tiles may be asked for
    * @param {(drawn: boolean) => void} [opts.onDrawn] When the first tile shows, and when the last goes
+   * @param {Function} [opts.clearNoData] noData.js's noDataCleared, for an inverted survey's tiles
    */
-  constructor({survey, view, sceneReferred = null, loadTexture = null, webp = true, onDrawn = null}) {
+  constructor({survey, view, sceneReferred = null, loadTexture = null, webp = true, onDrawn = null,
+    clearNoData = noDataCleared}) {
     super()
     this.name = `hips ${survey.id}`
     this.survey = survey
     this.view = view
     this.sceneReferred = sceneReferred
+    this.clearNoData = clearNoData
     this.loadTexture = loadTexture ?? ((url) => {
       const loader = new TextureLoader()
       loader.setCrossOrigin('anonymous')
@@ -243,8 +266,13 @@ export default class HipsLayer extends Group {
           // The first service failed where this one answered: ask this one first from now on.
           this.serviceIndex = order[k]
         }
-        const material = newTileMaterial(this.sceneReferred, {keyBlack: true})
-        material.uniforms.map.value = prepareTileTexture(texture)
+        // A negative's black is no data or a saturated core: told apart
+        // from the tile's pixels, the no data made clear (noData.js), and
+        // no key then; where the pixels can't be read, the key as before.
+        const look = tileKey(this.survey)
+        const cleared = look.invert ? this.clearNoData(texture, {black: this.survey.keyBlack?.[0]}) : null
+        const material = newTileMaterial(this.sceneReferred, cleared ? {invert: true} : look)
+        material.uniforms.map.value = prepareTileTexture(cleared ?? texture)
         const mesh = new Mesh(tileGeometry(t.order, t.pix, this.toScene), material)
         mesh.name = `hips ${this.survey.id} ${key}`
         mesh.frustumCulled = false

@@ -17,6 +17,11 @@
   "licence": "Rubin's use policy",
   "source": "https://skyviewer.app/",
   "record": "https://images.rubinobservatory.org/hips/SVImages_v2/color_ugri/properties",
+  "about": "LSSTCam's coadd of the Virgo field in u, g, r and i, in colour",
+  "fields": [
+    {"key": "virgo", "label": "Virgo Cluster", "raDeg": 188.173828125, "decDeg": 7.086773397021115, "fovDeg": 3.5},
+    {"key": "m49", "label": "M49", "raDeg": 187.4449, "decDeg": 8.0004, "fovDeg": 0.2}
+  ],
   "name": "the Virgo Cluster",
   "raDeg": 188.173828125,
   "decDeg": 7.086773397021115,

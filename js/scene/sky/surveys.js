@@ -1,3 +1,7 @@
+import hstAcs from './surveys/hst-acs.json'
+import hstWfc3 from './surveys/hst-wfc3.json'
+import hstWfpc2 from './surveys/hst-wfpc2.json'
+import jwstMiri from './surveys/jwst-miri.json'
 import jwstNircam from './surveys/jwst-nircam.json'
 import rubinFirstLook from './surveys/rubin-firstlook.json'
 import rubinVirgo from './surveys/rubin-virgo.json'
@@ -7,8 +11,10 @@ import {discMeetsCoverage, lonLatToVec, newCoverage} from './hips.js'
 // The HiPS surveys the sky layer knows (Sky.md, "Surveys"), each a manifest
 // in surveys/: its id (the IVOA one), title, services (the first, then a
 // mirror), orders, tile width, formats, frame, credit, licence, source, and
-// coverage (a MOC: order → NESTED cells; tools/hips/coverage.mjs).  A new
-// survey is a manifest here.  Lazily loaded with the code that draws them:
+// coverage (a MOC: order → NESTED cells; tools/hips/coverage.mjs); for the
+// layers control, a short title, a line saying what it is (`about`) and its
+// showpiece fields; and how its tiles mark no data (`keyBlack`, `invert`:
+// HipsLayer.js tileKey).  A new survey is a manifest here.  Lazily loaded with the code that draws them:
 // nothing of this is in the first load.
 
 /** Rubin's First Look of 23 June 2025 (CDS): the Rubin app's "Rubin's image". */
@@ -18,10 +24,20 @@ export const RUBIN_FIRST_LOOK = rubinFirstLook
  * images.rubinobservatory.org): LSSTCam's coadd, wider than the press image.
  */
 export const RUBIN_VIRGO = rubinVirgo
-/** ESASky's JWST NIRCam imaging: the check on real tiles; `?sky=jwst-nircam` (install.js), no control yet. */
+/** ESASky's JWST NIRCam imaging, all filters merged, in grey. */
 export const JWST_NIRCAM = jwstNircam
+/** ESASky's JWST MIRI imaging, the same. */
+export const JWST_MIRI = jwstMiri
+/**
+ * ESASky's Hubble archive mosaics, one per camera, all filters merged: grey,
+ * served dark-on-light (stars black), shown as their negative.
+ */
+export const HST_ACS = hstAcs
+export const HST_WFC3 = hstWfc3
+export const HST_WFPC2 = hstWfpc2
 
-export const SURVEYS = [RUBIN_VIRGO, RUBIN_FIRST_LOOK, JWST_NIRCAM]
+/** Every survey; the layers control lists those with showpiece fields, in this order. */
+export const SURVEYS = [JWST_NIRCAM, JWST_MIRI, HST_ACS, HST_WFC3, HST_WFPC2, RUBIN_VIRGO, RUBIN_FIRST_LOOK]
 
 const toRad = Math.PI / 180
 const coverages = new Map
