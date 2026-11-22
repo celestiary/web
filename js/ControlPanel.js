@@ -272,7 +272,7 @@ export default class ControlPanel {
     }
     if (body.atmosphere) {
       html += sectionHtml('atmosphere', 'Atmosphere', '',
-          rowsHtml(this.cloudsSwitchHtml(body) + fieldRowsHtml(body.atmosphere, secsToYDHMS, sci)))
+          rowsHtml(this.cloudsSwitchHtml(body) + this.seaIceSwitchHtml(body) + fieldRowsHtml(body.atmosphere, secsToYDHMS, sci)))
     }
     html += sectionHtml('system', isStar ? 'Planets' : 'Moons', String(system.length),
         systemHtml(system, pathPrefix), true)
@@ -605,15 +605,38 @@ export default class ControlPanel {
    * @returns {string} its row, or nothing
    */
   cloudsSwitchHtml(body) {
+    return body.clouds ? this._settingSwitchHtml('i', 'Clouds', 'I') : ''
+  }
+
+
+  /**
+   * The sea ice's switch, for a body that has it (`sea_ice` in its
+   * descriptor): the 'W' setting, the 'W' key's (Scene.toggleSeaIce).
+   *
+   * @param {object} body the body's props
+   * @returns {string} its row, or nothing
+   */
+  seaIceSwitchHtml(body) {
+    return body.sea_ice ? this._settingSwitchHtml('W', 'Sea ice', 'W') : ''
+  }
+
+
+  /**
+   * @param {string} key The setting
+   * @param {string} label
+   * @param {string} keyName The key that toggles it
+   * @returns {string} A switch's row, or nothing without the settings' hooks
+   */
+  _settingSwitchHtml(key, label, keyName) {
     const hooks = this.settingsHooks
-    if (!body.clouds || !hooks) {
+    if (!hooks) {
       return ''
     }
-    const on = hooks.get('i') !== false
-    const sw = `<span class="info-toggle${on ? ' on' : ''}" data-setting="i" role="switch" aria-checked="${on}" ` +
+    const on = hooks.get(key) !== false
+    const sw = `<span class="info-toggle${on ? ' on' : ''}" data-setting="${key}" role="switch" aria-checked="${on}" ` +
       `tabindex="0">${on ? 'shown' : 'hidden'}</span>`
-    return `<div class="info-row is-long setting" data-setting="i"><dt>Clouds</dt>` +
-      `<dd class="info-switches">${sw}<span class="info-unit">I</span></dd></div>\n`
+    return `<div class="info-row is-long setting" data-setting="${key}"><dt>${label}</dt>` +
+      `<dd class="info-switches">${sw}<span class="info-unit">${keyName}</span></dd></div>\n`
   }
 
 

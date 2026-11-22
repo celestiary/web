@@ -86,6 +86,7 @@ export const SETTINGS_DEFAULTS = Object.freeze({
   I: false, // Iridium NEXT and its crosslinks
   D: false, // NASA's Deep Space Network and its live links (DSN Now)
   i: true, // Earth's clouds, the 'I' key (Celestia's i): the shell and the volume (Planet.md, clouds)
+  W: true, // Earth's sea ice, the 'W' key (Planet.md, sea ice; design/Cryosphere.md)
   K: false, // a camera the observer, not the eye: the Sun's veil a lens's (Sun.md, glare)
   v: true, // nav panels / heads-up display
   L: false, // landed at surface — see Scene.land

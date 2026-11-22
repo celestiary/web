@@ -1,7 +1,9 @@
 # Earth's cryosphere
 
-*Proposed 2026-11-22.  Nothing built yet; the data paths below were checked
-from the sandbox that day.*
+*Proposed 2026-11-22; the epic is #380.  Phase 1, the day's sea ice far
+off, is built (#381; [Planet.md, sea ice](../js/scene/Planet.md#sea-ice),
+[CESIUM.md, sea ice](../CESIUM.md#sea-ice)); the rest is proposed.  ETOPO's
+and PIOMAS's hosts were allowed the same day.*
 
 Earth breathing (PR #379) turns the Blue Marble's months through the year,
 and the land's snow comes and goes with them.  The sea doesn't: the Blue
@@ -277,10 +279,8 @@ Each a PR, in this order.
 
 ## Needs from the maintainer
 
-- **Hosts to allow**, for phases 3 and 6, through the environment's
-  network settings: `www.ngdc.noaa.gov` and `www.ncei.noaa.gov` (ETOPO
-  2022); `psc.apl.uw.edu` (PIOMAS, to check or replace the thickness
-  model).  Optional: `www.usicecenter.gov` (named icebergs).  NSIDC's
+- **Hosts**: `www.ngdc.noaa.gov` and `www.ncei.noaa.gov` (ETOPO 2022) and
+  `psc.apl.uw.edu` (PIOMAS) were allowed on 2026-11-22.  Optional: `www.usicecenter.gov` (named icebergs).  NSIDC's
   BedMachine and RGI need an Earthdata login, which is avoided while ETOPO
   and Farinotti cover them.
 - **Decisions**: the atlas's span (weekly for ten years, monthly to 1979,
@@ -293,7 +293,9 @@ Each a PR, in this order.
   Sea Ice Index (the "NSIDC maps" people know) differs by a few percent in
   extent.  Using SSMIS (NSIDC's own) through 2021 and MUR25 after
   would put a step in the record at the switch, so MUR25 from 2002 on,
-  throughout.
+  throughout (as built).  Measured on the same days in 2010, the two put
+  the ice in the same places (IoU 0.79 in March, 0.91 in September), SSMIS
+  with a fringe along the coasts: Planet.md, "Sea ice".
 - The polar caps in the 4326 map are oversampled in longitude (at 80° a
   pixel is 5 km across and 31 km tall).  For the near field's seeding that's
   fine (the noise makes the detail); the far map wants a polar

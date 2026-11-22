@@ -4,7 +4,8 @@ import {setCreditSource} from '../credits.js'
 /**
  * NASA GIBS's credit in the credits footer (credits.js), while its imagery
  * is drawn: Earth's clouds from its daily mosaics (clouds/CloudShell.js;
- * Planet.md, "Clouds") and the night lights of Earth's Cesium layer, VIIRS
+ * Planet.md, "Clouds"), its sea ice (Planet.newSeaIceNode; Planet.md, "Sea
+ * ice") and the night lights of Earth's Cesium layer, VIIRS
  * Black Marble (CesiumLayers._creditNightLights; CESIUM.md).  One entry for
  * both (setCreditSource), on arrival then fading: GIBS's documentation asks
  * for the acknowledgement ("Data Use Guidance and Acknowledgements",
@@ -30,7 +31,7 @@ export const GIBS_CREDIT = Object.freeze({
 
 
 /**
- * @param {string} source 'clouds' or 'night-lights'
+ * @param {string} source 'clouds', 'sea-ice' or 'night-lights'
  * @param {boolean} drawn Whether that layer draws GIBS's imagery now
  */
 export function creditGibs(source, drawn) {
