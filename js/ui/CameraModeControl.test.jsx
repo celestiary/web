@@ -47,14 +47,20 @@ describe('the camera control (#361, step 2)', () => {
     expect(byId.turning.checked).toBe(false)
   })
 
-  it('can\'t leave the Sun, and landed only standing is checked and nothing else chosen', () => {
+  it('can\'t leave the Sun, and from the ground every way of moving can be chosen', () => {
     const atSun = Object.fromEntries(cameraModeChoices({mode: 'orbit', auto: true, body: 'sun'}, label,
         {canLeave: false}).map((c) => [c.id, c]))
     expect(atSun.fixed.disabled).toBe(true)
     expect(atSun.fixed.hint).toBe('Nothing above Sun to leave')
-    const landed = cameraModeChoices({mode: 'standing', auto: false, body: 'earth'}, label)
-    expect(landed.filter((c) => !c.disabled)).toEqual([])
-    expect(landed.find((c) => c.checked).id).toBe('standing')
+    // Landed, every way of moving takes off from the ground; `f` keeps a
+    // landed camera pinned, so its key isn't offered.
+    const landed = Object.fromEntries(cameraModeChoices({mode: 'standing', auto: false, body: 'earth'}, label)
+        .map((c) => [c.id, c]))
+    expect(['fixed', 'orbit', 'turning', 'auto'].filter((id) => landed[id].disabled)).toEqual([])
+    expect(landed.standing.checked).toBe(true)
+    expect(landed.standing.disabled).toBe(true)
+    expect(landed.fixed.key).toBe(null)
+    expect(landed.turning.key).toBe('y')
   })
 
   it('draws the label as a button, and nothing with no body to ride', () => {

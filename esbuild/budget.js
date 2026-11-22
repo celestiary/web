@@ -143,7 +143,11 @@ export const STATIC_BUDGET = {
   // steps, solarNoon.js, the time panel's toggle).  2,506 and a fraction, so
   // 2,508, with the Earth breathing app's way in (its tray entry, search view
   // and constants; its panel is a chunk of its own, breathingApp.js).
-  totalMinifiedKB: 2508,
+  // With the compass (#361 step 3: js/compass.js, Scene cameraHeading,
+  // turnCamera and compassTap, ui/CompassControl.jsx, its dial an inline
+  // SVG; and the camera menu from the ground, Scene._leaveGround), 2,512
+  // (2,513 with the ion token), so 2,514.
+  totalMinifiedKB: 2514,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -174,7 +178,9 @@ export const STATIC_BUDGET = {
   // albedo by the month (as above; a fraction more with the ion token).
   // 777, so 778, with the months blended by the day (as above).  778 and a
   // fraction, so 779, with the day steps and the Earth breathing app.
-  totalGzipKB: 779,
+  // 780 and a fraction with the ion token, so 781, with the compass (#361
+  // step 3, as above).
+  totalGzipKB: 781,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,
