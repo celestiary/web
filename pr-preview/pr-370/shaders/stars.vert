@@ -78,17 +78,17 @@ const float KERNEL_SIGMA_PER_PATCH = 0.25;
 // at most 0.7 px off, reads 0.5 of the peak at worst, 0.85 typically).
 const float KERNEL_SIGMA_MIN_PX = 0.6;
 // The quad holds the core out to where it falls under this value
-// (exposure units: under 1 of 255 through the tone map), and the wing to
-// where it falls under WING_FLOOR (2.5 of 255: about the eye's own
+// (exposure units: a third of a screen step), and the wing to
+// where it falls under WING_FLOOR (about the eye's own
 // threshold for a feature of 20-60′ over a dark sky; exposure.js
 // STAR_WING_FLOOR), and its edge window (stars.frag) takes both to zero
 // inside the quad, so a star is round at every exposure; a quad that
 // saturated to its edge was a square.
 const float VISIBLE_VALUE = 0.004;
-const float WING_FLOOR = 0.01;
+const float WING_FLOOR = 0.0028;
 // The observer (observer/instrument.js, through hdr.js absoluteUniforms):
-// the detector's pool round a point, radians (the eye's patch's side, 10′:
-// the dark-adapted eye's resolution of a point); and the PSF's share in
+// the detector's pool round a point, radians (the eye's patch's side,
+// 10′); and the PSF's share in
 // the pool, the pooled light, which the limit is calibrated on, over the
 // star's whole light.
 uniform float uEyePointRad;
@@ -200,8 +200,8 @@ void main() {
 
   // The star's radiance over the eye's patch, in exposure units, and the
   // patch in pixels.  A field narrower than the naked eye's (45°) is a
-  // telescope's, magnifying by the ratio of the tangents: the eye's 10′ on
-  // the screen is 10′ over that on the sky, which the star's light lands
+  // telescope's, magnifying by the ratio of the tangents: the eye's patch on
+  // the screen is the patch over that on the sky, which the star's light lands
   // in (HDR.md, "A telescope's field").  At 10′ on the sky whatever the
   // field, a star at 0.91° was a Gaussian 40 px wide, nothing on screen.
   float magnification = max(TAN_HALF_EYE_FOV / tan(radians(uFovDegrees) * 0.5), 1.0);

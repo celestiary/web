@@ -22,6 +22,7 @@
     }
   }
   ,"albedo": 0.51,
+  "texture_gain": 1.719,
   "equatorialGravity": 8.69,
   "escapeVelocity": 21.3,
   "orbit": {
