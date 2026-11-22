@@ -2,18 +2,14 @@ import {Object3D} from 'three'
 import {LIGHTYEAR_METER, overlay} from '../shared.js'
 import {pulseCycle} from './Colonization.js'
 import {ALWAYS, disposeWideLines, newWideLines} from './wideLines.js'
+import {sceneColors} from '../theme.js'
+import {decodeRgb} from './srgb.js'
 
 
 // Bright-to-dark along blue.  The first hop (e.g. Alpha Centauri) is near
 // white, the last near black.  Display values: sceneReferred puts them
 // through the tone map's inverse, so they reach the screen as written.
-const RAMP = [
-  [0.95, 0.97, 1.00],
-  [0.62, 0.77, 1.00],
-  [0.25, 0.50, 0.92],
-  [0.09, 0.22, 0.52],
-  [0.02, 0.03, 0.07],
-]
+const RAMP = sceneColors.colonization.ramp
 
 export const DEFAULT_STYLE = {
   widthFirst: 5, // px at hop 1
@@ -30,7 +26,7 @@ export const DEFAULT_PULSE = {
 }
 
 // The route to a selected star: amber, over the spread's blues.
-const PATH_COLOR = [1.0, 0.7, 0.15]
+const PATH_COLOR = sceneColors.colonization.path
 const PATH_WIDTH = 4
 const MS_PER_SEC = 1000
 // Draw the route after (over) the spread.
@@ -40,7 +36,7 @@ const PATH_RENDER_ORDER = 10
 /**
  * @param {number} hop 1-based hop number
  * @param {number} maxHop Longest path in hops
- * @returns {Array<number>} rgb display values, one step per hop
+ * @returns {Array<number>} rgb sRGB values (as CSS takes them; decoded for the lines), one step per hop
  */
 export function hopColor(hop, maxHop) {
   const t = maxHop > 1 ? (hop - 1) / (maxHop - 1) : 0
@@ -106,7 +102,7 @@ export default class ColonizationLines extends Object3D {
       from[k] = spread.parent[i]
       to[k] = i
       hop[k] = spread.hop[i]
-      color.set(hopColor(spread.hop[i], spread.maxHop), 3 * k)
+      color.set(decodeRgb(hopColor(spread.hop[i], spread.maxHop)), 3 * k)
       times[2 * k] = spread.departYears[i]
       times[(2 * k) + 1] = spread.arriveYears[i]
     }
@@ -142,7 +138,7 @@ export default class ColonizationLines extends Object3D {
     const n = path.length - 1
     const color = new Float32Array(n * 3)
     for (let k = 0; k < n; k++) {
-      color.set(PATH_COLOR, 3 * k)
+      color.set(decodeRgb(PATH_COLOR), 3 * k)
     }
     const mesh = newWideLines({
       ...endpoints(Int32Array.from(path.slice(0, -1)), Int32Array.from(path.slice(1)), pos),

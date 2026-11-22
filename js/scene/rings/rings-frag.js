@@ -3,8 +3,9 @@ import {RING_PHOTOMETRY_GLSL} from './ringPhotometry.js'
 
 // Fragment shader for planetary rings, lit in exposure units (rings.md,
 // "Lighting: the rings in exposure units"; ringPhotometry.js):
-//   - the colour map is the particles' single-scattering albedo (times
-//     uAlbedoScale), the opacity map the normal optical depth;
+//   - the colour map, decoded from sRGB, is the particles' single-scattering
+//     albedo (times uAlbedoScale, at most 1), the opacity map the normal
+//     optical depth;
 //   - a slab of particles scattering the Sun's light once, from the lit face
 //     or through it to the unlit one, with the particles' backscattering
 //     phase function;
@@ -35,7 +36,8 @@ ${RING_PHOTOMETRY_GLSL}
 void main() {
   float opacity = texture2D(uAlphaMap, vUv).r;
   if (opacity < 0.01) discard;
-  vec3 albedo = uAlbedoScale * texture2D(uColorMap, vUv).rgb;
+  // A particle reflects no more than it gets: ϖ ≤ 1 (ringPhotometry.js).
+  vec3 albedo = min(uAlbedoScale * texture2D(uColorMap, vUv).rgb, vec3(1.0));
   float tau = ringTau(opacity);
 
   vec3 norm = normalize(vWorldNormal);

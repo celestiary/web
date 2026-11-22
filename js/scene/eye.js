@@ -2,7 +2,8 @@ import {DISPLAY_GAIN, SUN_ILLUMINANCE_LUX} from '../shared.js'
 import {
   EYE_POINT_RAD, LIMIT_VALUE, METER_GAIN_MAX, METER_KEY, SUN_APPARENT_MAGNITUDE, smoothstep,
 } from './exposure.js'
-import {NEUTRAL_TOE_CURVATURE, NEUTRAL_TOE_END, neutral} from './hdr.js'
+import {NEUTRAL_TOE_END, neutral} from './hdr.js'
+import {SCREEN_STEP, screenOf} from './screen.js'
 
 
 /**
@@ -12,26 +13,27 @@ import {NEUTRAL_TOE_CURVATURE, NEUTRAL_TOE_END, neutral} from './hdr.js'
  * The star field is calibrated on a point: at the dark-adapted gain a star
  * of magnitude 6.5, its light over the eye's 10′ patch, just shows
  * (exposure.js LIMITING_MAGNITUDE).  That patch is 20.3 mag/arcsec², 4.7×
- * the dark site's sky, so at the same gain an extended light at the
- * eye's own threshold for a large field, a tenth over the sky, is 0.0026
- * in exposure units, far down the tone map's toe, and the Milky Way's band
- * shows 2-10 of 255.  The eye sees it because its rods pool light over
- * large areas: Ricco's law (complete summation, threshold × area constant)
- * up to about half a degree, then Piper's (threshold × √area constant), to
- * a threshold contrast of about a tenth for fields of a few degrees, where
- * a point needs 4.7.  The display's viewer, light adapted, pools far less.
+ * the dark site's sky.  The eye sees the Milky Way's band at once because
+ * its rods pool light over large areas: Ricco's law (complete summation,
+ * threshold × area constant) up to about half a degree, then Piper's
+ * (threshold × √area constant), to a threshold contrast of about a tenth
+ * for fields of a few degrees, where a point needs 4.7.  The display's
+ * viewer, light adapted, pools far less.
  *
  * So the night sky's diffuse light (the galaxy, the zodiacal light,
  * airglow) is tone-mapped by a response of its own, threshold for
  * threshold: the gain EXTENDED_GAIN_DARK puts the dark site's sky where
  * the eye's large-field threshold contrast over it is one step of the
- * display (Ward 1994's threshold mapping, through Neutral's toe).  It is
- * added over the image of the stars and the bodies in display values
- * (extendedToDisplay, displaySum, EYE_GLSL), not under it in exposure
- * units: the stars' calibration (a magnitude 6.5 star just shows) is a
- * dark site's, so it holds that sky already, and under the toe a pedestal
- * would raise faint stars, the opposite of what a brighter sky does.  So
- * every star's step on screen is what it was.  The meter reads the night
+ * screen (Ward 1994's threshold mapping, through the output transform,
+ * screen.js).  It is added over the image of the stars and the bodies in
+ * linear display values (extendedToDisplay, displaySum, EYE_GLSL), before
+ * the screen's encoding, not under it in exposure units: the stars'
+ * calibration (a magnitude 6.5 star just shows) is a dark site's, so it
+ * holds that sky already, and under the toe a pedestal would raise faint
+ * stars, the opposite of what a brighter sky does.  So every star adds
+ * the light it adds over black; through the encoding, which is concave,
+ * that is a smaller step of the screen's values over the sky than over
+ * black, as light adds.  The meter reads the night
  * sky's physical light, unscaled.
  */
 
@@ -148,28 +150,52 @@ export function pipersEndRad() {
 }
 
 
-/** The display's least step, in display values: one of 255. */
-export const DISPLAY_STEP = 1 / 255
+/** The screen's least step, a screen value: one of 255 (screen.js SCREEN_STEP). */
+export const DISPLAY_STEP = SCREEN_STEP
 
 
 /**
  * The extended response's gain at full dark adaptation: the gain at which
  * the dark site's sky (DARK_SKY_MAG at METER_GAIN_MAX), x, sits where the
- * eye's threshold for a large field over it, C·x, is one display step
- * through the tone map's toe, whose slope there is 2·k·x (k =
- * NEUTRAL_TOE_CURVATURE): 2k·C·x² = DISPLAY_STEP.  Ward (1994)'s
- * threshold mapping, which matches a just-visible difference in the scene
- * to a just-visible one on the display.  x = 0.056 (the sky 5 of 255), so
- * the gain is 2.2; the band at 20.5-22 mag/arcsec² then shows 15-45 of
- * 255.  The display step stands for the viewer's own threshold, which near
- * black is one or two steps; the gain goes as its square root.
+ * eye's threshold for a large field over it, C·x, is one step of the
+ * screen: S′(x)·C·x = DISPLAY_STEP, S the output transform (screen.js
+ * screenOf: the tone map, then sRGB's encoding).  Ward (1994)'s threshold
+ * mapping, which matches a just-visible difference in the scene to a
+ * just-visible one on the display.  x·S′(x) rises through the toe, so x is
+ * found by bisection there (S′ as a central difference; screen.js
+ * screenSlope is its exact form, for tests); past the toe it is held at
+ * its end.
+ *
+ * In the toe S is 6.25·x² times sRGB's 12.92 while N is under 0.0031308,
+ * so S′(x)·x = 2·S(x) and the sky shows 1/(2C) of a step, 5 of 255, as it
+ * did before the screen was encoded (when S was N alone).  x is 0.0156,
+ * the sky at the dark gain 0.0072, so the gain is 2.15 (2.19 before the
+ * encoding, with the dark gain 4e6 and the sky 0.0256).  The night sky
+ * at 20.5 mag/arcsec² in all then shows 43 of 255 (47 before).  The
+ * display step stands for the viewer's own threshold, which near black is
+ * one or two steps; the gain goes as its square root.
  *
  * @returns {number}
  */
 export function extendedGainDark() {
   const sky = surfaceBrightnessValue(DARK_SKY_MAG) * METER_GAIN_MAX
-  const x = Math.sqrt(DISPLAY_STEP / (2 * NEUTRAL_TOE_CURVATURE * thresholdContrast(Math.PI)))
-  return Math.min(x, NEUTRAL_TOE_END) / sky
+  const c = thresholdContrast(Math.PI)
+  // S′(x)·x by a central difference of ±1e-6 of x.
+  const over = (x) => ((screenOf(x * (1 + 1e-6)) - screenOf(x * (1 - 1e-6))) / 2e-6 * c) - DISPLAY_STEP
+  if (over(NEUTRAL_TOE_END) <= 0) {
+    return NEUTRAL_TOE_END / sky
+  }
+  let lo = 0
+  let hi = NEUTRAL_TOE_END
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2
+    if (over(mid) > 0) {
+      hi = mid
+    } else {
+      lo = mid
+    }
+  }
+  return (lo + hi) / 2 / sky
 }
 
 
@@ -199,7 +225,9 @@ export function scotopicWeight(cdM2) {
  * The luminance the eye is adapted to, cd/m², at an exposure: the metered
  * exposure brings the frame's mean to METER_KEY, so the adapted luminance
  * is METER_KEY over the gain, in exposure units at Earth's keyed exposure.
- * At the dark-adapted gain (4e6) 2e-3 cd/m², scotopic; at the keyed
+ * At the dark-adapted gain (1.13e6) 7.1e-3 cd/m², just inside the mesopic
+ * range (2e-3 at the 4e6 of before the screen was encoded), so the
+ * extended gain there is 2.14, 0.4% under EXTENDED_GAIN_DARK; at the keyed
  * exposure by day 8e3.
  *
  * @param {number} gainOverEarth The exposure over Earth's keyed one (exposureRelative)
@@ -242,7 +270,7 @@ const LUMA = [0.2126, 0.7152, 0.0722]
  * @param {number} gainOverEarth The frame's exposure over Earth's keyed one
  * @param {number} gain extendedGain's
  * @param {number} eye 1 for the eye, 0 for a photograph (galaxyGain's weight's complement)
- * @returns {Array<number>} Display values
+ * @returns {Array<number>} Display values, linear (the screen's encoding follows)
  */
 export function extendedToDisplay(rgb, gainOverEarth, gain, eye = 1) {
   const l = (LUMA[0] * rgb[0]) + (LUMA[1] * rgb[1]) + (LUMA[2] * rgb[2])
@@ -258,12 +286,16 @@ export function extendedToDisplay(rgb, gainOverEarth, gain, eye = 1) {
 
 
 /**
- * The night sky's display values added to the image's, to white at most:
- * a star's step on screen over the night sky is its step over black, as
- * the star field is calibrated (the limit at a dark site, whose sky this
- * is), not raised by a pedestal in the toe nor lowered by a blend.
+ * The night sky's display values added to the image's, to white at most,
+ * in linear display values (light), before the screen's encoding: a
+ * star's light over the night sky is its light over black, as the star
+ * field is calibrated (the limit at a dark site, whose sky this is), not
+ * raised by a pedestal in the toe nor lowered by a blend.  Its step in the
+ * screen's encoded values is smaller over the sky than over black (the
+ * encoding is concave), as the light's step against a brighter
+ * background is.
  *
- * @param {Array<number>} a The image of the stars and bodies, display values
+ * @param {Array<number>} a The image of the stars and bodies, linear display values
  * @param {Array<number>} b The night sky's, extendedToDisplay's
  * @returns {Array<number>}
  */

@@ -1,14 +1,9 @@
-import React, {Fragment, createContext, useMemo, useState} from 'react'
+import React, {Fragment, useMemo} from 'react'
 import {createTheme, ThemeProvider} from '@mui/material/styles'
 
 
 /** @returns {Fragment} */
 export default function Style({children}) {
-  const [mode, setMode] = useState('dark')
-  const colorMode = useMemo(() => ({toggleColorMode: () => {
-    setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'))
-  }}), [])
-
   const theme = useMemo(() => createTheme({
     components: {
       MuiButtonBase: {
@@ -38,15 +33,13 @@ export default function Style({children}) {
       h5: {fontSize: '1.2rem'},
       h6: {fontSize: '1.1rem'},
     },
-  }), [mode])
+  }), [])
 
   return (
     <Fragment>
-      <ColorModeContext.Provider value={colorMode}>
-        <ThemeProvider theme={theme}>
-          {children}
-        </ThemeProvider>
-      </ColorModeContext.Provider>
+      <ThemeProvider theme={theme}>
+        {children}
+      </ThemeProvider>
     </Fragment>
   )
 }
@@ -56,26 +49,8 @@ export default function Style({children}) {
 const UI_FONT = '\'Inter\', system-ui, -apple-system, \'Segoe UI\', Roboto, \'Helvetica Neue\', Arial, sans-serif'
 
 
-const ColorModeContext = createContext({toggleColorMode: () => {}})
-
-
+// Dark only (the light palette and its toggle were never used).  The
+// palette's colours are the theme's, set by each route (ui/Palette.jsx).
 const dark = {
   mode: 'dark',
-  primary: {
-    // TODO(pablo): this is a light teal for text in dark mode.  not sure why main key is used
-    main: '#869fdb',
-    light: '#0f0',
-    dark: '#00f',
-    contrastText: '#fff',
-  },
-}
-
-const light = {
-  mode: 'light',
-  primary: {
-    main: '#f00',
-    light: '#0f0',
-    dark: '#00f',
-    contrastText: '#000',
-  },
 }

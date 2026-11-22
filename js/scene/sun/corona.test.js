@@ -3,7 +3,6 @@ import {limbDarkening} from '../stellar.js'
 import {
   THOMSON_FACTOR,
   baumbachK,
-  cmeShellDensity,
   coronaDensity,
   dilution,
   saitoDensity,
@@ -130,17 +129,5 @@ describe('the K-corona', () => {
     expect(sheetSin([0, 1, 0], flat)).toBeCloseTo(1, 9)
     const max = sheetAt(1, 0)
     expect(Math.acos(max.pole[1]) * 180 / Math.PI).toBeCloseTo(75, 6)
-  })
-})
-
-
-describe('a CME\'s electrons', () => {
-  it('spread over its front shell: a typical CME at 5 radii is the background\'s order', () => {
-    const n = cmeShellDensity(1e15, 5, 25 * Math.PI / 180)
-    const background = coronaDensity(5, 0)
-    expect(n / background).toBeGreaterThan(0.3)
-    expect(n / background).toBeLessThan(5)
-    // Thinner as it expands: n ∝ r^−3.
-    expect(cmeShellDensity(1e15, 10, 0.4) / cmeShellDensity(1e15, 5, 0.4)).toBeCloseTo(1 / 8, 9)
   })
 })

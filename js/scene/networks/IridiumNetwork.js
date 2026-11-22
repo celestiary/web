@@ -2,6 +2,7 @@ import {AdditiveBlending, Color, Group} from 'three'
 import Constellation from './Constellation.js'
 import {clusterPlanes, inService, iridiumLinks} from './iridium.js'
 import {newWideLines, setWideLineSegments} from '../wideLines.js'
+import {sceneColors} from '../../theme.js'
 
 
 // Iridium NEXT and its crosslinks (Networks.md, "Iridium"): the satellites as
@@ -11,9 +12,9 @@ import {newWideLines, setWideLineSegments} from '../wideLines.js'
 
 
 /** The six planes' colours, west to east from the seam. */
-export const PLANE_COLORS = [0xff8f6f, 0xffc46f, 0xe8f06f, 0x8ff08f, 0x6fd8ff, 0xb09fff]
-const SPARE_COLOR = 0x8a8a8a
-const CROSS_COLOR = 0xe8e8ff
+export const PLANE_COLORS = sceneColors.iridium.planes
+const SPARE_COLOR = sceneColors.iridium.spare
+const CROSS_COLOR = sceneColors.iridium.crosslink
 // The links are fainter than the satellites, and additive, so the crossings
 // over the poles don't pile up into a white knot.
 const IN_PLANE_GAIN = 0.55

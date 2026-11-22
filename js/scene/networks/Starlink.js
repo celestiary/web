@@ -1,5 +1,6 @@
 import {Color} from 'three'
 import Constellation from './Constellation.js'
+import {sceneColors} from '../../theme.js'
 
 
 // SpaceX's Starlink, the whole constellation (Networks.md, "Starlink"): a
@@ -13,10 +14,10 @@ import Constellation from './Constellation.js'
  * LOW_KM.
  */
 export const SHELLS = [
-  {maxInc: 48, color: 0x6fe0c8, text: '43° shells'},
-  {maxInc: 60, color: 0x7fb8ff, text: '53° shells'},
-  {maxInc: 80, color: 0xc89fff, text: '70° shell'},
-  {maxInc: 180, color: 0xffa8d8, text: 'polar (97.6°) shells'},
+  {maxInc: 48, color: sceneColors.starlink.shell43, text: '43° shells'},
+  {maxInc: 60, color: sceneColors.starlink.shell53, text: '53° shells'},
+  {maxInc: 80, color: sceneColors.starlink.shell70, text: '70° shell'},
+  {maxInc: 180, color: sceneColors.starlink.polar, text: 'polar (97.6°) shells'},
 ]
 // Under this height (from the mean motion), km: still raising its orbit,
 // or coming down.  The working shells are at about 340 to 580 km.

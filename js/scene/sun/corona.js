@@ -208,25 +208,29 @@ export function coronaDensity(r, sinLat) {
 
 
 // A CME's electrons: its mass over 1.17 proton masses an electron (fully
-// ionised, a tenth of the nuclei helium), in a shell at its front
-// (Gaussian, σ 8% of its radius) through its cone.
+// ionised, a tenth of the nuclei helium).  Where they are is cme/cmeModel.js.
 export const GRAMS_PER_ELECTRON = 1.17 * 1.67262192e-24
-export const CME_SHELL_SIGMA = 0.08
 
 
 /**
- * The density at a CME's front, cm⁻³, for the shader.
+ * The mean corona's brightness by radius, for a coronagraph's radial
+ * filter (activityView.js): the K-corona of the streamer belt's density at
+ * every latitude, B/B☉, at radii log-spaced from the first to the last.
+ * A line of sight along the belt reads 1 against it, the polar holes a
+ * few tenths, a CME's shell more.
  *
- * @param {number} mass g
- * @param {number} front solar radii
- * @param {number} halfWidth radians
- * @returns {number}
+ * @param {number} samples
+ * @param {number} first solar radii
+ * @param {number} last solar radii
+ * @returns {Array<number>} log10 of B/B☉ at each radius
  */
-export function cmeShellDensity(mass, front, halfWidth) {
-  const electrons = mass / GRAMS_PER_ELECTRON
-  const solidAngle = 2 * Math.PI * (1 - Math.cos(halfWidth))
-  const volume = solidAngle * front * front * CME_SHELL_SIGMA * front * Math.sqrt(2 * Math.PI) * (SUN_RADIUS_CM ** 3)
-  return electrons / volume
+export function radialReference(samples, first, last) {
+  const out = []
+  for (let i = 0; i < samples; i++) {
+    const rho = first * ((last / first) ** (i / (samples - 1)))
+    out.push(Math.log10(thomsonBrightness(rho, (r) => coronaDensity(r, 0), -Math.PI / 2, Math.PI / 2, 96)))
+  }
+  return out
 }
 
 

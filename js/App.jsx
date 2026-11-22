@@ -24,11 +24,20 @@ import TimePanel from './ui/TimePanel'
 import TooltipIconButton from './ui/TooltipIconButton'
 import TooltipToggleButton from './ui/TooltipToggleButton'
 import WidgetsDrawer from './ui/WidgetsDrawer'
+import Palette from './ui/Palette'
+import {applyCssColors} from './theme.js'
 import {capitalize} from './utils'
 import SettingsIcon from '@mui/icons-material/Settings'
 import StarsIcon from '@mui/icons-material/AutoAwesome'
 import WidgetsIcon from '@mui/icons-material/WidgetsOutlined'
 import './index.css'
+
+
+// The chrome's colour tokens, from the theme (design/UI.md, "The theme").
+// index.css loads with the page (index.html links it), but what it colours
+// is rendered by React, after this runs; the loading text has its own
+// inline styles.
+applyCssColors()
 
 
 /** @returns {ReactElement} */
@@ -79,7 +88,7 @@ export default function App() {
   }, [])
 
   return (
-    <>
+    <Palette>
       <ScopedCssBaseline/>
       <div ref={sceneRef} id='scene-id'/>
       <div id='nav-id' className='panel'>
@@ -123,5 +132,5 @@ export default function App() {
       {/* Mounted from the start: Cesium's credits go into it whenever a layer
           loads (credits.js; design/UI.md "The credits footer"). */}
       <CreditsFooter celestiary={celestiary}/>
-    </>)
+    </Palette>)
 }

@@ -7,6 +7,7 @@ import TimeFastRewindIcon from '@mui/icons-material/FastRewind'
 import TimeNowIcon from '@mui/icons-material/SettingsBackupRestore'
 import TimePauseIcon from '@mui/icons-material/PauseCircleOutline'
 import CalendarIcon from '@mui/icons-material/CalendarMonth'
+import DayStepIcon from '@mui/icons-material/WbSunnyOutlined'
 import Time from '../Time'
 import useStore from '../store/useStore'
 import useIsMobile from '../useIsMobile'
@@ -28,6 +29,7 @@ export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
   const setIsDatePickerVisible = useStore((state) => state.setIsDatePickerVisible)
 
   const [timeScale, setTimeScale] = useState(0)
+  const [daySteps, setDaySteps] = useState(time.stepDays > 0)
   const isMobile = useIsMobile()
 
 
@@ -37,8 +39,10 @@ export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
 
   // The rate changes while paused too (j, k, l), when no clock tick
   // updates timeStr: follow the change itself.
-  useEffect(() => time.onTimeScaleChange(() => setTimeScale(updateTimeMsg(time, time.isPaused))),
-      [time, setTimeScale])
+  useEffect(() => time.onTimeScaleChange(() => {
+    setTimeScale(updateTimeMsg(time, time.isPaused))
+    setDaySteps(time.stepDays > 0)
+  }), [time, setTimeScale])
 
 
   // TODO(pablo): redundant.. setting time state isn't reactive
@@ -70,6 +74,14 @@ export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
         <TooltipIconButton tip='Now' onClick={() => time.setTimeToNow()} icon={<TimeNowIcon/>}/>
         <TooltipToggleButton tip='Pause' onClick={onPauseClick} icon={<TimePauseIcon/>}/>
         <TooltipIconButton tip='Fast forward' onClick={() => time.changeTimeScale(1)} icon={<TimeFastForwardIcon/>}/>
+        <TooltipToggleButton
+          tip='Step by day (solar noon)'
+          aria-label='Step by day (solar noon)'
+          selected={daySteps}
+          onChange={() => {/* time.onTimeScaleChange sets it */}}
+          onClick={() => time.setStepDays(time.stepDays > 0 ? 0 : 1)}
+          icon={<DayStepIcon/>}
+        />
         <Divider orientation='vertical' variant='middle' flexItem/>
         <TooltipIconButton tip='Set date & time' onClick={() => setIsDatePickerVisible(true)} icon={<CalendarIcon/>}/>
       </ButtonGroup>
@@ -86,8 +98,8 @@ export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
 
 /**
  * Either 'real-time', '(paused)' or a friendly ratio of simTime /
- * realTime, e.g. 1 day/s, and '(date limit)' while time holds at a bound
- * of the supported dates
+ * realTime, e.g. 1 day/s, or while stepping by days '32 days/sec at noon',
+ * and '(date limit)' while time holds at a bound of the supported dates
  *
  * @param {Time} time
  * @param {boolean} isPaused React state
@@ -95,7 +107,11 @@ export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
  */
 function updateTimeMsg(time, isPaused) {
   let msg
-  if (time.timeScale === 1) {
+  if (time.stepDays > 0) {
+    const days = time.timeScale / 86400
+    const each = time.stepDays === 1 ? '' : `, ${time.stepDays} at a time`
+    msg = `${days.toLocaleString(undefined, {maximumFractionDigits: 2})} days/sec at noon${each}`
+  } else if (time.timeScale === 1) {
     msg = 'real-time'
   } else {
     const timeScale = time.timeScale

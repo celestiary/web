@@ -85,6 +85,8 @@ it (`js/targetPath.js`):
                         (js/scene/satellites/Satellites.md)
 #sat:mars:12            an object of another body's population, by its body
                         and id (js/scene/population/Population.md)
+#suntan:relay           a Suntan craft, `relay` or `lander`, while its app
+                        runs (js/scene/suntan/Suntan.md)
 ```
 
 - **A place or a body?**  A last segment in the body above's `system` is a
@@ -99,6 +101,12 @@ it (`js/targetPath.js`):
   place's is its body's: a view near it is in that body's frame, with no
   `from=`.  With `F` the camera rides
   the satellite again once restored.
+- **A Suntan craft's frame is its own** (`suntan:relay` names its own frame,
+  no `from=`): the camera rides it metres off, and the Sun's frame, 2.5e10
+  m away, would put four decimals of a degree 190 km out.  The altitude is
+  over a fixed 6 m and `cq` is relative to the craft, so the view comes
+  back to the metre whatever the model or the ride did.  With `F` the camera
+  rides it again; the link waits for the app's mission to be built.
 - **With a view** (`@…`, below) the camera is put back where the link had
   it, in its frame, and the target is set without turning it.
 
@@ -216,8 +224,15 @@ isn't written.
 A letter is a flip of the toggle's default, not "on": `a`, `l`, `p`, `o`,
 `U`, `G`, `x`, `i` and `v` are on by default, so their letters mean off (`s=loL` is
 star labels off, orbits off, landed; `s=i` is Earth's clouds off, the `I`
-key's, Celestia's `i`), while `e` `c` `g` `C` `S` `I` `D` `L` `T` `F` `A` mean
+key's, Celestia's `i`), while `e` `c` `g` `C` `S` `I` `D` `K` `L` `T` `F` `A` mean
 on (`s=ID` is Iridium and the DSN shown: js/scene/networks/Networks.md).
+
+`K` is the observer: off, the eye (the default); on, a camera, whose veil
+round the Sun is a good lens's, tens of times under the eye's
+([js/scene/Sun.md, "Glare"](../js/scene/Sun.md#glare)).  It is the Settings'
+Observer row, with no key (`C` was taken, by the globular clusters').  It is
+the user's observer: an app that sets its own instrument (Rubin's camera)
+overrides it while it runs, and the link still carries `K` as the user set it.
 
 `G` and `C` are the `e` and `E` keys (Shift+E), Celestia's: the galaxies'
 names and the globular clusters'.  The keys can't be the letters, since `e`
@@ -317,25 +332,32 @@ Each feature has its own label:
 "apps.<id>":        one running app's own state, a sub-namespace of apps
 "apps.expansion":   the Human Expansion app
 "apps.rubin":       the Rubin Observatory app
+                    (Earth breathing, `breathing`, has no token of its own)
 "news":             the changelog tour: a link that starts it (read, never
                     written)
 ```
 
 ### Time Token
 
-The clock (`Time.js`): paused, and the rate it runs at.
+The clock (`Time.js`): paused, the rate it runs at, and whether it steps by
+days at solar noon.
 
 ```
 pause              the clock is paused
 rate=<n>           the rate, a signed multiplier on real time: 8 is eight
-                   times, -2 is backwards at twice (default 1)
+                   times, -2 is backwards at twice, 86400 a day a second
+                   (default 1); with step=, days a second
+step=<N>d          day steps: the clock jumps N whole days at a time, each
+                   landed at local apparent solar noon under the camera
 ```
 
 ```
 #…;t=9774.8984jd;…;time:pause                paused at that date
 #…;t=now;…                                   at the moment it's opened, running
 #…;t=9774.8984jd;…;time:rate=8               running at 8x
+#…;t=9774.8984jd;…;time:rate=86400           a day a second, exactly
 #…;t=9774.8984jd;…;time:pause,rate=-4        paused, resuming at 4x backwards
+#…;t=9496.8052jd;…;s=…FY;time:step=1d,rate=30  noon to noon, 30 days a second
 ```
 
 Decisions:
@@ -352,11 +374,50 @@ Decisions:
   its rate (`j`, `k` and `l` set it while paused), so a link made paused at
   8x resumes at 8x.  Real time (1) is the default and left out, and so is a
   clock that is running at it, so the common link has no token.
-- **The rate is the multiplier, not Time's step count.**  The keys reach
-  only signed powers of two (`Time.timeScale`, up to 2^40), so the value is an
-  integer and reads as "8x"; a hand-written one snaps to the nearest power
-  of two (`Time.setRate`).  (Real time run backwards, `-1`, is a rate too:
-  `j` on real time gives it.)
+- **The rate is the multiplier, not Time's step count, and exact.**  The
+  keys reach signed powers of two (`Time.timeScale`, up to 2^40), which read
+  as "8x"; a link's rate is kept as written (to 4 decimal places, held to
+  ±2^40), so `rate=86400` is a day a second, not the 65,536 the nearest power
+  of two would be, and the rewritten link keeps it.  The keys' step is set to
+  the nearest (`Time.setRate`), so `j`, `k` and `l` go on from there by
+  powers of two, and after one the rate is a power of two again.  (Real
+  time run backwards, `-1`, is a rate too: `j` on real time gives it.)  Until
+  November 2026 a link's rate snapped to the nearest power of two.
+- **Day steps (`step=Nd`) are for timelapses of the seasons** ("breathing
+  Earth": the months' surface blended by day, the terminator rocking north
+  and south).  Each step lands at local apparent solar noon for the meridian
+  under the camera, its nadir on Earth (the link's `lng`), read at each step,
+  so the Sun stays over the same ground all year: the equation of time's
+  ±4° east-west wander, which steps of 86,400 s of the clock would show, is
+  gone, and only the Sun's declination moves.  Noon is the app's own: the
+  Sun's right ascension from its ephemeris (VSOP87C's Earth turned round, or
+  Meeus's Sun before it loads) against Greenwich by GMST, as the scene turns
+  Earth (`solarNoon.js`; the Sun drawn over that meridian to 0.003° in the
+  headless check).  The steps are paced by the wall clock: `rate` is then days
+  a second (`step=1d,rate=30` is a year in 12 s; at 60 frames a second, a day
+  every other frame), always written, `DEFAULT_STEP_DAYS_PER_SEC` (32) when
+  missing or when the steps start from a slower rate.  `j`, `k` and `l`
+  change the days a second by powers of two; `\` and `!`/`n` leave the
+  steps for real time; paused is paused.  The time panel's *Step by day
+  (solar noon)* toggle starts and ends them, the rate kept as a multiplier on
+  leaving.
+  - *The camera turns with Earth while the steps run* (`Scene.setCameraMode
+    ('turning')`, so the link has `Y`), if it was riding Earth's orbit: from
+    the orbit the ground turns under the camera a degree a day against the
+    Sun, so a year of noons would turn the globe once round in view.  It
+    goes back to the height's choice when the steps end, if they chose it.
+    Riding held by hand (`y`) is left alone.  A step waits while turning is
+    asked for and not yet hung (a link's first frame), and the clock runs on
+    from when its date was set (`Time.setTime`), not from its last update:
+    before, a link's first frame jumped by the load's seconds × the rate,
+    months of noons with the camera still on the orbit, 6.5° off the link's
+    meridian.
+  - *Earth only.*  With the camera at another body, or a star, the steps are
+    whole days of the clock (no noon).
+  - *The clouds hold the day they had* while the steps run (CloudShell): a
+    day a frame never lets a day's GIBS mosaic settle (CloudMap's 1 s), but
+    at a day a second one could start each second.  Paused, the day's
+    clouds load as ever.
 - **It belongs in a state token, not with the view params:** how the clock
   runs is app state, not how the camera frames the scene, and the
   view params are the camera's.
@@ -724,6 +785,35 @@ paths=0            the trajectory hidden, the craft's marks kept (drawn by
   and timeline set the app's clock, which the link carries as ever.
 - **A bad value is its default.**
 
+#### Earth breathing (`breathing`)
+
+The Earth breathing app (`store/breathingApp.js`, its panel the lazy chunk
+`ui/breathingApp.js`): the seasons from noon to noon, the clock's day steps
+([the time token](#time-token)'s `step=`) with a panel for them.  It has no
+`apps.breathing` token: everything it shows is the view's and the clock's,
+which the link carries already.
+
+```
+#sun/earth@50,69.8893,7Mm;t=9504.810753jd;cq=-0.5614,0.2476,0.1411,0.7769;fov=45deg;s=FY;time:step=1d,rate=32;apps:open,view=breathing
+```
+
+- **Opening it flies to its view** (`BREATHING_VIEW`, `startBreathing`):
+  Earth from 7 Mm over 50° N 69.9° E (the steppe, Siberia's snow and the
+  Himalaya), from solar noon on 8 January 2026, stepping a day at a time at
+  32 days a second, the camera turning with Earth (`Y`).  Always that view,
+  from midwinter, not the camera's own place: the time panel's *Step by day
+  (solar noon)* steps from wherever the camera is.  The tray's tile and the
+  search's *Earth breathing* (also "breathing", "seasons") open it; a link
+  naming it runs it without the flight (the link's own view and clock).
+- **The panel:** play and pause (play starts the steps if the time panel
+  ended them), the speed in days a second (1, 4, 8, 16, 32, 64: the
+  clock's own steps), the month, day of the year and date, and a scrubber
+  over the year that lands on the day's noon under the camera.
+- **Stopping it** (its X, or the drawer closed with it unpinned) ends the
+  steps and runs the clock at real time, continuously (paused stays
+  paused), and gives the camera back to the height's choice from turning
+  with Earth.
+
 ### News Token
 
 The changelog tour (DESIGN.md
@@ -914,8 +1004,9 @@ brings back all of the first group.
 - the widgets drawer, the dock, the apps pinned and running, and each app's
   controls and run (`apps`, `apps.<id>`);
 - the optional layers switched on: New York's city (`layers:nyc`);
-- the page's query string (`?hdr=0`, `?perf=1`), kept when the address bar
-  is rewritten.
+- the page's query string (`?hdr=0`, `?perf=1`, and `?sky=<key>`, a sky
+  survey's imagery over the stars: js/scene/sky/Sky.md), kept when the
+  address bar is rewritten.
 
 **Added with this audit:** `time:`, `sm=`, `T`, and the telescope-safe `fov=`.  `F` followed ([#102](https://github.com/celestiary/web/issues/102)).
 

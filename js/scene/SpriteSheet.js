@@ -2,6 +2,7 @@ import {
   AdditiveBlending,
   BufferGeometry,
   CanvasTexture,
+  SRGBColorSpace,
   Float32BufferAttribute,
   LinearFilter,
   NearestFilter,
@@ -389,6 +390,9 @@ export default class SpriteSheet {
   /** @returns {ShaderMaterial} */
   createMaterial() {
     const texture = new CanvasTexture(this.canvas)
+    // Drawn in CSS colours, which are sRGB: decoded on sampling, and encoded
+    // again on the way to the screen (HDR.md, "Colour spaces").
+    texture.colorSpace = SRGBColorSpace
     // Crisp at its size; smooth when a scalable sheet draws it smaller.
     texture.minFilter = this.scalable ? LinearFilter : NearestFilter
     texture.magFilter = this.scalable ? LinearFilter : NearestFilter
@@ -521,6 +525,7 @@ const fragmentShader = `
     vec4 texel = texture2D(map, spriteUV);
     // Faded in or out (fadeLabels): the shown attribute between 0 and 1.
     gl_FragColor = vec4(texel.rgb, texel.a * vShown);
+    #include <colorspace_fragment>
   }
 `
 
@@ -581,5 +586,6 @@ const surfaceFragmentShader = `
     vec4 texel = texture2D(map, spriteUV);
     // Faded in or out (fadeLabels): the shown attribute between 0 and 1.
     gl_FragColor = vec4(texel.rgb, texel.a * vShown);
+    #include <colorspace_fragment>
   }
 `

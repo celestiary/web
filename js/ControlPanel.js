@@ -9,6 +9,7 @@ import {satelliteFacts} from './scene/satellites/names.js'
 import {spectralTypeName} from './scene/stellar.js'
 import {LIGHTYEAR_METER} from './shared.js'
 import {capitalize} from './utils.js'
+import {css, sceneColors} from './theme.js'
 
 
 /** How often the orbit list's values follow the date, ms. */
@@ -457,7 +458,7 @@ export default class ControlPanel {
       const g = groups.get(e.payload?.group)
       return `<li class="population-result${k === 0 ? ' active' : ''}" role="option" ` +
         `aria-selected="${k === 0}" data-id="${esc(String(e.payload?.target?.id ?? ''))}">` +
-        `<span class="population-dot" style="background: ${esc(g?.color ?? '#c8c8c8')}"></span>` +
+        `<span class="population-dot" style="background: ${esc(g?.color ?? css(sceneColors.populationOther))}"></span>` +
         `${esc(e.displayName)} <span class="info-unit">${esc(g?.label ?? '')}</span></li>`
     }).join('')
   }

@@ -149,10 +149,9 @@ export function breadcrumbItems(target, committedPath, labelOf = () => undefined
   if (target?.kind === 'satellite') {
     items.push({label: target.name, hash: `sat:${target.id}`})
   }
-  // A Suntan craft has no link of its own (suntan/Suntan.md): its crumb
-  // opens the Sun.
+  // A Suntan craft by its path (design/URLs.md `suntan:`).
   if (target?.kind === 'craft') {
-    items.push({label: target.name, hash: 'sun'})
+    items.push({label: target.name, hash: `suntan:${target.id}`})
   }
   return items
 }

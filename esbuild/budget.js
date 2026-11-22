@@ -72,11 +72,82 @@ export const STATIC_BUDGET = {
   // turning, about 3 KB; ui/CameraModeControl.jsx's label 2.1 KB and
   // CameraModeMenu.jsx 2.4 KB, plain buttons: MUI's Menu, though already in
   // the first load, cost more, and loading the menu lazily split the first
-  // load from 11 scripts to 14), so 2,461.  With the compass (#361 step 3:
-  // js/compass.js, Scene cameraHeading, turnCamera and compassTap,
-  // ui/CompassControl.jsx, its dial an inline SVG), 2,464 and a fraction
-  // (2,465 with the ion token baked in), so 2,466.
-  totalMinifiedKB: 2466,
+  // load from 11 scripts to 14), so 2,461.
+  // The HiPS sky layer (#360) is lazy but for the `?sky=` parameter in
+  // Scene (showSky) and the Rubin panel's buttons to its imaged fields
+  // (their list and directions are in the lazy code), half a KB: 2,462.
+  // The Suntan craft's exposure (Scene.targetCraftNode and sunlitCraft,
+  // asked by ThreeUI each frame) and a link that names a craft and keeps the
+  // view on it (the `suntan:` path, the craft's frame and its restore in
+  // Celestiary, which reads a link before anything else loads), 2 KB: 2,464,
+  // so 2,465.
+  // 2,476, so 2,477 (11 KB more), with the Sun's activity view (#358;
+  // js/scene/Sun.md, "The activity view"): the EUV imager's and the
+  // coronagraph's branches of the photosphere's and the corona's shaders,
+  // which are one program each with the white-light picture, so not a chunk
+  // of their own; the flares' light curves in the event model the first
+  // frame already runs; and a star's activity against the Sun's
+  // (sun/stellarActivity.js, 2 KB), which Star.js reads as it builds the
+  // Sun.  The CMEs' particles (sun/cme/, 16 KB) are a chunk of their own,
+  // loaded when a CME is first in view, with what they share with the first
+  // load handed to them (SunLayers CME_DEPS): importing it had split two
+  // more files out of the first load for the same bytes.
+  // 2,482, so 2,483, with the colour theme (js/theme.js; design/UI.md, "The
+  // theme"): every designed colour in one module, 2.3 KB minified, most of
+  // it the lazy features' colours (the networks', the regimes', the orbit
+  // diagram's) moving into the first load; the chrome's colours set as CSS
+  // custom properties from it at App's load (applyCssColors), and index.css
+  // using `var(--x)` where it had a literal; the imports across the chunks.
+  // Lazy features that import nothing of the first load (Suntan, Rubin) are
+  // handed their colours, and MUI's palette is set in each route
+  // (ui/Palette.jsx), not in Style.jsx (the page's entry): importing the
+  // theme from either had split it into a file of its own.  Folding the
+  // off-palette colours into the palette will take some of it back.
+  // 2,484 with the screen's calibration (js/scene/screen.js; HDR.md,
+  // "Calibrated on the screen"): the dark gain, the night sky's gain and
+  // its skip derived from their screen values through the tone map and
+  // sRGB's encoding, 0.5 KB.
+  // 2,485 and a fraction, so 2,486, with Earth's physical air
+  // (composition.md, "Per-body data"): the ozone layer's tent in every table
+  // and the pass (ozoneParams, OZONE_GLSL), the aerosol's extinction per
+  // channel and the Mie's colour from it (mieColour), about 2 KB minified,
+  // less the fallback march's ozone, left out.  Shader code the first frame
+  // draws with, so not a chunk of its own.
+  // 2,487, so 2,488, with a camera as the observer (#375; Sun.md, "Glare"):
+  // a lens's glare function beside the eye's in the Sun's glare pass, picked
+  // by a uniform, the CAMERA instrument, ThreeUi's user observer under an
+  // app's instrument, and the Settings' Observer row and its `K` flag, 1.6 KB
+  // minified.  Shader code and settings the first frame reads.
+  // 2,488 and a fraction, so 2,490, with the disc from orbit (#375;
+  // composition.md, "The ground under the air", "The Mie's colour"): the
+  // coloured aerosol's second atlas and the per-channel Mie in the march,
+  // about 0.5 KB, and the backtick key's hooks for the panels.
+  // 2,495 and a fraction, so 2,496, with the ground lit through the air
+  // (composition.md, "The ground's light"): the ground-light table's
+  // precompute (Bruneton's irradiance, a shader of 2 KB), its lookup and
+  // the planet material's mod (atmos/groundLight.js), and the same light in
+  // the cloud shell and Cesium's decode, about 7 KB minified.  Shader code
+  // the first frame of Earth draws with; loaded lazily, Earth's ground would
+  // brighten when it came.  2,497 and a fraction, so 2,498, with the
+  // ground's albedo by the month (groundLight.js's month and threshold,
+  // ThreeUi's rebuild of the tables that read it, 1 KB).
+  // 2,501, so 2,502, with the months blended by the day (Planet.md, "The
+  // months blended by day": monthMaps.js and the planet material's mod, the
+  // shares' easing in monthly.js, Cesium's month stacks in cesium/season.js,
+  // 3 KB).  The detail over the month's colour (detailTransfer.js,
+  // detailImagery.js) is a chunk of its own, loaded once ion is asked.
+  // 2,502 and a fraction with the ion token, so 2,503, with the planets'
+  // places kept while the date stands (Animation.setDate's copy, a few
+  // hundred bytes); the detail's worker is a script of its own.  2,505 and
+  // a fraction, so 2,506, with the clock's day steps at solar noon (Time's
+  // steps, solarNoon.js, the time panel's toggle).  2,506 and a fraction, so
+  // 2,508, with the Earth breathing app's way in (its tray entry, search view
+  // and constants; its panel is a chunk of its own, breathingApp.js).
+  // With the compass (#361 step 3: js/compass.js, Scene cameraHeading,
+  // turnCamera and compassTap, ui/CompassControl.jsx, its dial an inline
+  // SVG; and the camera menu from the ground, Scene._leaveGround), 2,512
+  // (2,513 with the ion token), so 2,514.
+  totalMinifiedKB: 2514,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -97,8 +168,19 @@ export const STATIC_BUDGET = {
   // token, as the Rubin panel; loaded lazily it would split shared chunks as
   // that one's did).  760, so 761, with three.js 0.187 (from 0.171: about
   // 16 KB, three's own growth, as above).  763, so 764, with the camera
-  // control (#361 step 2, as above).  765 with the compass (step 3).
-  totalGzipKB: 765,
+  // control (#361 step 2, as above).  764, so 765, with the Suntan craft's
+  // exposure and link (as above).
+  // 769, so 770 (5 KB more), with the Sun's activity view (#358, above).
+  // 770 and a fraction, so 771, with the colour theme (as above).  772
+  // and a fraction, so 773, with Earth's physical air (as above; over 772
+  // with the ion token baked in, as CI's and the precommit hook's builds are).
+  // 774 and a fraction, so 776, with the ground lit through the air and its
+  // albedo by the month (as above; a fraction more with the ion token).
+  // 777, so 778, with the months blended by the day (as above).  778 and a
+  // fraction, so 779, with the day steps and the Earth breathing app.
+  // 780 and a fraction with the ion token, so 781, with the compass (#361
+  // step 3, as above).
+  totalGzipKB: 781,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,
@@ -139,8 +221,17 @@ export const RUNTIME_BUDGET = {
   // With three.js 0.187 (#366) main measured 1,015 to 1,019 KB from run to
   // run here, and #364's pivot took a CI run to 1,021.8: 1,024 KB, for the
   // runs' spread.  The camera control (#361 step 2) adds about 2.5 KB
-  // (1,021.5 here): 1,028.
-  ready: {requests: 28, kb: 1028},
+  // (1,021.5 here): 1,028.  The Sun's activity view (#358) adds the 5 KB
+  // its first load does gzipped (above: its branches of two shaders and
+  // of the event model; a CI run took 1,029.6): 1,033.  Its CMEs' chunk
+  // isn't in this: it is fetched only where a CME can show, which the
+  // homepage isn't (when it was, at first, it was the 29th request here).
+  // #375's physical air (the ozone in the tables), the camera's glare
+  // function and the backtick key's hooks took a CI run to 1,034.4: 1,036,
+  // for the runs' spread.
+  // #377's month blend (two map slots in the planet shader, about 3 KB
+  // minified) with #378's sprite caps took a CI run to 1,039.0: 1,041.
+  ready: {requests: 28, kb: 1041},
   // After #259: 39 requests, 3,918 KB.  Raised from #258's 29 requests:
   // the catalogue's faint tiers are 12 packs where stars.dat was one file,
   // by design (a deep link needs only its field's; DESIGN.md "The star

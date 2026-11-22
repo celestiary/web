@@ -18,6 +18,7 @@
  * no daily picture, and the bundled cloud texture (earth_atmos.jpg, one
  * day's clouds of no recorded date) stands in.
  */
+import {srgbDecode} from '../srgb.js'
 
 
 /**
@@ -168,10 +169,22 @@ export function tileRect(level, row, col) {
 
 
 /**
- * The cloud's colour in the true-colour mosaics, as stored (0-1): a thick
- * cloud's top, not quite saturated.
+ * The cloud's colour in the true-colour mosaics, as stored (0-1, sRGB-
+ * encoded): a thick cloud's top, not quite saturated.  The unmixing below
+ * works in the pictures' stored values, the mosaic's against the Blue
+ * Marble's, as a classification of where cloud is and how much: its
+ * thresholds (COVERAGE_CLEAR, COVERAGE_FULL) were read off real days in
+ * those values (Planet.md, "From a picture to coverage").
  */
 export const CLOUD_WHITE = 0.92
+
+/**
+ * The same cloud top's albedo, in linear light: CLOUD_WHITE decoded, 0.83,
+ * what the cloud shell lights (CloudShell.js), as the surface under it is
+ * lit from its decoded map (HDR.md, "Colour spaces").  Inside thick cloud
+ * tops' measured 0.8-0.9.
+ */
+export const CLOUD_ALBEDO = srgbDecode(CLOUD_WHITE)
 
 /**
  * The unmixed coverage that counts as clear, and as fully cloudy.  Over

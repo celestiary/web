@@ -39,6 +39,7 @@ import {orbitAt} from './meanElements.js'
 import {loadModel} from './model.js'
 import {newLabels} from './overlayMarks.js'
 import {newWideLineStrip} from './wideLines.js'
+import {BodyLine, MAX_FINE_STEPS} from './bodyLine.js'
 import {planetsApprox} from './planetsApprox.js'
 import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
 import {faceKeepingRoll} from '../faceKeepingRoll.js'
@@ -48,9 +49,11 @@ import {newGaiaPopulation} from './gaia/gaiaPopulation.js'
 import {pickSurfaceLatLng} from './Picker.js'
 import {SATELLITES_LOAD_DIST} from './satellites/names.js'
 import {hitLabel, labelBoxes} from './labelPick.js'
+import {CAMERA} from './observer/instrument.js'
 import {labelTextColor} from '../shared.js'
 import * as Shared from '../shared.js'
 import * as Utils from '../utils.js'
+import {sceneColors} from '../theme.js'
 
 
 const ELEMENT_CODE_SET = new Set(CODES)
@@ -250,6 +253,7 @@ export default class Scene {
       I: false, // Iridium and its crosslinks
       D: false, // the Deep Space Network and its live links
       i: true, // Earth's clouds: the shell and the volume (cloudsShown; the 'I' key)
+      K: false, // a camera the observer, not the eye (setObserverCamera; Sun.md, "Glare")
       v: true, // nav panels / heads-up display (Celestiary-owned, see registerSettingApplier)
     }
     // Each overlay's fade (OVERLAY_KEYS), stepped once a frame by the
@@ -309,6 +313,12 @@ export default class Scene {
     this.loadRubin = () => import('./rubin/install.js')
     // The Suntan feature, the same way (getSuntan).
     this.loadSuntan = () => import('./suntan/install.js')
+    // A sky survey's imagery over the stars from the start, by its key: the
+    // `?sky=` parameter (sky/Sky.md), until the surveys have a control.
+    const sky = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('sky')
+    if (sky) {
+      this.showSky(sky)
+    }
     // Whether vsopAt is VSOP87C itself yet (Animation.vsopReady): set by
     // Celestiary.  Absent, as in tests, it's taken as ready.
     this.vsopReady = null
@@ -472,6 +482,7 @@ export default class Scene {
     for (const key of OVERLAY_KEYS) {
       this.fades[key].set(hold ? false : this._settings[key], {instant: true})
     }
+    this._applyObserver()
     this.ui.scene.traverse((obj) => {
       if (obj.name === 'MilkyWay') {
         obj.visible = this._settings.U
@@ -662,6 +673,7 @@ export default class Scene {
       I: () => this.toggleNetwork('I'),
       D: () => this.toggleNetwork('D'),
       i: () => this.toggleClouds(),
+      K: () => this.toggleObserverCamera(),
       ...this._customAppliers,
     }
     for (const key of Object.keys(dispatch)) {
@@ -1600,6 +1612,27 @@ export default class Scene {
       return this._satelliteNode(t)
     }
     return t?.kind === 'craft' ? this._craftNode(t) : null
+  }
+
+
+  /**
+   * @returns {?object} the targeted Suntan craft's node, while it has a
+   *   place: what keys the exposure (ThreeUi._updateExposure), as a
+   *   targeted planet does, where its target object is the Sun
+   */
+  targetCraftNode() {
+    const label = Shared.targets.label
+    return label?.kind === 'craft' ? this._craftNode(label) : null
+  }
+
+
+  /**
+   * @returns {Array<object>} the Suntan craft whose models show, each a node
+   *   with props (radius, albedo): sunlit bodies for the meter's anchor
+   *   (ThreeUi._sunlitBodies), as the planets and moons are
+   */
+  sunlitCraft() {
+    return this.suntan?.track.sunlitNodes() ?? []
   }
 
 
@@ -2856,6 +2889,7 @@ export default class Scene {
   /** Out of the seat (rideSeat), the camera staying where it is. */
   leaveSeat() {
     this.seat = null
+    this.seatAim = null
   }
 
 
@@ -3475,6 +3509,15 @@ export default class Scene {
    */
   linkCameraQuaternion() {
     const camera = this.ui.camera
+    // Riding a Suntan craft, relative to its node, the link's frame
+    // (Celestiary._cameraFrame, _restoreCraftView): the platform's turn on
+    // it is whatever the ride left.
+    const craft = camera.platform.parent
+    if (craft?.isCraftNode) {
+      craft.updateWorldMatrix(true, false)
+      const platform = camera.platform.getWorldQuaternion(new Quaternion())
+      return craft.getWorldQuaternion(new Quaternion()).invert().multiply(platform).multiply(camera.quaternion)
+    }
     const body = this._spinBody
     if (!body || camera.platform.parent !== body || Shared.targets.landed || !body.orbitPosition) {
       return camera.quaternion.clone()
@@ -3725,9 +3768,22 @@ export default class Scene {
     this.rubin ??= installRubin(this, {
       orbitAt, precessionQuaternion, utcToTtJulianDay, J2000_JD, newRings, newLabels, newWideLineStrip, loadModel,
       latLngAltToBodyFixed, sceneReferred, OVERLAY_LAYER: Shared.OVERLAY_LAYER, ASTRO_UNIT_METER: Shared.ASTRO_UNIT_METER,
-      dataUrl, addCredit, removeCredit,
+      dataUrl, addCredit, removeCredit, colors: sceneColors.rubin,
     })
     return this.rubin
+  }
+
+
+  /**
+   * A sky survey's imagery (HiPS tiles, sky/Sky.md) drawn over the stars,
+   * by its key (`jwst-nircam`): lazily loaded.
+   *
+   * @param {string} key
+   * @returns {Promise<?object>} The layer, or null for a key no survey has
+   */
+  async showSky(key) {
+    const {showSurvey} = await import('./sky/install.js')
+    return showSurvey(this, key, {sceneReferred, addCredit, removeCredit})
   }
 
 
@@ -3755,7 +3811,8 @@ export default class Scene {
     }
     if (!this.suntan) {
       this.suntan = installSuntan(this, {
-        planetsApprox, newWideLineStrip, newRings, newLabels, OVERLAY_LAYER: Shared.OVERLAY_LAYER,
+        planetsApprox, newWideLineStrip, newRings, newLabels, loadModel, OVERLAY_LAYER: Shared.OVERLAY_LAYER,
+        BodyLine, MAX_FINE_STEPS, colors: sceneColors.suntan,
       })
       this._joinOverlay('o', this.suntan.track)
       // Its craft are search results while it runs (SuntanProvider).
@@ -3899,6 +3956,31 @@ export default class Scene {
   /** @returns {boolean} whether Earth's clouds are drawn (the 'i' setting) */
   cloudsShown() {
     return this._settings.i !== false
+  }
+
+
+  /**
+   * The observer, the eye or a camera (the Settings' Observer row; `K` in
+   * a link's `s=`): a camera's veil round the Sun is a lens's, tens of
+   * times under the eye's (Sun.md, "Glare"; observer/instrument.js
+   * CAMERA).  The user's default observer: an app's own instrument
+   * (Rubin's) overrides it while the app runs (ThreeUi.setInstrument).
+   */
+  toggleObserverCamera() {
+    this._flipSetting('K')
+    this._applyObserver()
+  }
+
+
+  /** @returns {boolean} whether the observer is a camera (the 'K' setting) */
+  observerIsCamera() {
+    return this._settings.K === true
+  }
+
+
+  /** The observer setting to the renderer. */
+  _applyObserver() {
+    this.ui.setObserver?.(this._settings.K ? CAMERA : null)
   }
 
 

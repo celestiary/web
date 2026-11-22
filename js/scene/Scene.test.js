@@ -3,6 +3,7 @@ import vsop87cLoader from 'vsop87/dist/vsop87c-wasm'
 import {Object3D, PerspectiveCamera, Quaternion, Scene as ThreeScene, Vector3} from 'three'
 import {SETTINGS_DEFAULTS} from '../permalink.js'
 import * as Shared from '../shared.js'
+import {CAMERA} from './observer/instrument.js'
 import bltData from '../../public/data/blt.json'
 import periodicData from '../../public/data/periodicOrbits.json'
 
@@ -252,6 +253,27 @@ describe('Scene settings tracking', () => {
     expect(s.overlayShown('l')).toBe(true)
   })
 
+  it('toggleObserverCamera flips K and makes a camera the ui\'s observer; applySettings and initSettings drive it', () => {
+    const s = makeScene()
+    const observers = []
+    s.ui.setObserver = (inst) => observers.push(inst)
+    expect(s.observerIsCamera()).toBe(false)
+    let fired = 0
+    s.onSettingsChange = () => fired++
+    s.toggleObserverCamera()
+    expect(s.getSettings().K).toBe(true)
+    expect(s.observerIsCamera()).toBe(true)
+    expect(observers).toEqual([CAMERA])
+    expect(fired).toBe(1)
+    s.applySettings({K: true})
+    expect(fired).toBe(1)
+    s.applySettings({K: false})
+    expect(observers).toEqual([CAMERA, null])
+    s.initSettings({K: true})
+    expect(observers).toEqual([CAMERA, null, CAMERA])
+    expect(fired).toBe(2)
+  })
+
   it('toggleClouds flips i, which cloudsShown reads, and applySettings drives it', () => {
     const s = makeScene()
     expect(s.cloudsShown()).toBe(true)
@@ -395,7 +417,7 @@ describe('Scene.applySettings', () => {
     milkyWay.name = 'MilkyWay'
     s.ui.scene.add(milkyWay)
     const target = {a: false, l: true, p: false, o: false, e: true, c: true, g: true, U: false, G: true, C: true, x: false,
-      S: false, I: false, D: false, i: false, v: false}
+      S: false, I: false, D: false, i: false, K: true, v: false}
     s.registerSettingApplier('v', () => s.flipSetting('v'))
     s.applySettings(target)
     s.overlays.finish()

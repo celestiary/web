@@ -1,6 +1,8 @@
 import {describe, expect, it} from 'bun:test'
 import {PerspectiveCamera} from 'three'
-import {NAKED_EYE, RUBIN} from './scene/observer/instrument.js'
+import {CAMERA, NAKED_EYE, RUBIN} from './scene/observer/instrument.js'
+import {absoluteUniforms} from './scene/hdr.js'
+import {GLARE_MODEL_CAMERA, GLARE_MODEL_EYE} from './scene/sun/glare.js'
 
 
 // Celestiary.test.js replaces './ThreeUI' with a stub for the whole run, in
@@ -87,5 +89,28 @@ describe('ThreeUi field of view, held to the instrument\'s range', () => {
     expect(ui.camera.fov).toBe(1e-4)
     ui.resetFov()
     expect(ui.camera.fov).toBe(45)
+  })
+})
+
+
+describe('ThreeUi\'s observer: the user\'s, an app\'s instrument over it', () => {
+  it('a camera as the user\'s observer sets the glare\'s model; an app\'s instrument overrides it, and its stop returns to it', () => {
+    const ui = fakeUi()
+    ui.setObserver(CAMERA)
+    expect(ui.instrument).toBe(CAMERA)
+    expect(absoluteUniforms.uGlareModel.value).toBe(GLARE_MODEL_CAMERA)
+    ui.setInstrument(RUBIN)
+    expect(ui.instrument).toBe(RUBIN)
+    expect(absoluteUniforms.uGlareModel.value).toBe(GLARE_MODEL_EYE)
+    // The user's setting while the app runs waits under it.
+    ui.setObserver(null)
+    expect(ui.instrument).toBe(RUBIN)
+    ui.setObserver(CAMERA)
+    ui.setInstrument(null)
+    expect(ui.instrument).toBe(CAMERA)
+    expect(absoluteUniforms.uGlareModel.value).toBe(GLARE_MODEL_CAMERA)
+    ui.setObserver(null)
+    expect(ui.instrument).toBe(NAKED_EYE)
+    expect(absoluteUniforms.uGlareModel.value).toBe(GLARE_MODEL_EYE)
   })
 })

@@ -30,6 +30,8 @@ import {
 } from './stellar.js'
 import * as Shared from '../shared.js'
 import SunLayers from './sun/SunLayers.js'
+import {VIEW_EYE} from './sun/activityView.js'
+import {SUN_AGE_GYR, SUN_ROTATION_DAYS, stellarActivity} from './sun/stellarActivity.js'
 
 
 /**
@@ -163,6 +165,19 @@ export function isTheSun(props) {
 }
 
 
+/**
+ * The view a star's layers start in: `?sun=euv` in the URL asks for the
+ * activity view (sun/activityView.js), an EUV imager's disc in a
+ * coronagraph's field.
+ *
+ * @param {string} [search] The URL's query
+ * @returns {string}
+ */
+export function viewFromUrl(search = typeof location === 'undefined' ? '' : location.search) {
+  return new URLSearchParams(search ?? '').get('sun') ?? VIEW_EYE
+}
+
+
 export default class Star extends Object {
   /**
    * @param {object} props
@@ -247,10 +262,24 @@ export default class Star extends Object {
     const rotation = photo.rotation
     // A rotator is an oblate spheroid, its radius the equator's.
     this.oblate = rotation?.oblate ?? 1
-    const seed = seedUniforms(starSeed(props))
+    const starId = starSeed(props)
+    const seed = seedUniforms(starId)
     const v3 = (a) => new Vector3(...a)
+    // Its magnetic activity against the Sun's (sun/stellarActivity.js): the
+    // Sun's own period, another star's from its mass and a seeded age.
+    const sun = isTheSun(props)
+    this.activityModel = stellarActivity({
+      teff: photo.teffMean,
+      logg: photo.params.logg,
+      mass: photo.params.mass,
+      radius: photo.params.radius,
+      rotationDays: sun ? SUN_ROTATION_DAYS : undefined,
+      ageGyr: sun ? SUN_AGE_GYR : undefined,
+      // The age's draw: another of the id's bits than the spots'.
+      seed: (Math.imul(starId, 0x85ebca6b) >>> 0) / 4294967296,
+    })
     // The Sun's activity by date; every star's glare.
-    this.sunLayers = new SunLayers(this, {activity: isTheSun(props)})
+    this.sunLayers = new SunLayers(this, {activity: sun, model: this.activityModel, view: viewFromUrl()})
     // The surface's radiance is physical (HDR.md, "Physical stars"): the
     // Sun's disc is 1/θ² of a white surface facing it, θ its angular
     // radius from 1 AU, times this star's surface brightness over the Sun's,

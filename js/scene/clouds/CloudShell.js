@@ -11,7 +11,8 @@ import {
 } from 'three'
 import {irradianceAt} from '../exposure.js'
 import {CLOUD_LAYER} from '../../shared.js'
-import {CLOUD_WHITE} from './cloudSource.js'
+import {CLOUD_ALBEDO} from './cloudSource.js'
+import {GROUND_LIGHT_GLSL, newGroundLightUniforms, updateGroundLight} from '../atmos/groundLight.js'
 import {creditGibs} from '../gibs.js'
 import {followCredit} from '../../credits.js'
 
@@ -147,10 +148,14 @@ export const CREDIT_MIN_PX = 10
  *   drawn under the clouds
  * @param {object} [opts.volume] The body's CloudVolume, which takes over
  *   from the shell up close; the shell drives its texture building
+ * @param {object} [opts.atmos] The body's atmosphere props, for the light
+ *   through the air (groundLight.js)
  * @returns {Mesh}
  */
-export function newCloudShell(groundRadius, cloudMap, {ready = () => true, volume = null} = {}) {
+export function newCloudShell(groundRadius, cloudMap, {ready = () => true, volume = null, atmos = null} = {}) {
   const cloudRadius = groundRadius + CLOUD_HEIGHT_M
+  // Lit through the air above the tops, as the ground is (groundLight.js).
+  const ground = newGroundLightUniforms()
   const material = new ShaderMaterial({
     name: 'cloud shell',
     uniforms: {
@@ -164,6 +169,9 @@ export function newCloudShell(groundRadius, cloudMap, {ready = () => true, volum
       uRadiance: {value: 0},
       uOpacity: {value: 1},
       uShadow: {value: SHADOW_STRENGTH},
+      // The tops' height over the air's.
+      uCloudH: {value: atmos ? CLOUD_HEIGHT_M / atmos.height.scalar : 0},
+      ...ground,
     },
     vertexShader: VERTEX,
     fragmentShader: FRAGMENT,
@@ -190,7 +198,13 @@ export function newCloudShell(groundRadius, cloudMap, {ready = () => true, volum
   shell.preAnimCb = (time) => {
     credit(gibsDrawn)
     gibsDrawn = false
-    cloudMap.update(time.simTime)
+    // While the clock steps by days (Time.setStepDays) the clouds hold the
+    // day they had: a day a frame never settles (CloudMap SETTLE_MS), but at
+    // a day a second one could, and start a day's tiles each second.
+    // Paused, the day's clouds load as ever.
+    if (!(time.stepDays > 0 && !time.isPaused)) {
+      cloudMap.update(time.simTime)
+    }
     volume?.update()
     shell.visible = ready()
     // The first map fades in from here (CloudMap.gain), not from when it
@@ -205,6 +219,7 @@ export function newCloudShell(groundRadius, cloudMap, {ready = () => true, volum
   let world
   shell.onBeforeRender = (renderer, scene, camera) => {
     const u = material.uniforms
+    updateGroundLight(u, atmos)
     // The body frame (the shell's own: it's a child of the rotating
     // planet node, untransformed), in doubles: the world positions are
     // ~1.5e11 m.
@@ -222,8 +237,9 @@ export function newCloudShell(groundRadius, cloudMap, {ready = () => true, volum
     const sunDistance = sun.length()
     u.uSun.value.copy(sun).normalize()
     // A white cloud's radiance in three's units (Lambert: E·albedo/π), for
-    // the renderer's exposure to scale as it does the lit surface.
-    u.uRadiance.value = sunDistance > 0 ? CLOUD_WHITE * irradianceAt(sunDistance) / Math.PI : 0
+    // the renderer's exposure to scale as it does the lit surface: its
+    // albedo in linear light, as the ground under it (cloudSource.js).
+    u.uRadiance.value = sunDistance > 0 ? CLOUD_ALBEDO * irradianceAt(sunDistance) / Math.PI : 0
     const readiness = volume ? volume.readiness() : 0
     u.uOpacity.value = shellOpacity(eye.length() - groundRadius, readiness) * cloudMap.gain()
     if (cloudMap.fromGibs && !gibsDrawn) {
@@ -259,6 +275,8 @@ uniform float uShellOverGround;
 uniform float uRadiance;
 uniform float uOpacity;
 uniform float uShadow;
+uniform float uCloudH;
+${GROUND_LIGHT_GLSL}
 varying vec3 vPos;
 varying vec2 vUv;
 
@@ -289,7 +307,8 @@ void main() {
     }
   }
 
-  gl_FragColor = vec4(vec3(uRadiance * max(dot(n, uSun), 0.0)), 1.0);
+  float mu = dot(n, uSun);
+  gl_FragColor = vec4(uRadiance * (max(mu, 0.0) * groundSunT(uCloudH, mu) + groundSky(uCloudH, mu)), 1.0);
   #include <tonemapping_fragment>
   gl_FragColor.rgb *= cover;
   gl_FragColor.a = 1.0 - (1.0 - cover) * (1.0 - shadow);

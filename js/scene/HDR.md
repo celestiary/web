@@ -14,15 +14,45 @@ Background: [Planet.md, lighting and exposure](Planet.md#lighting-and-exposure)
 (the target-keyed exposure), [atmos/composition.md](atmos/composition.md) (the
 atmosphere pass), [CESIUM.md](../../CESIUM.md) (the layers).
 
-## Colour spaces: "stored values"
+## Colour spaces
 
-Celestiary never decodes or encodes sRGB.  Textures load with no colour space
-(three's `NoColorSpace`), and the renderer's output colour space is linear, so
-three's `colorspace_fragment` does nothing.  A texture's stored 8-bit value,
-itself sRGB-encoded, is lit as if it were linear, and the result goes to the
-screen as it is.  This doc calls that space **stored values**.  "Linear" below
-means linear in light over stored values: doubling the Sun doubles the value.
-Cesium's layers follow the same convention (`sunlitShader`, below).
+The pipeline is colour-managed: light is linear everywhere between a
+texture's sample and the screen, and sRGB only at the two ends.
+
+- **In: a picture is decoded.**  A colour map that is a picture, sRGB-encoded
+  as every JPEG and PNG of a body is (its colour map, Earth's night lights,
+  the rings' colour), is marked `SRGBColorSpace` (`material.js`
+  `colorMapSpace`), so three uploads it as `SRGB8_ALPHA8` and the GPU
+  decodes each sample, built-in shader or custom, to linear light before it
+  is lit.  A body's `texture_gain` then takes the decoded map to its albedo
+  (Planet.md, [albedo](Planet.md#albedo)).
+- **A calibrated linear map is not.**  The Moon's colour map is a linear
+  stretch of I/F (Planet.md, [the Moon's photometry](Planet.md#the-moons-photometry)),
+  not a picture: its descriptor says `texture_encoding: "linear"`, and it is
+  read as stored (`LinearSRGBColorSpace`), so its maria and highlands keep
+  the Moon's 2.1:1 ratio (decoded they would be 4.5:1).
+- **Data is never decoded**: terrain, normal, ocean and opacity maps, the
+  cloud coverage, the cloud volume's tables, the Milky Way's and galaxies'
+  maps (their own encodings), Cesium's relief map.  They load with no colour
+  space (`NoColorSpace`), as they did.
+- **Out: the frame is encoded.**  The atmosphere pass tone-maps the linear
+  buffer once and encodes the result to sRGB (`encodeOut`;
+  `renderer.outputColorSpace` is `SRGBColorSpace`, so three encodes the
+  overlay pass too), so a colour picked as a hex shows as its hex.
+- **Cesium's layers** are lit in linear light too: a globe's imagery is
+  decoded by our Cesium patch before it is lit and its frame sRGB-encoded
+  for its 8-bit buffer, a tileset's decoded in `sunlitShader` and its frame
+  log-encoded, and the composite's decode inverts either
+  ([Cesium in the same units](#cesium-in-the-same-units); CESIUM.md,
+  [colour](../../CESIUM.md#colour-the-imagery-decoded)).
+
+Until late 2026 celestiary never decoded or encoded sRGB: textures loaded with
+no colour space and a texture's stored 8-bit value was lit as if it were
+linear, the result written to the screen as it was ("stored values").  The
+screen was encoded first (ccb58876), then the inputs decoded; the constants
+fitted on stored values were refitted then (Planet.md, [albedo](Planet.md#albedo);
+rings.md; CESIUM.md).  "Linear" below means linear in light: doubling the
+Sun doubles the value.
 
 Two kinds of value then live in the pipeline:
 
@@ -34,6 +64,87 @@ Two kinds of value then live in the pipeline:
   `toneMapped: false` and their values are meant as display values.  The
   stars, the Milky Way and the Sun's disc wrote display values too until PR
   B made them scene-referred (below).
+
+### Calibrated on the screen
+
+A screen value is what the frame writes, and so the light the display
+emits.  Since the atmosphere pass encodes the frame to sRGB (ccb58876) a
+grey's screen value is `S(v) = srgbEncode(N(v))`, N the tone map, v in
+exposure units; before it, it was `N(v)`.  Every threshold the star field
+and the eye's response are calibrated on is a screen value, and is now
+written as one, its scene value derived through `screen.js` (`screenOf`,
+`sceneOfScreen`, `screenSlope`), so that a change of the output transform
+re-derives them all.  Each kept the screen value it had, so the light the
+display emits for it is what it was.
+
+The physical inputs stay: the limiting magnitude (6.5), the eye's patch
+(9.7′, rod acuity), the eye's threshold contrasts.  What moves is the
+dark-adapted gain, which is the knob the limit is set by: `EYE_DARK_GAIN`
+is now derived, the gain at which the limit star over the patch shows
+`LIMIT_SCREEN`.
+
+| Constant | Its screen value | Before → after |
+|---|---|---|
+| `LIMIT_SCREEN` (new), the limit star on the screen | 0.08, 20 of 255 | |
+| `LIMIT_VALUE` = `sceneOfScreen(LIMIT_SCREEN)`, the limit star at the dark gain | 0.08 | 0.12 → 0.034 |
+| `EYE_DARK_GAIN` = `METER_GAIN_MAX` | | 4e6 → 1.13e6 (÷3.54) |
+| `METER_FLOOR` (`METER_KEY` over it) | | 7.5e-8 → 2.7e-7 |
+| `EXTENDED_GAIN_DARK` (one screen step for the eye's large-field threshold) | the dark sky 5 of 255 | 2.19 → 2.15 |
+| `NIGHT_SKY_SKIP_VALUE` (half a screen step) | 0.5 of 255 | 0.018 → 0.0049 |
+| `STAR_WING_FLOOR` (0.39 of the dark sky at the dark gain) | | 0.01 → 0.0028 |
+
+In the toe, while N is under sRGB's linear part (0.0031308, 10 of 255 on
+the screen), `S = 12.92 · 6.25 · v²`, so `S(v/√12.92) = N(v)`: a frame at
+a gain √12.92 = 3.59 lower shows the same screen values there.  The limit
+star, at 20 of 255, is past the linear part, and the gain that holds it
+is 3.54 lower, not 3.59, so the dark-adapted frame's deep toe is 3% over
+its old screen values (5 of 255 shows as 5.15; 10.2 as 10.5), and the
+night sky, set by the threshold mapping, is on them exactly.  The
+thresholds that are the screen's own are kept, each under half a screen
+step: `STAR_VISIBLE_VALUE` (0.004, a third of a step: the quad's cut),
+`HDR_MIN_NORMAL` (8e-5 of a step for a grey, a fifth for a saturated
+colour, whose weakest channel alone the toe takes), and the Sun's
+`VISIBLE_FLOOR` (1e-4).
+
+The limit star keeps its screen value, and so does the faint end, but
+the curve above it is the encoding's, not the stored values'.  At the dark
+gain on a 1080 px screen, a star's peak, of 255:
+
+| Magnitude | 8 | 7 | 6.5 | 6 | 5 | 4 |
+|---|---|---|---|---|---|---|
+| Before the encoding (4e6, N) | 9.4 | 39 | 68 | 113 | 233 | 249 |
+| Now (1.13e6, S) | 9.7 | 37 | 61 | 88 | 150 | 233 |
+
+The quads and the wings are the same (the wing floor moved with the gain):
+magnitude 6 a 9.4 px quad, Sirius 88 px.  Sirius's white core (where the
+kernel passes 0.76) is 5.8 px, against 9.1: every star's value is 3.54
+times lower.  In light, a star is now linear in its value above the toe,
+as a surface is; before, the display's decoding of stored values raised
+the light of the brighter stars by its power of 2.2.
+
+What else moves with the dark gain:
+
+- **The adapted luminance** at it (`eye.js` `adaptationLuminance`,
+  `METER_KEY` over the gain) is 7.1e-3 cd/m², from 2e-3: just inside the
+  CIE's mesopic range (from 5e-3), so the eye's extended gain there is
+  2.14, 0.4% under `EXTENDED_GAIN_DARK`.  The night sky's per-pixel grey
+  and gain go by its own physical luminance, which doesn't move.
+- **The limit away from the cap** is 1.37 magnitudes deeper: it is 6.5 at
+  the dark gain and moves with the gain over it, and a fixed gain is now
+  3.54 times nearer the cap.  A star at a given gain shows brighter
+  through the encoding; at the keyed exposure by day the limit is −8.6
+  (−10 before), and at #198's view of HIP 46635 4.5 (3.1).
+- **Every frame the meter caps** (a star field, a dark night side) is 3.54
+  times darker in exposure units, and shows the same in its deep toe; a
+  frame the meter keys (a moonlit landscape over the floor, a lit body) is
+  unchanged in exposure units and brighter on the screen through the
+  encoding.  The meter's floor counts black as a scene of 7.1e-3 cd/m²,
+  still well over the eye's 1e-6.
+- **Into the buffer** at the dark gain everything is 3.54 times lower, so
+  half-float's floor (6.1e-5) takes stars fainter than about magnitude
+  13.4, not 15; the Milky Way's band at the pole is 6e-4.
+- **Instruments**: `instrumentStarGain` and the telescope's field are over
+  the eye's, and Rubin's copies the eye's dark gain, so they follow.
 
 ## Before
 
@@ -90,6 +201,47 @@ multiply (the buffer already holds `k·L`):
 It runs at the end of the atmosphere pass, on every path through it (the
 pass-through when there's no atmosphere too).  A lit surface with no sky over
 it therefore shows `N(k·L)` exactly as before.
+
+### Trying other tone maps
+
+For diagnosing colour (a frame against a photograph), the final map can be
+swapped from the performance panel's *Tone map* control (the backtick key;
+DESIGN.md [performance panel](../../DESIGN.md#performance-panel)) or with
+`?tonemap=<key>` in the URL: `neutral` (the default), `aces`, `agx`,
+`reinhard`, `cineon`, `linear` or `greyscale`.  `toneMaps.js` holds them:
+three's operators (r187) without their exposure multiply, since the buffer
+holds `k·L` already.  The pass's three paths to the screen call
+`finalToneMap`, which in the first load is one line, PBR Neutral
+(`Atmosphere.js` `DEFAULT_TONE_MAP_GLSL`); the first ask for another map
+imports `toneMaps.js`, which swaps that line for every operator, picked by a
+`uToneMap` uniform, and the pass recompiles once (`installToneMaps`).  So the
+default costs neither bytes nor a branch.  `greyscale` is PBR Neutral's output as its Rec. 709
+luminance, to judge brightness apart from hue.
+
+- **Only the final map changes.**  `renderer.toneMapping` stays the scene
+  pass's exposure-only `CustomToneMapping`: setting it to one of three's
+  operators would clamp the HDR buffer to [0, 1] (they saturate) and take the
+  exposure twice.
+- **Display-referred content is still `N⁻¹`'d** (below), so under another
+  map the stars, the Milky Way's display parts, labels and lines show a
+  little off their intended values, and the night sky's light is still added
+  after the map in display values.  The overlay pass (labels, orbits, grids)
+  is drawn after the tone map and keeps its colours, even in `greyscale`.
+- **Linear sRGB around the map** ([colour spaces](#colour-spaces)): the
+  inputs decoded, the output encoded after the map, so `aces` and `agx`,
+  whose matrices assume linear sRGB primaries, act on what they expect.
+- The meter reads the linear composite (`uDebug` 7), not the tone-mapped
+  frame, so the exposure doesn't change with the map.
+- **The output colour space** has a control beside it (*Output*, or
+  `?colorspace=linear`): `SRGBColorSpace`, the app's, sets
+  `renderer.outputColorSpace` and the atmosphere pass's `uSrgbOut`, so the
+  pass encodes its display values to sRGB in `screenOut`, and three's
+  materials drawn to the screen (the overlay pass) encode by three's own
+  `colorspace_fragment`.  `LinearSRGBColorSpace` writes the frame
+  unencoded, for diagnosis: darker and more contrasty.  The panel had a
+  third control, *decode colour textures* (`?decode=1`,
+  `js/perf/textureDecode.js`), from when the inputs weren't decoded; it went
+  when they were, since a texture's encoding is its data's, not a choice.
 
 ### Display-referred content: `N⁻¹`
 
@@ -180,9 +332,11 @@ not a bug: PR B's metered exposure raises twilight on its own.
 `sunIntensity`'s physical value is `π·DISPLAY_GAIN` = 4.71; Earth's 30 was 6.4×
 that.  The factor stood in for multiple scattering and aerosols; since the
 precompute integrates multiple scattering (composition.md, "Multiple
-scattering") Earth's gain is 21, 4.5×, re-fitted to hold its sky's luma,
-and the rest is the aerosol load PR B tunes against, once stars are
-physical too.  Mars has the physical value: its sky is its dust's.
+scattering") Earth's gain was 21, 4.5×, re-fitted to hold its sky's luma,
+and the rest was the aerosol load.  Since that load is in the data (τ 0.12
+at 550 nm, and the ozone: composition.md, "Earth's air") Earth has the
+physical value too, as Mars does: its sky is its air's.  (The worked number
+above is the data before, Mie τ 0.006.)
 
 **Every other body has it too** (`exposure.js` `PHYSICAL_SKY_GAIN`, the
 default when a body's data gives no `sunIntensity`).  The factor
@@ -219,17 +373,21 @@ keyed one, so the value is right at any exposure (the shared
 
 **The limiting magnitude is the parameter** (`exposure.js`
 `LIMITING_MAGNITUDE`, 6.5): the naked eye's at a dark site, dark adapted,
-which is the metered exposure's dark-adapted gain (`METER_GAIN_MAX`, 4e6
-over Earth's keyed exposure, wherever the camera is; below).  A star of that magnitude shows `LIMIT_VALUE` there, 0.12 in
-exposure units, 12 of 255 through Neutral's toe: just visible.  Brighter
-stars have 2.5× more light per magnitude (6.0 is 25 of 255, 5.0 110, 4.0
-white and blooming), fainter ones less, down into black smoothly (7.0 a
-dusting at 5, 8 and beyond black): no pop at the limit.  Each magnitude's
-2.5× is compressed by the tone map above 0.76 and steepened by its toe
-below 0.08.  At any other exposure the limit moves with the gain
+which is the metered exposure's dark-adapted gain (`METER_GAIN_MAX`, 1.13e6
+over Earth's keyed exposure, wherever the camera is; below).  A star of that magnitude shows `LIMIT_VALUE` there, 0.034 in
+exposure units, 20 of 255 on the screen (`LIMIT_SCREEN`, through Neutral's
+toe and sRGB's encoding: [calibrated on the screen](#calibrated-on-the-screen)):
+just visible.  Brighter stars have 2.5× more light per magnitude (on a
+pixel that is the patch, 6.0 is 37 of 255, 5.0 87, 4.0 149, 3.0 232),
+fainter ones less, down into black smoothly (7.0 a dusting at 9, 8 at 1.5
+and beyond black): no pop at the limit.  Each magnitude's 2.5× is
+compressed by the tone map above 0.76 and by the encoding, and steepened
+by the toe below 0.08.  (Before the screen was encoded the dark gain was
+4e6 and `LIMIT_VALUE` 0.12, 20 of 255 through the toe alone, and 5.0
+showed 110, 4.0 white.)  At any other exposure the limit moves with the gain
 (`limitingMagnitude(exposureRelative, starGain)` = 6.5 + 2.5·log10(gain ×
-starGain / 4e6)): by day, at the keyed exposure, −10, so only the Sun,
-the Moon and Venus pass, the same arithmetic at a lower gain; with the
+starGain / 1.13e6)): by day, at the keyed exposure, −8.6 (−10 at the 4e6
+of before), so only the Sun, the Moon and Venus pass, the same arithmetic at a lower gain; with the
 user's star gain (`ThreeUi.setStarMagnitudeOffset(m)`, the `[` and `]` keys
 step it by 0.5 mag, as Celestia's do), fainter, as a longer exposure or a
 telescope does: a magnitude more is 2.5× every star's light.  The setting is
@@ -239,15 +397,17 @@ the offset of the limit from 6.5, 0 by default (`starMagnitude.js`), shown as
 **The patch** a star's light is spread over follows from the limit: the
 solid angle `EYE_PATCH_SR` at which a star at the limit, at the
 dark-adapted gain, shows `LIMIT_VALUE` (a star's value is
-`DISPLAY_GAIN·π·ratio/Ω·gain`): 8.2e-6 sr, a 9.7 arcmin square, which is
+`DISPLAY_GAIN·π·ratio/Ω·gain`): 7.9e-6 sr, a 9.7 arcmin square, which is
 the dark-adapted eye's resolution of a point (rod acuity, ~20/200, 10
-arcmin).  That coincidence is why the calibration is physical.  The
-patch is that, or a pixel where a pixel is coarser: a 1080 px screen at
+arcmin).  That coincidence is why the calibration is physical.  Since the
+screen is encoded the patch is the input (`EYE_POINT_RAD`, 9.69′, what
+the calibration had given) and the dark gain follows from it, the limit
+and `LIMIT_SCREEN` ([calibrated on the screen](#calibrated-on-the-screen)).
+The patch is that, or a pixel where a pixel is coarser: a 1080 px screen at
 45° has 2.5′ pixels, a 300 px test viewport 9′: per pixel alone the
 screen would show every star 13× brighter than the test render, and the
-whole Hipparcos catalogue (to magnitude 9-12) as white dots.  With the
-patch the two agree, and the sky's depth is set by the exposure, not the
-display.
+whole Hipparcos catalogue (to magnitude 9-12) as white dots.  With the patch the two agree, and the
+sky's depth is set by the exposure, not the display.
 
 **The sprite is the eye's image of a point** ([#235](https://github.com/celestiary/web/issues/235)):
 a pooled core, and the eye's own point spread function outside it.  The
@@ -259,9 +419,10 @@ whose sum, 2πσ², is 0.39 patch², so the kernel's peak is 2.5 L
 on the retina is narrower than the rods' pool, which detects rather than
 blurs; and the light stays above the tone map's toe (quadratic under
 0.08) instead of dying in it across a wide halo.  So a limit star peaks
-at 0.3 on a screen, 60 of 255, with its skirt falling into the toe.  On a
-viewport so coarse that the pixel is the patch (the 300 px test render: a
-9′ pixel) a star under white is the one pixel it falls in at L, flat,
+at 0.086 on a screen, 61 of 255 (0.3, 68, before the encoding), with its
+skirt falling into the toe.  On a viewport so coarse that the pixel is the
+patch (the 300 px test render: a 9′ pixel) a star under white is the one
+pixel it falls in at L, flat,
 wherever it falls, so the limit star reads `LIMIT_VALUE` exactly, and
 the screen's 2.5 L is the one difference between the two.  The **wing**
 is the eye's PSF, the CIE total glare equation (`sun/glare.js` `eyePsf`;
@@ -285,24 +446,26 @@ pooled light.  A star's saturated core and its halo are then as wide as
 the eye's PSF makes them at that light, and nothing else: where the wing
 passes white (0.76, the tone map's shoulder) is the white core, growing
 as the cube root of the light while the 0.045° lobe's θ^-3 tail sets it
-(Sirius at the dark gain on a 1080 px screen: 9 px, 0.36°; Vega 6 px;
-magnitude 2 3 px; magnitude 4 none) and as its square root further out,
+(Sirius at the dark gain on a 1080 px screen: 5.8 px, 0.24°; Vega 3.6 px;
+magnitude 2 2 px; magnitude 4 0.5 px; 9, 6, 3 and none at the 4e6 of
+before the encoding, every value being 3.54 times higher) and as its square root further out,
 where the scattered light's θ^-2 takes over, with the halo falling off
 from it by the same function: a star ten times brighter has a white core
 2.15 times wider, so the brightness order shows at every setting.  The
 quad is sized from where the core falls under `VISIBLE_VALUE` (0.004, a
-display step) or the wing under `STAR_WING_FLOOR` (0.01, 2.5 of 255:
-about the dark-adapted eye's own threshold for a feature of 20-60′ over
-a dark sky, `eye.js` `thresholdContrast`, 0.3-0.5 of the sky's 0.026 at
-the dark gain; the wing drawn to a display step was 2.6 times the
-fragments and invisible past this), plus a pixel, to the GPU's point-size
-range (`STAR_MAX_SIZE_PX`, 160, held to `ALIASED_POINT_SIZE_RANGE` by
-`ThreeUi._setObserverUniforms`): a mag 6 star is an 8-9 px quad (its wing
-over the floor to 3.7 px), Sirius 86 px, and an edge window in the
+third of a screen step: it rounds to black) or the wing under
+`STAR_WING_FLOOR` (0.0028: about the dark-adapted eye's own threshold for
+a feature of 20-60′ over a dark sky, `eye.js` `thresholdContrast`, 0.3-0.5
+of the sky's 0.0072 at the dark gain, so it moves with that gain: 0.01 at
+4e6; 0.17 of 255 on the screen alone; the wing drawn to a display step was
+2.6 times the fragments and invisible past this), plus a pixel, to the
+GPU's point-size range (`STAR_MAX_SIZE_PX`, 160, held to
+`ALIASED_POINT_SIZE_RANGE` by `ThreeUi._setObserverUniforms`): a mag 6
+star is a 9 px quad (its wing over the floor to 3.7 px), Sirius 88 px, and an edge window in the
 fragment shader takes the kernel to zero inside the quad, so a star is
 round at every exposure.  At `sm=+2` Sirius's wing reaches the quad and
-is windowed off there at 10 of 255; at `sm=+4` the brightest few stars'
-wings pass it (190 px) and the quad holds them.  The Sun's point has no
+is windowed off there; at `sm=+4` the brightest few stars' wings pass it
+(190 px) and the quad holds them.  The Sun's point has no
 wing: its glare pass draws the veil ([Sun.md](Sun.md#glare)), from any
 distance since this change (it was culled with the disc's LOD beyond
 4.65 AU), and a wing on the point would count it twice.
@@ -363,7 +526,8 @@ anything: the kernel is analytic.  Measured below: the summed light and
 the peak across offsets in steps of an eighth of a pixel, and frame to
 frame while turning at a tenth of a pixel a frame.
 
-**Measured for #235** (SwiftShader, labels, orbits and the galaxy off,
+**Measured for #235**, before the screen was encoded and the dark gain
+came down to 1.13e6 (SwiftShader, labels, orbits and the galaxy off,
 the Sun's glare pass off, the frame held at the dark gain, `main` at
 425e61f against this change; the probes read the HDR buffer as floats
 and the display as bytes in one task).  Sizes: the radius, as a mean over
@@ -608,8 +772,17 @@ black pixel: with the disc at 6e4 and the glow at 2e4 the rim's red
 channel overflowed, 29 pixels round the disc).  The shell now skips
 what lies behind the disc (a ray test in its shader: [Stars.md, the limb
 glow](Stars.md#the-limb-glow)), which also took out the glow's blocks
-through the limb from 1 AU at a narrow field.  The point sprites add
-single digits at most there (the glare cap).  The shoulder is the fix
+through the limb from 1 AU at a narrow field.  The Sun's point sprite
+adds on the disc's pixels too, and wasn't "single digits at most there":
+from the ground at a 45° field (the disc 3 px across) the disc's centre
+was 49,980 in red and the point, held only to 6e4 on its luminance, added
+18,000, NaN on SwiftShader and black on the user's screen.  A sprite over
+a disc that its Star's LOD may draw (the Sun's; any star within a thousand
+radii, 2e-3 rad across) is now held to `LUMINOUS_GLOW_MAX` on its
+brightest channel (`stars.vert` `DISC_SHARE_MAX`, `discDrawn`), and has
+no wing (its glare pass is its veil); any other sprite's cap, 6e4, is on
+its brightest channel too (a colour at luminance 1 has red 1.11 for the
+Sun, 1.75 at 3000 K).  The shoulder is the fix
 for the top of half-float, not a stopgap
 ([pre-exposure](#pre-exposure), [#157](https://github.com/celestiary/web/issues/157)):
 the buffer holds the disc at the frame's gain, and in a dark-adapted
@@ -683,14 +856,16 @@ The limiting magnitude follows the field (`limitingMagnitude(gain,
 starGain, fov, heightPx)`: 5·log10 of the patch's shrinking, or the
 pixel where a pixel is coarser), and `starsDebug` and
 `ThreeUi.limitingMagnitude()` report it so.  Without the field they
-read −7.1 at #198's 0.44° view of HIP 46635, where the limit is 3.1.
+read −7.1 at #198's 0.44° view of HIP 46635, where the limit was 3.1
+(4.5 since the screen is encoded and the dark gain 3.54 times lower).
 
 ### The instrument
 
 What the star field takes from the observer lives in one module,
 `observer/instrument.js` ([#235](https://github.com/celestiary/web/issues/235)),
 whose instances are the naked eye, dark adapted (`NAKED_EYE`), the
-app's observer, and Rubin's camera (`RUBIN`, [#337](https://github.com/celestiary/web/issues/337)),
+app's observer, a camera (`CAMERA`, the user's other observer: the eye's
+star field with a lens's glare round the Sun), and Rubin's camera (`RUBIN`, [#337](https://github.com/celestiary/web/issues/337)),
 which the Rubin app makes the observer while it runs.  The
 seam is there so that binoculars, a telescope or a camera can be another
 instance, with brightness and image size separate by construction: the
@@ -704,10 +879,11 @@ instrument is:
   user's `sm=` is a sensitivity in magnitudes on top of it, so `starGain`
   = area × time × 10^(0.4·sm), 1 for the eye at 0;
 - **a detection threshold**: the limiting magnitude at the dark gain
-  (6.5), what a star at it shows (`limitValue`, 0.12), and the gain the
-  instrument reaches in the dark (4e6, the meter's ceiling), from which
-  the detector's pool round a point follows (`EYE_PATCH_SR`, the rods'
-  10′: the derivation above);
+  (6.5), what a star at it shows (`limitValue`, 0.034: `LIMIT_SCREEN`,
+  20 of 255, through the output transform), and the detector's pool round
+  a point (`EYE_PATCH_SR`, the rods' 10′), from which the gain the
+  instrument reaches in the dark follows (1.13e6, the meter's ceiling:
+  the derivation above);
 - **a PSF**: the pool's radius in the instrument's own angle (4.8′),
   within which a point's light is pooled and drawn as the core; the
   PSF's share within it (0.58); the wing, the scattering round a point
@@ -740,8 +916,13 @@ what it needs through
 `absoluteUniforms` whenever it changes (`_setObserverUniforms`: `uEyePointRad`,
 `uPoolRadiusDeg`, `uCoreShare`, and `uMaxStarSizePx`, the quad's largest
 side held to the GPU's point-size range); `setStarMagnitudeOffset` sets
-`uStarGain` from `instrumentStarGain`; the Sun's glare shader takes its
-function from `NAKED_EYE.psf.glareGlsl`.  The field's magnification
+`uStarGain` from `instrumentStarGain`; the Sun's glare shader compiles the
+eye's and a camera's functions (`NAKED_EYE.psf.glareGlsl`,
+`CAMERA.psf.glareGlsl`) and picks the instrument's by `uGlareModel`
+(`psf.glareModel`).  The user's observer, the eye or a camera (`CAMERA`:
+the eye with a lens's veil round a disc, [Sun.md](Sun.md#glare); the
+Settings' Observer row, `K` in `s=`), is `ThreeUi.observer`
+(`setObserver`); an app's instrument overrides it while the app runs.  The field's magnification
 (`instrumentMagnification`: a field narrower than 45° is a telescope's)
 is the camera's, each frame, in the shader.  The field range holds the
 camera's field: `setFov` (so `,` `.` `/`, a link's `fov=` and a flight's
@@ -867,8 +1048,8 @@ through the air, before the tone map:
   star, the same calibration.  The star over the sky: 3,700 rendered, about
   4,000 for a clear sky of 20.0 by the Moon.
 - **A camera at view 1's exposure** would show it.  Celestiary's
-  surfaces are stored values, sRGB-encoded, lit as if linear ([colour
-  spaces](#colour-spaces-stored-values)), and the star's value is linear
+  surfaces are lit in linear light (the Moon's map a linear stretch of I/F;
+  [colour spaces](#colour-spaces)), and the star's value is linear
   light against them, so a ratio of 1/100 in light is 1/100 in the buffer,
   where a JPEG's sRGB curve makes it 0.10, 25 of 255; and Neutral's toe
   then squares it.  With the Moon at its physical brightness (the gain 9.5
@@ -928,7 +1109,7 @@ magnitudes:
   camera response, for a telescope's field or as a switch, that
   composites in linear light and ends in a camera's curve rather than
   Neutral's toe, would show it as the photographs do; the eye's
-  calibration of the star field (the limit star at 12 of 255) is the
+  calibration of the star field (the limit star at 20 of 255) is the
   toe's, so that is a mode beside the eye's, not a change to it.
 
 **Done: the inverse-square light** (#192's second proposal; Planet.md,
@@ -962,9 +1143,10 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
 2. The frame's **mean log luminance**, divided by the gain it was rendered
    at so it is the scene's at the keyed exposure, asks for the gain that
    brings it to `METER_KEY` (0.3, middle grey for a white of 1.5).  Pixels
-   under `METER_FLOOR` (7.5e-8) count as the floor, so black asks for
-   `METER_GAIN_MAX` = `METER_KEY / METER_FLOOR` = 4e6, not infinity.  That
-   is the eye's dark adaptation: a scene of 8e-3 cd/m² (a moonlit
+   under `METER_FLOOR` (2.7e-7) count as the floor, so black asks for
+   `METER_GAIN_MAX` = `METER_KEY / METER_FLOOR` = 1.13e6 (4e6 and 7.5e-8
+   before the screen was encoded), not infinity.  That
+   is the eye's dark adaptation: a scene of 2.8e-2 cd/m² (a moonlit
    landscape) shown as a sunlit one, set so that magnitude 6.5 just shows
    (above).  **The dark end is absolute**, over Earth's keyed exposure:
    the keyed exposure scales with the Sun's irradiance at the target
@@ -1055,6 +1237,11 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    would read and which hides the stars near the disc; and from Earth's
    surface the **moonlit sky** (0.001-0.003 cd/m² near full, 2-3
    magnitudes over a dark site) hides the faint stars everywhere.
+   The Suntan craft (suntan/Suntan.md) are sunlit bodies too, handed in
+   by the scene (`Scene.sunlitCraft`), not in its objects, and a targeted
+   craft keys the exposure (`Scene.targetCraftNode`), where its target
+   object, the Sun, keys nothing.
+
    The Sun's glare is drawn now, by the CIE's disability glare equation
    and metered like any light ([Sun.md, glare](Sun.md#glare); it replaced
    the Sun's glow shell); the Moon's, Venus's and Jupiter's are the next
@@ -1263,8 +1450,9 @@ and every emitted source (the stars, the Milky Way, the Sun's disc and
 its glow) multiplies its radiance at Earth's keyed exposure by it before
 writing (`absoluteUniforms`); the sky's `uSkyExposure` and Cesium's
 decode (`exposureOf`) carry the same exposure.  So a mag 6 star at the
-dark gain is 0.17 in the buffer, Alnilam 9.4 (its kernel's peak 1.3 on
-the 300 px viewport, 5.8 at 1080p), Sirius 170, the Milky Way's band
+dark gain is 0.054 in the buffer, Alnilam 2.8 (its kernel's peak 1.2 on
+the 300 px viewport, 7.2 at 1080p), Sirius 52 (0.17, 9.4 and 170 at the
+4e6 of before the encoding), the Milky Way's band
 0.01-0.07, and the Sun's disc at the luminous-disc gain 0.600.
 `ThreeUi._renderedGain` records the gain the frame renders with, once,
 before the scene pass, and `_meter` divides its readback by that record:
@@ -1276,8 +1464,8 @@ measurement.
 
 **The floor.**  What falls under half-float's smallest normal value
 (`HDR_MIN_NORMAL`, 6.1e-5) at the dark gain is invisible: a star fainter
-than magnitude 15 (the limit star is 0.12, 2.5× less per magnitude), the
-Gaussian halo past where the quad's window has taken it under a display
+than magnitude 13.4 (the limit star is 0.034, 2.5× less per magnitude), the
+Gaussian halo past where the quad's window has taken it under a screen
 step, and the Milky Way's outer disc from outside at a low gain (it
 was the filtered edges of the point cloud's sprites, before #99).
 SwiftShader keeps such values as subnormals; a GPU that flushes them
@@ -1285,9 +1473,10 @@ SwiftShader keeps such values as subnormals; a GPU that flushes them
 Milky Way's, the Sun's disc's and the glow's shaders, and a copy in
 `stars.frag`, which is a file; a test keeps the constants equal) writes a
 channel under the floor as zero, so every GPU holds the same buffer and a probe here reads
-what the user's Mac holds.  It costs nothing visible: 6.1e-5 is 1/65 of a
-display step through the tone map, and the star counts and pixels below
-are unchanged.  The Milky Way and the glow output premultiplied with
+what the user's Mac holds.  It costs nothing visible: through the tone map
+and the screen's encoding 6.1e-5 is 8e-5 of a screen step for a grey, and
+a fifth of one at most for a saturated colour (whose weakest channel alone
+the toe takes), and the star counts and pixels below were unchanged.  The Milky Way and the glow output premultiplied with
 alpha 1 (their additive blend adds the colour as is), so the floor applies
 to what reaches the buffer.  The Milky Way's march holds its light in a
 half-float target unexposed, times 1e8 (`STORE_SCALE`), where it is 1e-3
@@ -1296,7 +1485,7 @@ is unchanged to the pixel.
 
 **At the keyed exposure** (gain 1: the loading frame, or a frame a sunlit
 body anchors) the star field as a whole is under the floor: Sirius alone
-peaks over it on a screen (1.2e-4, 1/35 of a display step), nothing on
+peaks over it on a screen (1.2e-4), far under a screen step, nothing on
 the test viewport.  That is why rule 7's `frameCanBeEmpty` stays: on any
 GPU the meter can't tell a loading frame from a star field at gain 1 by
 its pixels, and the scene has to say.  The star field is invisible there
@@ -1367,18 +1556,26 @@ pipeline stall.  It alone set the 5th-percentile frame rate of 10-15.
 - Every frame polls the fences in issue order with `getSyncParameter`,
   which doesn't wait.  WebGL updates a fence's status between tasks, so the
   soonest a read can be ready is the next frame.  The newest signalled
-  read is copied out (`getBufferSubData`, `STREAM_READ` usage: Chrome
-  serves it from a shadow copy once the fence is seen signalled).  Older
-  signalled reads are copied out too, into the same array, the newest last:
-  dropped unread, a buffer was written again before being read back, and
-  Chrome warned each time ("READ-usage buffer was written, then fenced, but
-  written again before being read back. This discarded the shadow copy"),
-  3-4 a second on the user's Mac with New York drawn (a GPU a few frames
-  behind, so two readings signalled at one poll), and then read that buffer
-  without its shadow copy.  And each buffer's storage is allocated at its
-  first read, not up front: allocated up front (a write, to Chrome), the
-  second and third buffers were fenced by the first read's fence before
-  their own first read wrote them, two warnings at every load.
+  read is copied out (`getBufferSubData`), and the older signalled reads
+  too, into the same array, the newest last, so each buffer is free again.
+- **Chrome's shadow copies.**  For a buffer with a `READ` usage
+  (`STREAM_READ`), Chrome's GPU client gives each fence a shadow copy of
+  every such buffer written since the fence before, and warns when a buffer
+  it fences still has its last ("READ-usage buffer was written, then fenced,
+  but written again before being read back. This discarded the shadow copy
+  that was created to accelerate readback").  WebGL's `getBufferSubData`
+  doesn't use the shadow (it is `GetBufferSubDataCHROMIUM`, a plain copy) and
+  doesn't free it; only `bufferData` does (`GetOrCreateBuffer`).  Source:
+  Chromium's `gles2_implementation.cc` (`AllocateShadowCopiesForReadback`,
+  `GetBufferSubDataCHROMIUM`) and `readback_buffer_shadow_tracker.cc`.  So
+  each buffer's storage is given again (`bufferData`) right before each of
+  its reads, which frees the copy and leaves the fence nothing to discard.
+  Before that, every read after a buffer's first warned, about 3 a second
+  (one a metering), whether the reads were taken out or not: two earlier
+  fixes (reading the older signalled reads out; allocating at the first
+  read) assumed reading the buffer released its copy, and the test's
+  stand-in context assumed it too.  `meterReadback.test.js`'s stand-in now
+  keeps Chrome's rule.
 - **A ring of three buffers** (`METER_RING_SIZE`), so a reading may be up to
   three meterings (12 frames) late without a metering waiting on the one
   before.  With every buffer in flight the metering is skipped, never
@@ -1454,8 +1651,10 @@ that record: the reading at the keyed exposure is the same at any compensation, 
 is what it was, and there is no loop (a boosted frame doesn't ask for less).  The compensation is
 not in `meteredGain` or the readback, so it merges with changes to either.
 
-Set by `-` and `=` (a third of a stop a press, `[` and `]` being the stars' setting, `sm=`)
-and the link's `ev=` ([permalink.md](../permalink.md)); held to ±10 stops.  Measured
+Set by `-` and `=` (a third of a stop a press, `[` and `]` being the stars' setting, `sm=`),
+the link's `ev=` ([permalink.md](../permalink.md)) and the render panel's EV field (`` ` ``,
+DESIGN.md [performance panel](../../DESIGN.md#performance-panel), with *Auto* for 0 and a
+readout of the exposure, the keyed exposure and the metered gain and its goal); held to ±10 stops.  Measured
 in SwiftShader on the Moon from Bay Village, the exposure's ratio across 3 presses was 2.00 (the
 exposure is a pure multiplier), and the frame's mean luma went 2.5, 4.3, 6.3 at EV 0, +1, +2 and
 1.1 at −2 (the display's toe and shoulder make the pixels follow less than linearly).
@@ -1559,7 +1758,7 @@ model and the response), `nightSky.js` (the light), the atmosphere pass
 
 ### The problem
 
-The star field is calibrated on a point: at the dark-adapted gain (4e6) a
+The star field is calibrated on a point: at the dark-adapted gain (then 4e6) a
 star of magnitude 6.5, its light over the eye's 10′ patch, shows 0.12, just
 visible ([physical stars](#physical-stars)).  The patch is then 20.3
 mag/arcsec², 4.7 times a dark site's sky (22.0, 1.7e-4 cd/m²): that is the
@@ -1572,6 +1771,13 @@ make the difference, and the pipeline had neither: the eye adapts to the
 night sky's own light (none of it was drawn: [below](#the-night-skys-own-light)),
 and its rods pool light over large areas, so its threshold for a large field
 is far lower than for a point.
+
+That was before the screen was sRGB-encoded, at a dark gain of 4e6
+([calibrated on the screen](#calibrated-on-the-screen)).  Since, the gain
+is 1.13e6, the limit star 0.034 and the dark sky 0.0072 in exposure
+units, and through the toe and the encoding the sky alone still shows 1 of
+255 and the band 2-16: the contrasts are physical, and the screen values in
+the toe what they were.
 
 ### The eye's threshold against field size
 
@@ -1599,7 +1805,8 @@ is far lower than for a point.
 So the rods are 47 times more sensitive, in surface brightness, to a large
 field than to a point.  The display's viewer, light adapted on cones, pools
 far less: on screen a feature a tenth over its surroundings, at the
-stars' gain, is a twentieth of a display step.
+stars' gain, is a twentieth of a screen step (through the tone map alone at
+4e6, and through the encoding at 1.13e6).
 
 ### Where to apply it: three routes, and the one taken
 
@@ -1635,25 +1842,40 @@ so before, and its band raised the faint stars on it (below).
 
 Ward (1994)'s principle: a difference just visible in the scene should be
 just visible on the display.  The night sky's light `x` (pre-exposed, in
-exposure units) shows as `N(G·x)`; through the toe its slope is
-`2·6.25·G²·x`, so a difference of the eye's threshold, `C·x`, is one
-display step (1/255) where `12.5·C·(G·x)² = 1/255`: `G·x` = 0.056 for C =
-0.1.  With x the dark site's sky at the dark-adapted gain (0.0256), **G =
-2.19** (`EXTENDED_GAIN_DARK`), and the sky shows 5 of 255, dark grey.  The
-display's step stands for the viewer's own threshold, which near black is
-one or two steps; G goes as its square root (2.2 to 3.1).
+exposure units) shows as `S(G·x)`, S the output transform (the tone map,
+then sRGB's encoding: `screen.js`), so a difference of the eye's
+threshold, `C·x`, is one screen step (1/255) where `S′(G·x)·C·G·x = 1/255`
+(`extendedGainDark` solves it by bisection in the toe).  In the toe, while N is under sRGB's linear part, S is
+`12.92·6.25·(G·x)²`, so `S′·G·x = 2·S` and the sky shows `1/(2C)` of a
+step: 5 of 255 for C = 0.1, dark grey, at `G·x` = 0.0156.  With x the dark
+site's sky at the dark-adapted gain (0.0072), **G = 2.15**
+(`EXTENDED_GAIN_DARK`).  The screen's step stands for the viewer's own
+threshold, which near black is one or two steps; G goes as its square root
+(2.15 to 3.0).
+
+Before the screen was encoded S was N alone, and the same mapping gave
+`12.5·C·(G·x)² = 1/255`: `G·x` = 0.056, G = 2.19, and the sky the same 5
+of 255.  The screen values are the same, as the mapping says they should
+be: exactly while the sky shows 10 of 255 or less (sRGB's linear part:
+22 mag/arcsec² and fainter), within a step to 21.0, and a little under
+brighter, where sRGB's power takes over (43 against 47 at 20.5).  G·x is
+what the mapping fixes, so G is the dark gain's complement: 0.61 with the
+gain held at 4e6, 2.15 with it at 1.13e6.
 
 | Total sky, mag/arcsec² | 20.0 | 20.5 | 21.0 | 21.5 | 22.0 | 22.5 |
 |---|---|---|---|---|---|---|
-| At 4e6 | 0.162 | 0.102 | 0.064 | 0.041 | 0.026 | 0.016 |
-| On screen (of 255), the stars' gain alone | 31 | 16 | 7 | 3 | 1 | 0.4 |
-| On screen, the eye's response | 80 | 47 | 26 | 12 | 5 | 2 |
+| At 1.13e6 | 0.046 | 0.029 | 0.018 | 0.011 | 0.0072 | 0.0046 |
+| On screen (of 255), the stars' gain alone | 30 | 16 | 7 | 3 | 1 | 0.4 |
+| On screen, the eye's response (G = 2.15) | 68 | 43 | 25 | 12 | 5 | 2 |
+| Before the encoding, at 4e6: the stars' gain alone / the response (G = 2.19) | 31 / 80 | 16 / 47 | 7 / 26 | 3 / 12 | 1 / 5 | 0.4 / 2 |
 
 G applies where the eye is rod-adapted (`extendedGain`): the adapted
-luminance is `METER_KEY` over the gain, 2e-3 cd/m² at 4e6, and G is
-blended in from the CIE's mesopic range (5 to 0.005 cd/m², in log
-luminance), so it is 1 by day and in civil twilight (gain under 1,600)
-and 1.15 at nautical twilight looking away from the Sun (7,700), where the
+luminance is `METER_KEY` over the gain, 7.1e-3 cd/m² at 1.13e6 (just
+inside the mesopic range, so 2.14 there, 0.4% under G; 2e-3 at 4e6
+before), and G is blended in from the CIE's mesopic range (5 to 0.005
+cd/m², in log luminance), so it is 1 by day and in civil twilight (gain
+under 1,600) and 1.15 at nautical twilight looking away from the Sun
+(7,700), where the
 night sky is far under the twilight's light anyway.  And it is 1 where
 the frame is a photograph of the galaxy from outside (rule 10: the
 galaxy's `outsideWeight`), not an eye.  And per pixel it is the rods':
@@ -1664,12 +1886,18 @@ Sun, 0.03-2 cd/m² within 10° of it from 1 AU: with G whole it was raised
 as if the rods pooled it, and its white core was a degree or two wider.
 
 **Composition.**  The night sky's display values are added to the image of
-the stars and bodies, to white at most (`displaySum`):
+the stars and bodies, to white at most (`displaySum`), in linear display
+values, and the sum is encoded (the atmosphere pass's `overNight`, then
+`encodeOut`):
 
-    display = min(N(scene) + N(G · grey(night)), 1)
+    screen = srgbEncode(min(N(scene) + N(G · grey(night)), 1))
 
-So a star's step on screen over the night sky is its step over black, as
-the star field is calibrated: the limit at a dark site, whose sky this is.
+So a star's light over the night sky is its light over black, as the star
+field is calibrated: the limit at a dark site, whose sky this is.  Its step
+in the screen's encoded values is smaller over the sky than over black
+(the limit star's 20 of 255 over black is 18 over the dark sky's 5), as
+a step of light is against a brighter background; while the screen took
+stored values the sum was of those, and the step the same.
 On a brighter background (the band, a moonlit sky) a real eye's point
 threshold rises (Crumey 2014: as (1 + √(kB))²); that is the next refinement,
 and it would hide stars, never raise them.  The meter reads `scene + night`,
@@ -1809,12 +2037,14 @@ of the frame's.  Three changes (ThreeUi `_updateNightSkyShown`,
   possible light (the galaxy's brightest from anywhere, 1e-6 at Earth's
   keyed exposure; the zodiacal light toward the Sun, `zodiacalBrightest`,
   from where the camera is; airglow at the horizon, 7× its zenith) times
-  the exposure and G is set against half a display step through the toe,
-  √(0.5/255/6.25) = 0.018.  Under it nothing is drawn: no march, no
+  the exposure and G is set against half a screen step,
+  `sceneOfScreen(0.5/255)` = 0.0049 through the tone map and sRGB's
+  encoding (0.018, √(0.5/255/6.25), through the toe alone before the
+  screen was encoded).  Under it nothing is drawn: no march, no
   zodiacal cache, no airglow path, and the pass's night term is zero.  By
   day (gain 1) the brightest is 1.3e-3 (the zodiacal light held at 2 solar
-  radii, 4e7 S10⊙), 14 times under; it is drawn from a gain of about 14,
-  late in civil twilight.
+  radii, 4e7 S10⊙), 4 times under (14 before the encoding); it is drawn
+  from a gain of about 4, early in civil twilight (14 before, late in it).
 - **Re-rendered when the view changes by more than the cache shows**: the
   view turned half a texel, the camera moved (a micro-kiloparsec for the
   march; a thousandth of its distance from the Sun for the zodiacal
@@ -1862,6 +2092,12 @@ fourth frame; it is asynchronous now ([the meter's
 readback](#the-meters-readback)).
 
 ### Measured
+
+These are #186's, before the screen was sRGB-encoded: its screen values are
+stored values, through the toe alone, at a dark gain of 4e6 and G = 2.19.
+The calibration since keeps the dark sky's and the limit star's screen
+values ([calibrated on the screen](#calibrated-on-the-screen)); they want
+measuring again.
 
 SwiftShader, 480×300, Cesium's layers off, `main` at bc018a0 against this
 change, 2026-07-15 04:43 UTC (local midnight at 70.8° W, the night after
@@ -1979,13 +2215,16 @@ writes is clamped to [0, 1] and quantized to 8 bits before netgl ever sees it;
 portal-netgl carries the copy's values faithfully into a float target, but
 they are already LDR.  Turning Cesium's HDR on makes its buffers float, but
 also forces its own tone-mapping stage (there's no "none" tonemapper), and
-lights the imagery in linear sRGB, not stored values.  So Cesium's layers hand
-over values that fit in [0, 1], encoded so celestiary can recover exposure
-units exactly:
+decodes its imagery by a 2.2 power, not sRGB's curve.  So Cesium's layers
+hand over values that fit in [0, 1], encoded so celestiary can recover
+exposure units exactly, each body's imagery lit in linear light as
+celestiary's own texture is ([colour spaces](#colour-spaces)):
 
-- **Moon and Mars** (`sunlitShader`): `stored · lambert` (with a night floor),
-  at most 1, as Earth's globe below; the decode multiplies by the body's gain,
-  `DISPLAY_GAIN · textureGain / imageryScale`.  (They first returned `N(v)` of
+- **Moon and Mars** (`sunlitShader`): `albedo · lambert` (with a night
+  floor), at most 1, log-encoded (CESIUM.md, "Precision"); the albedo is
+  Mars's imagery decoded by sRGB's curve, the Moon's linear map as stored;
+  the decode multiplies by the body's gain, `DISPLAY_GAIN · textureGain /
+  imageryScale`.  (They first returned `N(v)` of
   their exposure-unit value, which the decode inverted with `N⁻¹`; #141's review
   made every body one path, and the 8-bit Neutral round trip had lost
   highlights.)
@@ -1995,7 +2234,10 @@ units exactly:
   and the lit imagery is written as it is; and its day side is flat
   (`clamp(5·lambert + 0.3)` without terrain normals, `0.9·lambert + 0.3` with
   them).  None of that is celestiary's lighting or in its units.  The matching
-  path: Cesium draws only the lit surface, `stored × lambert` (its light at
+  path: Cesium draws only the lit surface, `albedo × lambert`, its imagery
+  decoded from sRGB before it is lit and the result sRGB-encoded for the
+  8-bit frame (our patch's `globe.imagerySrgb`; CESIUM.md, "Patching
+  Cesium"), which the decode inverts (its light at
   intensity 1, `lambertDiffuseMultiplier` 1, `vertexShadowDarkness` 0, ground
   atmosphere, fog and water effect off: the water effect's glint lit the
   sunward ocean up to twice celestiary's), which is at most 1 for any albedo,
@@ -2021,8 +2263,9 @@ restore around each frame go.
 most 1; Earth's night lights are ~4.5e-5 of a lit white at the keyed exposure
 and are meant to be seen at the night side's gain (up to 4e6), under one
 level of the day's 8 bits.  So they are a second Cesium frame, the night
-imagery's stored values on black, decoded by a pass that adds them to
-`_sceneRT` as `stored × nightFactor × NIGHT_LIGHT_RADIANCE × toneMappingExposure`,
+imagery on black (sRGB-encoded, as the day frame), decoded by a pass that
+adds them to `_sceneRT` as `decoded × nightFactor × NIGHT_LIGHT_RADIANCE ×
+toneMappingExposure`,
 the form celestiary's own surface shader has, before the atmosphere pass and
 the meter ([CESIUM.md, night lights](../../CESIUM.md#night-lights)).
 

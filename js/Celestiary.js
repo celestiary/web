@@ -38,12 +38,13 @@ import {HOME_HISTORY_KEY, isHomeEntry, isHomepage} from './home'
 import {HOME_TOUR_LOOP_FADE_MS, HOME_TOUR_STILL_MS, homeTour} from './homeTour'
 import {ease} from './tour'
 import {formatTonight, lowPrecisionSun, resolveLocation, tonightTime} from './tonight'
+import {solarNoonNear} from './solarNoon'
 import {hideLoading} from './loading'
 import {setCreditsChrome} from './credits.js'
 import {clampEv, stepEv} from './scene/evCompensation'
 import {clampStarMag, stepStarMag} from './scene/starMagnitude'
 import {fetchPlaces} from './scene/Places'
-import {parseTargetPath, resolvePlace, slug, targetFramePath, targetPath} from './targetPath'
+import {SUNTAN_PREFIX, parseTargetPath, resolvePlace, slug, targetFramePath, targetPath} from './targetPath'
 import {utcToTtJulianDay} from './scene/celestialFrame'
 import {elt} from './utils'
 
@@ -161,6 +162,8 @@ export default class Celestiary {
     this.ui.configLargeScene()
     this.ui.useStore = useStore
     this.ui.onCameraChange = () => this._schedulePermalinkUpdate()
+    // The render panel's EV field (perf/RenderPanel.js), through the keys' path.
+    this.ui.onEv = (ev) => this.setExposureCompensation(ev)
     this.camera = this.ui.camera
     this.scene = new Scene(this.ui)
     this.scene.onLabelDblClick = (label) => this.goToLabel(label)
@@ -256,6 +259,12 @@ export default class Celestiary {
     this._restoring = false
     // The link holds the clock's pause, rate and date.
     this.time.onTimeScaleChange(() => this._schedulePermalinkUpdate())
+    // Day steps land at solar noon under the camera (_noonNear), and turn
+    // the camera with Earth while they run (_onDaySteps).
+    this.time.noonNear = (ms) => this._noonNear(ms)
+    this._daySteps = 0
+    this._daySpun = false
+    this.time.onTimeScaleChange(() => this._onDaySteps())
     // Callbacks waiting for a body to load, by name (_loadBody).
     this._bodyWaiters = {}
     // AR (mobile sky-view).  Constructed lazily — most users won't enter
@@ -877,8 +886,10 @@ export default class Celestiary {
         // Turning with the body held by hand (`y`).
         this.scene.restoreTurning?.(Boolean(pl.settings.Y))
         // A satellite is ridden from its node, which the link's frame (Earth)
-        // isn't: ride it again, from where the camera is.
-        if (resolved.kind === 'satellite' && pl.settings.F) {
+        // isn't: ride it again, from where the camera is.  A Suntan craft
+        // too: its frame is its own, but restoreFollowing follows the body
+        // the camera is at, the Sun.
+        if ((resolved.kind === 'satellite' || resolved.kind === 'craft') && pl.settings.F) {
           this.scene.setFollowing(true)
         }
       }))
@@ -930,6 +941,8 @@ export default class Celestiary {
           pl.lat, pl.lng, pl.alt, point.radius, new THREE.Quaternion(), platformWorldQuat))
           .add(camera.platform.worldToLocal(starWorldPos))
       camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w).normalize()
+    } else if (frame.kind === 'craft') {
+      this._restoreCraftView(pl, frame)
     } else if (pl.settings?.L) {
       // Landed restore: reparent to the rotating body, snap to the
       // saved lat/lng/alt, then overwrite quaternion to recover the
@@ -962,6 +975,37 @@ export default class Celestiary {
 
 
   /**
+   * Put the camera back on a Suntan craft, where a link had it in the
+   * craft's frame (_cameraFrame): hung from its node, as going to it does,
+   * then placed and turned relative to the node, whatever the platform's
+   * turn (Scene.linkCameraQuaternion).  With the craft not in flight at the
+   * link's time, the Sun.
+   *
+   * @param {object} pl The decoded link
+   * @param {{kind: 'craft', id: string}} frame
+   */
+  _restoreCraftView(pl, frame) {
+    const camera = this.ui.camera
+    const suntan = this.scene.suntan
+    const node = suntan?.nodeOf(frame.id)
+    if (!node) {
+      console.warn(`Permalink: the Suntan ${frame.id} isn't in flight at this date; going to the Sun`)
+      this.scene.setTarget('sun', {look: false})
+      this.scene.goTo()
+      return
+    }
+    this.scene.setTarget(suntan.craft[frame.id], {look: false})
+    this.scene.goTo()
+    this.ui.scene.updateMatrixWorld()
+    const nodeWorldQuat = node.getWorldQuaternion(new THREE.Quaternion())
+    const platformWorldQuat = camera.platform.getWorldQuaternion(new THREE.Quaternion())
+    camera.position.copy(latLngAltToLocal(pl.lat, pl.lng, pl.alt, node.linkRadius, nodeWorldQuat, platformWorldQuat))
+    const q = new THREE.Quaternion(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w).normalize()
+    camera.quaternion.copy(platformWorldQuat.invert().multiply(nodeWorldQuat).multiply(q))
+  }
+
+
+  /**
    * Switch on the optional layers a link has on (the `layers:` token):
    * New York's city, which CesiumLayers loads once the camera is over
    * Manhattan with Earth's Cesium layer active.  On every link with a view
@@ -987,7 +1031,9 @@ export default class Celestiary {
    * @param {object} pl The decoded link
    */
   _restoreClock(pl) {
-    const {paused, rate} = decodeTimeToken(pl.tokens.time)
+    const {paused, rate, stepDays} = decodeTimeToken(pl.tokens.time)
+    // The link's date is a noon already, and the camera isn't placed yet.
+    this.time.setStepDays(stepDays, {land: false})
     this.time.setRate(rate)
     this.time.setPaused(paused)
     // The time panel's React state.
@@ -1018,6 +1064,17 @@ export default class Celestiary {
         this.scene.goTo()
       }), () => quiet(() => {
         this.scene.setTarget('earth')
+        this.scene.goTo()
+      }))
+      return
+    }
+    if (resolved.kind === 'craft') {
+      // Ridden, as from 'g'; before launch or after the mission, the Sun.
+      this._resolveTarget(resolved, (craft) => quiet(() => {
+        this.scene.setTarget(craft, {look: false})
+        this.scene.goTo()
+      }), () => quiet(() => {
+        this.scene.setTarget('sun')
         this.scene.goTo()
       }))
       return
@@ -1091,6 +1148,18 @@ export default class Celestiary {
     }
     if (ref?.kind === 'galaxy') {
       this._whenGalaxy(ref.id, (galaxy) => cb({kind: 'galaxy', galaxy}), onErr)
+      return
+    }
+    if (ref?.kind === 'craft') {
+      // The Sun, then the Suntan mission round it, which the app's panel
+      // builds too (the link's `apps:` token); getSuntan builds it once.
+      this._loadBody('sun', () => this.scene.getSuntan().then((suntan) => {
+        if (suntan) {
+          cb({kind: 'craft', id: ref.id})
+        } else {
+          onErr?.()
+        }
+      }), onErr)
       return
     }
     if (ref?.kind !== 'bodies') {
@@ -1213,6 +1282,16 @@ export default class Celestiary {
             cb(pop.targetOf(rec))
           } else {
             console.warn(`No satellite ${resolved.id}`)
+            onMissing?.()
+          }
+        })
+        return
+      case 'craft':
+        this.scene.getSuntan().then((suntan) => {
+          const craft = suntan?.craft[resolved.id]
+          if (craft) {
+            cb(craft)
+          } else {
             onMissing?.()
           }
         })
@@ -2325,6 +2404,78 @@ export default class Celestiary {
 
 
   /**
+   * The solar noon nearest a date at the view's meridian, for the clock's
+   * day steps (Time.setStepDays, solarNoon.js): the longitude under the
+   * camera, its nadir on Earth (the link's `lng`), as the frame before the
+   * step has it.  The camera turns with Earth while the steps run
+   * (_onDaySteps), so that meridian stays under it, and moving the camera
+   * moves the noon with it.  Earth only: with the camera at another body,
+   * or none, the steps are whole days of the clock.
+   *
+   * @param {number} ms Unix epoch milliseconds
+   * @returns {number}
+   */
+  _noonNear(ms) {
+    const frame = this._cameraFrame()
+    if (!frame || frame.path !== this.loader.pathByName.earth) {
+      return ms
+    }
+    // A link's steps start before its camera is hung (_restoreClock runs
+    // before _restoreView), so the turning _onDaySteps asks for is asked
+    // again here, where the camera now rides Earth's orbit.
+    this._turnForDaySteps()
+    // Turning asked for and not yet hung (syncFollow hangs it after this
+    // frame's animation): the step waits, as from the orbit the ground
+    // slips a degree a day under the camera.
+    const mode = this.scene.cameraMode?.()
+    if (mode?.mode === 'orbit' && this.scene._spinHold === 'on') {
+      return this.time.simTime
+    }
+    const camWorldPos = this.ui.camera.getWorldPosition(new THREE.Vector3())
+    const {lng} = worldToLatLngAlt(camWorldPos, frame.pos, frame.quat, frame.radius)
+    return Number.isFinite(lng) ? solarNoonNear(ms, lng, this._sunAt()) : ms
+  }
+
+
+  /**
+   * Day steps begun or ended (Time.onTimeScaleChange): riding Earth's orbit
+   * the ground turns under the camera by a degree a day against the Sun, so
+   * a year of noons would turn the globe round once in view; turning with
+   * it (Scene.setCameraMode) holds the ground still, and the Sun over it.
+   * Ended, the height chooses again, if the steps chose turning.
+   */
+  _onDaySteps() {
+    const steps = this.time.stepDays
+    if ((steps > 0) === (this._daySteps > 0)) {
+      this._daySteps = steps
+      return
+    }
+    this._daySteps = steps
+    if (steps > 0) {
+      this._turnForDaySteps()
+    } else if (this._daySpun) {
+      this._daySpun = false
+      if (this.scene.cameraMode?.().mode === 'turning') {
+        this.scene.setCameraMode('auto')
+      }
+    }
+  }
+
+
+  /**
+   * While the clock steps by days, turn with Earth if riding its orbit by
+   * the height's choice (_onDaySteps); riding held by hand (`y`) is left.
+   */
+  _turnForDaySteps() {
+    const mode = this.scene.cameraMode?.()
+    if (this.time.stepDays > 0 && mode?.mode === 'orbit' && mode.auto && mode.body === 'earth') {
+      this.scene.setCameraMode('turning')
+      this._daySpun = true
+    }
+  }
+
+
+  /**
    * The homepage's "Tonight's sky" card (tonight.js): the visitor's sky
    * from the ground where they are, now if it's night, else at this
    * evening's astronomical dusk.  Their location is asked for here, on the
@@ -2952,9 +3103,9 @@ export default class Celestiary {
         'Hide/show all scene annotations (labels, orbits, asterisms, grids, networks)',
         undefined,
         'Info')
-    // three's FPS/MS/MB panel, for judging frame cost on a real GPU.
+    // The render panel and the perf overlay together (DESIGN.md, "Performance panel").
     k.map('`', () => this.ui.togglePerfPanel(),
-        'Toggle performance panel',
+        'Toggle performance panels',
         () => this.ui.isPerfPanelVisible(),
         'Info')
     // The stars' limiting magnitude at a dark site (HDR.md), stepped as
@@ -3039,6 +3190,16 @@ export default class Celestiary {
     'Earth\'s clouds',
     () => this.scene.getSetting('i'),
     'Surfaces')
+
+    // === Observer === The eye (the default) or a camera, whose veil round
+    // the Sun is a lens's (Sun.md, "Glare"): `K` in a link's `s=`.  A row
+    // with no key, as the networks' are.
+    k.addAction(() => {
+      this.scene.toggleObserverCamera()
+    },
+    'Observer: a camera (a lens\'s glare round the Sun), not the eye',
+    () => this.scene.getSetting('K'),
+    'Observer')
 
     // === Orbits ===
     k.map('o', () => {
@@ -3455,7 +3616,7 @@ export default class Celestiary {
     // lit on the bodies' orbits (`orbits:`), the optional layers on
     // (`layers:`), then the drawer and the apps.
     const tokens = {
-      time: encodeTimeToken(this.time.isPaused, this.time.timeScale),
+      time: encodeTimeToken(this.time.isPaused, this.time.timeScale, this.time.stepDays),
       info: encodeInfoToken(this.controlPanel.uiState),
       orbits: encodeOrbitsToken(this.scene.getOrbitElements(), this.scene.getOrbitFade()),
       periodic: encodePeriodicToken(this.scene.getPeriodic(), this.scene.getPeriodicFrame(),
@@ -3486,6 +3647,19 @@ export default class Celestiary {
         pos: this.scene.worldGroup.localToWorld(this.scene.starPosition(star)),
         quat: new THREE.Quaternion(),
         radius: star.radius,
+      }
+    }
+    // Riding a Suntan craft: its own frame, where the camera is metres off
+    // it, not the Sun's, 2.5e10 m away, which four decimals of a degree put
+    // 190 km out at that distance.
+    const craft = this.ui.camera.platform.parent
+    if (craft?.isCraftNode && craft.craftId) {
+      this.ui.scene.updateMatrixWorld()
+      return {
+        path: `${SUNTAN_PREFIX}${craft.craftId}`,
+        pos: craft.getWorldPosition(new THREE.Vector3()),
+        quat: craft.getWorldQuaternion(new THREE.Quaternion()),
+        radius: craft.linkRadius,
       }
     }
     const tObj = Shared.targets.cur
@@ -3704,6 +3878,8 @@ const REF_FRAME = {
   // In its body's frame (Satellites.md): the path parseTargetPath's caller
   // gave it, else a planet's.
   satellite: (r) => r.path ?? `sun/${r.body ?? 'earth'}`,
+  // Its own (_cameraFrame): the camera rides it.
+  craft: (r) => `${SUNTAN_PREFIX}${r.id}`,
 }
 
 

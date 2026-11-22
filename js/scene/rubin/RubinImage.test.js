@@ -4,7 +4,8 @@ import {Group, PerspectiveCamera, Vector3} from 'three'
 import RubinImage, {BASE_LEVEL, GRID, MAX_LOADING, selectLevel, tileBox, tileGeometry, tilePath,
   visibleTiles} from './RubinImage.js'
 import {equatorialToScene, pixToWorld, sceneToEquatorial} from './wcs.js'
-import {newImageSwitch} from './install.js'
+import {imageryLine, newImageSwitch} from './install.js'
+import {surveyCovers} from '../sky/surveys.js'
 
 
 const manifest = JSON.parse(readFileSync(new URL('../../../public/data/rubin/noirlab2626d.json', import.meta.url)))
@@ -106,6 +107,8 @@ describe('the image layer', () => {
       expect(mesh.material.vertexShader).toContain('mat3(modelViewMatrix) * position')
       expect(mesh.material.vertexShader).not.toContain('modelViewMatrix * vec4(position')
       expect(Object.hasOwn(mesh, 'onBeforeRender')).toBe(false)
+      // The discovery image is whole to its edges: its black isn't keyed out.
+      expect(mesh.material.uniforms.uKeyBlack.value).toBe(0)
     }
     layer.dispose()
   })
@@ -150,7 +153,17 @@ describe('the image\'s switch', () => {
     sw.enabled = true
     await sw.ready
     expect(asked).toEqual(['data/rubin/noirlab2626d.json'])
-    expect(stellarFrame.children).toEqual([sw.layer])
+    // Rubin's First Look with it, as a HiPS layer (sky/HipsLayer.js).
+    expect(stellarFrame.children).toEqual([sw.firstLook, sw.virgo, sw.layer])
+    expect(sw.firstLook.survey.id).toBe('CDS/P/Rubin/FirstLook')
+    expect(sw.firstLook.visible).toBe(true)
+    // The Virgo field from Rubin's own tiles, and CDS's layer left the rest.
+    expect(sw.virgo.survey.id).toBe('rubinobs/SVImages_v2/color_ugri')
+    expect(sw.virgo.visible).toBe(true)
+    expect(sw.firstLook.survey.footprints.map((f) => f.image)).toEqual(['noirlab2521b'])
+    expect(surveyCovers(sw.firstLook.survey, 270.904, -24.38, 0.5)).toBe(true)
+    expect(surveyCovers(sw.firstLook.survey, 186.37, 6.93, 0.5)).toBe(false)
+    expect(surveyCovers(sw.virgo.survey, 188.17, 7.09, 0.5)).toBe(true)
     expect(credits.get('rubin-image').text).toContain('CC BY 4.0')
     expect(credits.get('rubin-image').text).toContain('Rubin Observatory/NOIRLab/SLAC/AURA')
     sw.enabled = false
@@ -161,5 +174,104 @@ describe('the image\'s switch', () => {
     sw.dispose()
     expect(stellarFrame.children.length).toBe(0)
     expect(credits.size).toBe(0)
+  })
+
+  it('lists the imaged fields that can be shown, each with its direction and field of view', async () => {
+    const stellarFrame = new Group()
+    let cds = null
+    const sw = newImageSwitch({stellarFrame, ui: {camera: new PerspectiveCamera(), height: 500}}, {
+      fetchJson: () => Promise.resolve(manifest),
+      fetchOk: (url) => new Promise((resolve) => {
+        cds = {url, resolve}
+      }),
+    })
+    // Before the switch: the Virgo field, which needs nothing fetched.
+    expect(sw.fields().map((f) => f.key)).toEqual(['virgo'])
+    sw.enabled = true
+    await sw.ready
+    // The discovery image's once its manifest is in; CDS's field not while CDS hasn't answered.
+    expect(sw.fields().map((f) => f.key)).toEqual(['discovery', 'virgo'])
+    expect(cds.url).toBe('https://alasky.cds.unistra.fr/Rubin/CDS_P_Rubin_FirstLook/properties')
+    cds.resolve(false)
+    await Promise.resolve()
+    expect(sw.fields().map((f) => f.key)).toEqual(['discovery', 'virgo'])
+    const [discovery, virgo] = sw.fields()
+    expect(discovery.label).toBe('Discovery field')
+    expect(discovery.fovDeg).toBe(2)
+    expect(virgo.fovDeg).toBe(3.5)
+    // In the stars' frame, here unturned: where wcs.js puts the same place.
+    const near = (f, raDeg, decDeg) => f.direction().distanceTo(new Vector3(...equatorialToScene(raDeg, decDeg)))
+    expect(near(discovery, ...manifest.wcs.crval)).toBeLessThan(1e-12)
+    expect(near(virgo, 188.173828125, 7.086773397021115)).toBeLessThan(1e-12)
+    // And turned with the frame, as the stars are.
+    stellarFrame.rotation.y = 0.3
+    stellarFrame.updateMatrixWorld()
+    expect(near(virgo, 188.173828125, 7.086773397021115)).toBeGreaterThan(0.1)
+    sw.dispose()
+  })
+
+  it('offers the Trifid and Lagoon while CDS serves its First Look', async () => {
+    const sw = newImageSwitch({stellarFrame: new Group(), ui: {camera: new PerspectiveCamera(), height: 500}}, {
+      fetchJson: () => Promise.resolve(manifest),
+      fetchOk: () => Promise.resolve(true),
+    })
+    sw.enabled = true
+    await sw.ready
+    await Promise.resolve()
+    const fields = sw.fields()
+    expect(fields.map((f) => f.key)).toEqual(['discovery', 'virgo', 'trifid'])
+    expect(fields[2].label).toBe('Trifid and Lagoon')
+    expect(fields[2].direction().distanceTo(new Vector3(...equatorialToScene(271.6317360235022, -23.762469026534358))))
+        .toBeLessThan(1e-12)
+    sw.dispose()
+  })
+
+  it('credits Rubin\'s First Look while its tiles are drawn', async () => {
+    const credits = new Map()
+    const stellarFrame = new Group()
+    // Looking at the Trifid, 1° across.
+    const camera = new PerspectiveCamera(1, 1.5, 1, 1e20)
+    camera.lookAt(new Vector3(...equatorialToScene(270.596, -23.03)))
+    camera.updateMatrixWorld()
+    const loads = []
+    const sw = newImageSwitch({stellarFrame, ui: {camera, height: 500}}, {
+      fetchJson: () => Promise.resolve(manifest),
+      loadTexture: (url) => new Promise((resolve) => loads.push(() => resolve({url, dispose: () => {}}))),
+      addCredit: (id, c) => credits.set(id, c),
+      removeCredit: (id) => credits.delete(id),
+    })
+    sw.enabled = true
+    await sw.ready
+    sw.firstLook.preAnimCb()
+    expect(loads.length).toBeGreaterThan(0)
+    expect(credits.has('rubin-first-look')).toBe(false)
+    for (const l of loads.splice(0)) {
+      l()
+    }
+    await Promise.resolve()
+    await Promise.resolve()
+    sw.firstLook.preAnimCb()
+    const c = credits.get('rubin-first-look')
+    expect(c.text).toContain('RubinObs/NOIRLab/SLAC/NSF/DOE/AURA')
+    expect(c.text).toContain('ODbL-1.0')
+    sw.enabled = false
+    expect(credits.has('rubin-first-look')).toBe(false)
+    sw.dispose()
+  })
+})
+
+
+describe('the readout\'s imagery line', () => {
+  it('names the First Look field a visit\'s field overlaps, and the discovery image\'s', () => {
+    // A field at the Lagoon, and one 2° off the Trifid/Lagoon image's edge (it's 4.7° × 2.9°).
+    expect(imageryLine(270.904, -24.38, 1.75, null)).toBe(
+        'Rubin\'s image covers this field: First Look, the Trifid and Lagoon nebulae')
+    expect(imageryLine(186.37, 6.93, 1.75, null)).toBe(
+        'Rubin\'s image covers this field: First Look, the Virgo Cluster')
+    expect(imageryLine(271.6, -30.0, 1.75, null)).toBe(null)
+    // The discovery image's field, once its manifest is in.
+    expect(imageryLine(manifest.wcs.crval[0], manifest.wcs.crval[1], 1.75, null)).toBe(null)
+    expect(imageryLine(manifest.wcs.crval[0], manifest.wcs.crval[1], 1.75, manifest)).toBe(
+        'Rubin\'s image covers this field: the discovery image')
   })
 })

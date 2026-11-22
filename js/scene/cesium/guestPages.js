@@ -125,7 +125,7 @@ export default class GuestPages {
    */
   drawLights(sceneRT, body, node) {
     if (body.drainedLights && body.lightsReady) {
-      this.layers._decodeLights(sceneRT, this.lightsTarget(), node)
+      this.layers._decodeLights(sceneRT, this.lightsTarget(), node, (body.guestVersion ?? 4) >= 4)
     }
   }
 
@@ -417,6 +417,8 @@ export default class GuestPages {
    */
   _onMessage(name, body, msg) {
     if (msg?.type === 'cesium:status') {
+      // Its protocol: what its frames hold (CesiumLayers frameEncoding).
+      body.guestVersion = msg.guest ?? 1
       if (!body.versionSaid && (msg.guest ?? 1) < this.version) {
         // An older guest page leaves out what it doesn't know, silently.
         body.versionSaid = true
