@@ -39,6 +39,17 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### Earth through the seasons: the months blend day by day, and close-up detail keeps the season
+
+Earth's surface used to jump at the start of each month; now each day shows a mix of the two nearest months' pictures, so speed up time and the steppe browns, the snow creeps south and the spring greens come back smoothly.  Flying low with Cesium's detail imagery, the ground keeps the season's colours: the close-up photographs (mostly taken in summer) now add only their fine texture, fields, rivers and relief, over the month's colour, so November's brown steppe no longer turns into a green square as you descend.
+
+- Date: 2026-11-22
+- PR: [#377](https://github.com/celestiary/web/pull/377)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@50,70,7Mm;t=9800.791707jd;cq=0.0734,-0.8925,-0.4162,-0.1574;fov=45deg;s=alpoLF)
+- Featured: yes
+- Kind: feature
+
 ### The ground lit through the air: dimmer and redder toward sunset
 
 The ground under an atmosphere was lit as if the air weren't there, as bright and white at sunset as at noon until the terminator.  Now sunlight reaches it through the air and the sky lights it too: Earth's land reddens and dims toward the terminator, the twilight ground keeps the sky's glow a few degrees past it, and Mars's ground darkens under its dust.  The Cesium layer matches across the terminator, and Earth's ground brightness follows the month's snow.
