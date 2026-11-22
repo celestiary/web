@@ -156,3 +156,35 @@ describe('the solar wind', () => {
     expect(wind.layers.mask).toBe(2)
   })
 })
+
+
+describe('the glare\'s direction to the disc', () => {
+  it('is the camera\'s as the pass is drawn, not as it was when the layers updated', async () => {
+    const {Object3D, PerspectiveCamera, Vector3} = await import('three')
+    const star = Object.assign(new Object3D, {props: {radius: {scalar: 6.957e8}}, color: [1, 1, 1], teff: 5772})
+    star.position.set(0, 0, -1.496e11)
+    star.updateMatrixWorld()
+    const layers = new SunLayers(star, {activity: false})
+    const camera = new PerspectiveCamera(10, 4 / 3, 1, 1e13)
+    camera.lookAt(star.position)
+    camera.updateMatrixWorld()
+    // The frame's update (Star.preAnimCb), in the animation callback.
+    layers._glareView(camera)
+    const u = layers.glare.material.uniforms
+    expect(u.uSunDir.value.z).toBeCloseTo(-1, 9)
+    // Then a tween or the arrow keys turn the camera 2°, and the scene is
+    // drawn: the disc is where this camera sees it, and so must the veil's
+    // hole be.
+    camera.rotateY(2 * Math.PI / 180)
+    camera.updateMatrixWorld()
+    layers.glare.onBeforeRender(null, null, camera)
+    const seen = star.position.clone().applyMatrix4(camera.matrixWorldInverse).normalize()
+    expect(u.uSunDir.value.distanceTo(seen)).toBeLessThan(1e-9)
+    expect(Math.abs(seen.x)).toBeGreaterThan(0.03)
+    // The directions across the disc stay perpendicular to it, and unit.
+    expect(u.uAcross1.value.dot(u.uSunDir.value)).toBeCloseTo(0, 9)
+    expect(u.uAcross2.value.dot(u.uSunDir.value)).toBeCloseTo(0, 9)
+    expect(u.uAcross1.value.length()).toBeCloseTo(1, 9)
+    expect(new Vector3().copy(u.uAcross2.value).length()).toBeCloseTo(1, 9)
+  })
+})

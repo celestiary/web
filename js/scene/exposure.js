@@ -1,5 +1,5 @@
 import {ASTRO_UNIT_METER, DISPLAY_GAIN, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.js'
-import {HDR_MAX_VALUE, luminousShoulder} from './hdr.js'
+import {HDR_MAX_VALUE, LUMINOUS_GLOW_MAX, luminousShoulder} from './hdr.js'
 import {
   EYE_CORE_SHARE,
   EYE_DARK_GAIN,
@@ -917,6 +917,12 @@ export function starGainForLimit(magnitude) {
  * @param {boolean} [opts.wings] Whether the wings are drawn (not for the
  *   Sun's point: its glare pass draws them)
  * @param {number} [opts.maxSizePx] The quad's largest side (the GPU's point-size range)
+ * @param {boolean} [opts.discDrawn] Whether the star's disc's mesh may draw under
+ *   the sprite (the Sun's point; any star within its LOD's thousand radii):
+ *   then its peak is held to what the disc's shoulder leaves of the buffer
+ *   (LUMINOUS_GLOW_MAX), and it has no wing (its glare pass is its veil)
+ * @param {number} [opts.colorMax] The colour's brightest channel (at
+ *   luminance 1: the Sun's red 1.11), which the peak's cap is on
  * @returns {{value: number, patchPx: number, sigma: number, peak: number, sizePx: number, coreRadiusPx: number,
  *   flat: boolean, wingScale: number, degPerPx: number, wingRadiusPx: number, visibleRadiusPx: number}}
  *   value is the pooled radiance in exposure units and peak the core's; coreRadiusPx where
@@ -925,7 +931,9 @@ export function starGainForLimit(magnitude) {
  *   degPerPx the eye's angle a pixel subtends; flat for the one-pixel sprite of a coarse viewport (sigma 0)
  */
 export function starSprite(ratio, gainOverEarth,
-    {fovDegrees = 45, heightPx = 300, starGain = 1, discRad = 0, wings = true, maxSizePx = STAR_MAX_SIZE_PX} = {}) {
+    {fovDegrees = 45, heightPx = 300, starGain = 1, discRad = 0, wings = true, maxSizePx = STAR_MAX_SIZE_PX,
+      discDrawn = false, colorMax = 1} = {}) {
+  const maxValue = (discDrawn ? LUMINOUS_GLOW_MAX : HDR_MAX_VALUE) / colorMax
   const pxRad = (fovDegrees * Math.PI / 180) / Math.max(heightPx, 1)
   const magnification = fieldMagnification(fovDegrees)
   const patchRad = Math.max(pxRad, eyePatchRad(fovDegrees))
@@ -937,7 +945,7 @@ export function starSprite(ratio, gainOverEarth,
   // The eye's angle a pixel subtends: through a telescope's field, the
   // pixel's angle on the sky times the magnification.
   const degPerPx = pxRad * magnification * 180 / Math.PI
-  const wingScale = wings ? value * patchRad * patchRad * magnification * magnification / STAR_CORE_SHARE : 0
+  const wingScale = wings && !discDrawn ? value * patchRad * patchRad * magnification * magnification / STAR_CORE_SHARE : 0
   const light = value * patchPx * patchPx
   const sigma0 = Math.max(STAR_SIGMA_PER_PATCH * patchPx, STAR_SIGMA_MIN_PX)
   const peak0 = light / (2 * Math.PI * sigma0 * sigma0)
@@ -949,11 +957,11 @@ export function starSprite(ratio, gainOverEarth,
   if (patchPx < 1.5 && peak0 < 1) {
     // Odd-sized about the star's pixel, as the shader has it.
     const sizePx = Math.min(Math.max((2 * Math.floor(wingRadiusPx + 0.5)) + 1, 1), maxSizePx)
-    return {value, patchPx, sigma: 0, peak: Math.min(value, HDR_MAX_VALUE), sizePx, coreRadiusPx: wingWhitePx, flat: true,
+    return {value, patchPx, sigma: 0, peak: Math.min(value, maxValue), sizePx, coreRadiusPx: wingWhitePx, flat: true,
       wingScale, degPerPx, wingRadiusPx, visibleRadiusPx: Math.max(0.5, wingRadiusPx)}
   }
   const sigma = sigma0
-  const peak = Math.min(light / (2 * Math.PI * sigma * sigma), HDR_MAX_VALUE)
+  const peak = Math.min(light / (2 * Math.PI * sigma * sigma), maxValue)
   const coreVisible = sigma * Math.sqrt(2 * Math.log(Math.max(peak / STAR_VISIBLE_VALUE, 1)))
   const visibleRadiusPx = Math.max(coreVisible, wingRadiusPx)
   const sizePx = Math.min(Math.max((2 * visibleRadiusPx) + 2, 1), maxSizePx)
