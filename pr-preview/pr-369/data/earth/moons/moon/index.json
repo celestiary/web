@@ -23,6 +23,7 @@
 }
 ,"albedo": 0.12,
 "texture_gain": 0.4448,
+"texture_encoding": "linear",
 "photometry": "lunar",
 "texture_normal": true,
 "equatorialGravity": 1.622,
