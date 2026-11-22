@@ -772,8 +772,17 @@ black pixel: with the disc at 6e4 and the glow at 2e4 the rim's red
 channel overflowed, 29 pixels round the disc).  The shell now skips
 what lies behind the disc (a ray test in its shader: [Stars.md, the limb
 glow](Stars.md#the-limb-glow)), which also took out the glow's blocks
-through the limb from 1 AU at a narrow field.  The point sprites add
-single digits at most there (the glare cap).  The shoulder is the fix
+through the limb from 1 AU at a narrow field.  The Sun's point sprite
+adds on the disc's pixels too, and wasn't "single digits at most there":
+from the ground at a 45° field (the disc 3 px across) the disc's centre
+was 49,980 in red and the point, held only to 6e4 on its luminance, added
+18,000, NaN on SwiftShader and black on the user's screen.  A sprite over
+a disc that its Star's LOD may draw (the Sun's; any star within a thousand
+radii, 2e-3 rad across) is now held to `LUMINOUS_GLOW_MAX` on its
+brightest channel (`stars.vert` `DISC_SHARE_MAX`, `discDrawn`), and has
+no wing (its glare pass is its veil); any other sprite's cap, 6e4, is on
+its brightest channel too (a colour at luminance 1 has red 1.11 for the
+Sun, 1.75 at 3000 K).  The shoulder is the fix
 for the top of half-float, not a stopgap
 ([pre-exposure](#pre-exposure), [#157](https://github.com/celestiary/web/issues/157)):
 the buffer holds the disc at the frame's gain, and in a dark-adapted

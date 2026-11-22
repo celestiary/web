@@ -315,8 +315,14 @@ export default class SunLayers {
     mesh.renderOrder = 10
     mesh.visible = false
     named(mesh, 'sun glare')
+    // The Sun's direction again from the camera as it is drawn, as the disc
+    // takes its own (discView, the corona's _coronaView): update() runs in
+    // the animation callback, before tweens, the arrow keys and the ground
+    // move the camera, and a direction from then put the veil's hole over
+    // where the disc had been, a frame behind it while the view turned.
     mesh.onBeforeRender = (renderer, scene, camera) => {
       mesh.material.uniforms.uProjectionInverse.value = camera.projectionMatrixInverse
+      this._glareDirection(camera)
     }
     return mesh
   }
@@ -648,9 +654,7 @@ export default class SunLayers {
    */
   _glareView(camera) {
     const u = this.glare.material.uniforms
-    const [cam, sun, , a, b] = this._v
-    camera.getWorldPosition(cam)
-    this.star.getWorldPosition(sun)
+    const b = this._v[4]
     const value = this.discValue()
     const solid = 2 * Math.PI * (1 - Math.cos(this.discRadius))
     const scale = value * this.visibleFraction * solid
@@ -658,14 +662,7 @@ export default class SunLayers {
     u.uVisible.value = this.visibleFraction
     u.uDiscRadius.value = this.discRadius
     u.uDiscSolidAngle.value = solid
-    const dir = sun.sub(cam).normalize().transformDirection(camera.matrixWorldInverse)
-    u.uSunDir.value.copy(dir)
-    a.set(0, 1, 0)
-    if (Math.abs(dir.y) > 0.9) {
-      a.set(1, 0, 0)
-    }
-    u.uAcross1.value.crossVectors(dir, a).normalize()
-    u.uAcross2.value.crossVectors(dir, u.uAcross1.value)
+    const dir = this._glareDirection(camera)
     // Shown if its reach, where it falls under the floor, gets into the
     // frame: the angle from the view's axis to the Sun, less the field's
     // half-diagonal.
@@ -683,6 +680,31 @@ export default class SunLayers {
     this.glare.visible = this.enabled.glare && this.view === VIEW_EYE &&
       field > 0 && reach > 0.1 && offAxis - halfDiag < reach &&
       fn(0.1) * scale > VISIBLE_FLOOR
+  }
+
+
+  /**
+   * The Sun's direction in the camera's view space and two directions
+   * across it, the glare's uSunDir and uAcross: from _glareView for its
+   * reach, and again as the pass is drawn (its onBeforeRender), from the
+   * camera as it is then.
+   *
+   * @param {object} camera
+   * @returns {Vector3} The direction (the uniform's own value)
+   */
+  _glareDirection(camera) {
+    const u = this.glare.material.uniforms
+    const [cam, sun, , a] = this._v
+    camera.getWorldPosition(cam)
+    this.star.getWorldPosition(sun)
+    const dir = u.uSunDir.value.copy(sun.sub(cam).normalize().transformDirection(camera.matrixWorldInverse))
+    a.set(0, 1, 0)
+    if (Math.abs(dir.y) > 0.9) {
+      a.set(1, 0, 0)
+    }
+    u.uAcross1.value.crossVectors(dir, a).normalize()
+    u.uAcross2.value.crossVectors(dir, u.uAcross1.value)
+    return dir
   }
 
 
