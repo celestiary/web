@@ -35,6 +35,10 @@
  *   lights"), not through Cesium's lighting, which would multiply them away.
  * - `nightFloor`: a tileset's light on its night side, as a fraction of
  *   full sun (sunlitShader); a globe's lighting is Cesium's.
+ * - `albedoFloor`: a globe's light floor, as a fraction of full sun
+ *   (litSurfaceOnly): its frame then holds the albedo on the night side
+ *   too, which the decode needs for the sky's light on the ground, and
+ *   takes out (CESIUM.md, "The ground's light").
  * - `relief`: a tangent-space normal map the tileset's shader lights the
  *   sphere's slopes by (the Moon's LOLA map, as celestiary's own Moon).
  * - `earthshine`: the tileset's night side is lit by Earth's reflected
@@ -64,6 +68,7 @@ export const CESIUM_BODIES = {
     // Celestiary's atmosphere pass, over Cesium's lit surface.
     atmosphere: false,
     shellScale: TERRAIN_SHELL_SCALE,
+    albedoFloor: 0.05,
     // The globe's base imagery, the simulation date's month: tiles cut from
     // the Blue Marble mosaics celestiary's own Earth texture is from
     // (earth.json texture_monthly), so the two match across the swap.

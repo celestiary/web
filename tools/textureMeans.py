@@ -14,7 +14,10 @@ light the textured one gives, on average.
 
 Usage: tools/textureMeans.py > js/scene/textureMeans.json
 Run from the repository root.  Needs Pillow and NumPy.  A body whose map
-follows the month (Earth's texture_monthly) takes January's.
+follows the month (Earth's texture_monthly) takes January's, and has each
+month's under `monthly` (January first), the ground under its air by the
+month (its descriptor's atmosphere.groundAlbedo; composition.md, "The
+ground's albedo by the month").
 """
 import json
 import os
@@ -49,6 +52,7 @@ def mean_rgb(path, encoding='srgb'):
 
 def main():
     means = {}
+    monthly = {}
     # Each body's descriptor, in its directory (js/bodyDirs.json, yarn bodies).
     with open('js/bodyDirs.json') as f:
         dirs = json.load(f)
@@ -63,7 +67,13 @@ def main():
         tex = texture_path(props)
         if os.path.exists(tex) and props['name'] not in means:
             means[props['name']] = mean_rgb(tex, props.get('texture_encoding', 'srgb'))
-    json.dump(dict(sorted(means.items())), sys.stdout, indent=2)
+        pattern = props.get('texture_monthly')
+        if pattern:
+            monthly[props['name']] = [
+                mean_rgb(f'public/textures/{pattern.replace("{MM}", f"{m:02d}")}.jpg') for m in range(1, 13)]
+    out = dict(sorted(means.items()))
+    out['monthly'] = dict(sorted(monthly.items()))
+    json.dump(out, sys.stdout, indent=2)
     sys.stdout.write('\n')
 
 

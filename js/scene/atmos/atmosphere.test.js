@@ -6,6 +6,7 @@ import {ASTRO_UNIT_METER, DISPLAY_GAIN} from '../../shared.js'
 import {PHYSICAL_SKY_GAIN, exposureAt, skyExposure, skyGain} from '../exposure.js'
 import {groundAlbedo, mieParams, ozoneParams} from './AtmospherePrecompute.js'
 import TEXTURE_MEANS from '../textureMeans.json'
+import {GROUND_ALBEDO_REBUILD, groundAlbedoStale, setBuiltAlbedo, setGroundMonth} from './groundLight.js'
 import {EARTH, channelCoefficients} from '../../../tools/atmos/bandAverage.mjs'
 
 
@@ -411,9 +412,26 @@ describe('Earth\'s air by its optical depths (a CPU integral, as the transmittan
 describe('the ground under the air', () => {
   it('is Earth\'s drawn ground for its tables, not its geometric albedo, which holds its air and clouds', () => {
     const earth = loadPlanet('earth')
-    // The decoded Blue Marble's mean, per channel (tools/textureMeans.py).
-    expect(earth.atmosphere.groundAlbedo).toEqual(TEXTURE_MEANS.earth)
-    expect(groundAlbedo(earth.atmosphere, earth.albedo).toArray()).toEqual(TEXTURE_MEANS.earth)
+    // The decoded Blue Marble's mean, per channel and month (tools/textureMeans.py).
+    expect(earth.atmosphere.groundAlbedo).toEqual(TEXTURE_MEANS.monthly.earth)
+    expect(TEXTURE_MEANS.monthly.earth[0]).toEqual(TEXTURE_MEANS.earth)
+    const atmos = {...earth.atmosphere}
+    expect(groundAlbedo(atmos, earth.albedo).toArray()).toEqual(TEXTURE_MEANS.earth)
+    setGroundMonth(atmos, 7)
+    expect(groundAlbedo(atmos, earth.albedo).toArray()).toEqual(TEXTURE_MEANS.monthly.earth[6])
+  })
+
+  it('makes the tables again only when the month moves it past the threshold', () => {
+    const months = TEXTURE_MEANS.monthly.earth
+    const atmos = {}
+    setBuiltAlbedo(atmos, months[6])
+    // July to August moves under 0.001: kept; July to November, 0.026: made again.
+    expect(groundAlbedoStale(atmos, months[7])).toBe(false)
+    expect(groundAlbedoStale(atmos, months[10])).toBe(true)
+    expect(groundAlbedoStale({}, months[10])).toBe(false)
+    const steps = months.map((m, i) => Math.max(...m.map((v, c) => Math.abs(v - months[(i + 1) % 12][c]))))
+    expect(Math.max(...steps)).toBeGreaterThan(GROUND_ALBEDO_REBUILD)
+    expect(Math.min(...steps)).toBeLessThan(GROUND_ALBEDO_REBUILD)
   })
 
   it('falls back to the body\'s albedo, one number in every channel', () => {

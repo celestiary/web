@@ -11,6 +11,9 @@ import {
   Vector3,
   WebGLRenderTarget,
 } from 'three'
+import {
+  GROUND_LIGHT_ROWS, GROUND_LIGHT_W, MU_S_MIN, groundLightFor, groundMonth, monthsAlbedo, setBuiltAlbedo, setGroundLight,
+} from './groundLight.js'
 
 
 /**
@@ -695,11 +698,57 @@ function renderLut(renderer, width, height, uniforms, fragmentShader) {
  *   u = altitude, v = μ_sun·0.5 + 0.5
  */
 export function precomputeMultiScatter(renderer, atmos, rGround, transmittanceRT, bodyAlbedo) {
-  return renderLut(renderer, 64, 64, {
+  const albedo = groundAlbedo(atmos, bodyAlbedo)
+  setBuiltAlbedo(atmos, albedo.toArray())
+  const rt = renderLut(renderer, 64, 64, {
     ...atmosUniforms(atmos, rGround),
-    uGroundAlbedo: {value: groundAlbedo(atmos, bodyAlbedo)},
+    uGroundAlbedo: {value: albedo},
     tTransmittance: {value: transmittanceRT.texture},
   }, MULTISCATTER_FRAG)
+  // The ground's light (precomputeGroundLight), made with the tables it
+  // reads and disposed with them, and registered for the body's surface
+  // (groundLight.js) while they last: ThreeUi makes them for the body whose
+  // air the pass draws.
+  const ground = precomputeGroundLight(renderer, atmos, rGround, transmittanceRT, rt)
+  setGroundLight(atmos, ground.texture)
+  rt.texture.userData.groundLight = ground.texture
+  const dispose = rt.dispose.bind(rt)
+  rt.dispose = () => {
+    if (groundLightFor(atmos) === ground.texture) {
+      setGroundLight(atmos, null)
+    }
+    ground.dispose()
+    dispose()
+  }
+  return rt
+}
+
+
+/**
+ * Precomputes the ground's light (Bruneton 2017's ground irradiance; its
+ * irradiance texture): over the Sun's zenith cosine and the height, the
+ * Sun's transmittance to the point (the delta-M beam's, so an aerosol's
+ * narrow lobe, scattered within a few degrees of the Sun, counts as the
+ * Sun's light; none behind the planet), and the sky's irradiance on a level
+ * surface there, both per unit of the Sun's irradiance above the air: the
+ * single scattering of 64 directions over the upper hemisphere, marched
+ * through the transmittance table, plus the light scattered more than once
+ * (σ_s·Ψ along each, as the in-scatter's), weighted by their cosine.
+ * Layout and lookup: groundLight.js.
+ *
+ * @param {object} renderer
+ * @param {object} atmos
+ * @param {number} rGround
+ * @param {WebGLRenderTarget} transmittanceRT
+ * @param {WebGLRenderTarget} multiScatterRT
+ * @returns {WebGLRenderTarget} GROUND_LIGHT_W × 2·GROUND_LIGHT_ROWS, FloatType
+ */
+export function precomputeGroundLight(renderer, atmos, rGround, transmittanceRT, multiScatterRT) {
+  return renderLut(renderer, GROUND_LIGHT_W, 2 * GROUND_LIGHT_ROWS, {
+    ...atmosUniforms(atmos, rGround),
+    tTransmittance: {value: transmittanceRT.texture},
+    tMultiScatter: {value: multiScatterRT.texture},
+  }, GROUND_LIGHT_FRAG)
 }
 
 
@@ -711,14 +760,15 @@ export function precomputeMultiScatter(renderer, atmos, rGround, transmittanceRT
  * one, else the body's `albedo`.  That is a geometric albedo, the whole
  * disc's, its air and clouds in it: as the ground's it counts them twice
  * (composition.md, "The ground under the air").  Earth's is its drawn
- * ground's mean, the decoded Blue Marble's (textureMeans.json).
+ * ground's mean, the decoded Blue Marble's, one a month (textureMeans.json
+ * `monthly`), at the simulation's month (groundLight.js groundMonth).
  *
  * @param {object} atmos A body's reified atmosphere props
  * @param {number} bodyAlbedo The body's albedo (its JSON)
  * @returns {Vector3}
  */
 export function groundAlbedo(atmos, bodyAlbedo) {
-  const a = atmos?.groundAlbedo ?? bodyAlbedo ?? 0
+  const a = monthsAlbedo(atmos?.groundAlbedo ?? bodyAlbedo ?? 0, groundMonth(atmos))
   return Array.isArray(a) ? new Vector3(...a) : new Vector3(a, a, a)
 }
 
@@ -763,6 +813,82 @@ vec3 sunTransmittance(vec3 pos, vec3 sun) {
   vec3 od = texture2D(tTransmittance,
       vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / r, sun) * 0.5 + 0.5)).rgb;
   return exp(-(uMieCoeff * (1.0 - uMieAlbedo * uMiePeakWeight) * od.g + uRayleigh * od.r + uOzone * od.b));
+}
+`
+
+
+const GROUND_LIGHT_FRAG = `
+precision highp float;
+varying vec2 vUv;
+uniform float     uGroundRadius;
+uniform float     uAtmosphereRadius;
+uniform float     uRayleighScaleHeight;
+uniform float     uMieScaleHeight;
+uniform vec3      uRayleigh;
+uniform vec3      uMieCoeff;
+uniform vec3      uMieAlbedo;
+uniform vec3      uOzone;
+uniform vec3      uOzoneProfile;
+uniform vec3      uMiePolarity;
+uniform float     uMieBackPolarity;
+uniform float     uMieForwardWeight;
+uniform vec3      uMiePeakWeight;
+uniform sampler2D tTransmittance;
+uniform sampler2D tMultiScatter;
+#define DIRS  64
+#define STEPS 24
+#define PI 3.14159265
+${RSI_GLSL}
+${STEP_INTEGRAL_GLSL}
+${MIE_PHASE_GLSL}
+${OZONE_GLSL}
+${SUN_TRANSMITTANCE_GLSL}
+void main() {
+  float fx   = (vUv.x * ${GROUND_LIGHT_W.toFixed(1)} - 0.5) / ${(GROUND_LIGHT_W - 1).toFixed(1)};
+  float mu_s = ${MU_S_MIN.toFixed(1)} + ${(1 - MU_S_MIN).toFixed(1)} * fx;
+  float row  = floor(vUv.y * ${(2 * GROUND_LIGHT_ROWS).toFixed(1)});
+  bool  sky  = row >= ${GROUND_LIGHT_ROWS.toFixed(1)};
+  float h_t  = mod(row, ${GROUND_LIGHT_ROWS.toFixed(1)}) / ${(GROUND_LIGHT_ROWS - 1).toFixed(1)};
+  float r    = uGroundRadius + h_t * (uAtmosphereRadius - uGroundRadius) * 0.9999;
+  vec3  x    = vec3(0.0, r, 0.0);
+  vec3  sun  = vec3(sqrt(max(1.0 - mu_s * mu_s, 0.0)), mu_s, 0.0);
+  if (!sky) {
+    // None with the Sun under the horizon there (from the ground, rsi's
+    // test is float32 noise).
+    float muH = -sqrt(max(0.0, 1.0 - uGroundRadius * uGroundRadius / (r * r)));
+    gl_FragColor = vec4(mu_s < muH ? vec3(0.0) : sunTransmittance(x, sun), 1.0);
+    return;
+  }
+  vec3  kMieS = uMieCoeff * (1.0 - uMieAlbedo * uMiePeakWeight);
+  vec3  sMieS = uMieCoeff * uMieAlbedo * (1.0 - uMiePeakWeight);
+  vec3  E = vec3(0.0);
+  for (int i = 0; i < DIRS; i++) {
+    float z   = (float(i) + 0.5) / float(DIRS);
+    float rho = sqrt(max(0.0, 1.0 - z * z));
+    float phi = 2.39996323 * float(i);
+    vec3  dir = vec3(rho * cos(phi), z, rho * sin(phi));
+    float tMax = rsi(x, dir, uAtmosphereRadius).y;
+    float nu  = dot(dir, sun);
+    float pR  = 3.0 / (16.0 * PI) * (1.0 + nu * nu);
+    vec3  pM  = miePhase(nu, uMiePolarity, uMieBackPolarity, uMieForwardWeight);
+    vec3  T   = vec3(1.0);
+    vec3  L   = vec3(0.0);
+    float ds  = tMax / float(STEPS);
+    for (int j = 0; j < STEPS; j++) {
+      vec3  pos = x + dir * ((float(j) + 0.5) * ds);
+      float h   = max(length(pos) - uGroundRadius, 0.0);
+      float dR  = exp(-h / uRayleighScaleHeight);
+      float dM  = exp(-h / uMieScaleHeight);
+      vec3  sigma = uRayleigh * dR + kMieS * dM + uOzone * ozoneDensity(h);
+      vec2  msUv = vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / length(pos), sun) * 0.5 + 0.5);
+      vec3  psi = texture2D(tMultiScatter, msUv).rgb;
+      vec3  g = T * stepIntegral(sigma, ds);
+      L += g * (sunTransmittance(pos, sun) * (uRayleigh * dR * pR + sMieS * dM * pM) + (uRayleigh * dR + sMieS * dM) * psi);
+      T *= exp(-sigma * ds);
+    }
+    E += L * z;
+  }
+  gl_FragColor = vec4(E * 2.0 * PI / float(DIRS), 1.0);
 }
 `
 

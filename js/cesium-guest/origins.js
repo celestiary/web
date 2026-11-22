@@ -111,9 +111,11 @@ export const DEFAULT_GUEST_PAGE = (typeof __CESIUM_GUEST_PAGE__ === 'string' && 
  * named 'emission' (was 'lights'; the host takes both) and the frame-end's
  * screen targets, view and projection, for the host's reprojection; 4, a
  * globe's frames sRGB-encoded linear light, its imagery decoded before it is
- * lit (HDR.md, "Colour spaces"), where they were stored values, unencoded.
+ * lit (HDR.md, "Colour spaces"), where they were stored values, unencoded;
+ * 5, a globe's light floor (bodies.js albedoFloor), which the host's decode
+ * takes out (CESIUM.md, "The ground's light").
  */
-export const GUEST_VERSION = 4
+export const GUEST_VERSION = 5
 
 
 /**

@@ -626,7 +626,12 @@ mag/arcsec²), so the meter keyed on Jupiter and dimmed the Moon.
 **Now the falloff is 1/d²** (`SUN_LIGHT_DECAY` 2), and the intensity is
 the Sun's luminous intensity in candela, `SUN_ILLUMINANCE_LUX` × AU²
 (2.84e27): three's light units are photometric, lux for the irradiance
-(1.27e5 at 1 AU), cd/m² for a surface's radiance.
+(1.27e5 at 1 AU), cd/m² for a surface's radiance.  Under an atmosphere
+the light reaches the ground through it, the Sun's irradiance times its
+transmittance there plus the sky's (composition.md, [the ground's
+light](atmos/composition.md#the-grounds-light)); the keyed exposure is
+the Sun's above the air, so a white surface facing the Sun at noon on
+Earth is 0.93 of `DISPLAY_GAIN`, and the meter lifts the darker frame.
 - **Why those units.**  Keeping the old irradiance at 1 AU (1.9e17) with d²
   would take an intensity of 3.7e28 × AU^0.99 = 4.3e39, past float32's
   3.4e38: the light's uniform would be Inf.  In lux a surface's irradiance
@@ -793,8 +798,14 @@ over the radius).  `standInMaps.test.js` checks each to 1%.
   and the disc's cool colour there is its air's at an oblique view and a
   low Sun (composition.md, [the disc from low
   orbit](atmos/composition.md#the-disc-from-low-orbit)).  The ground is
-  lit by the Sun above the air, with no transmittance on its path and no
-  sky light: a known gap there.
+  lit through the air: the Sun's light times its transmittance to the
+  ground, and the sky's (composition.md, [the ground's
+  light](atmos/composition.md#the-grounds-light)), for every body with an
+  atmosphere while its air is the pass's.  The ground's albedo follows the
+  month: `textureMeans.json` has each month's Blue Marble mean under
+  `monthly` (`tools/textureMeans.py`), 0.061 (August) to 0.100
+  (February), which Earth's `atmosphere.groundAlbedo` holds (composition.md,
+  [by the month](atmos/composition.md#the-grounds-albedo-by-the-month)).
 - **The moons** have no gains yet: decoded, each is 0.4 to 1.6 mag darker
   than it rendered, and the descriptors' `albedo`s are a mix of kinds (and
   some wrong: Phobos's 1.0 for about 0.07).  Their decoded p with no gain:

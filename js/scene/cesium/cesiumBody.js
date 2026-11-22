@@ -148,7 +148,7 @@ export function createWidget(Cesium, name, {container, contextOptions, creditCon
     // "Patching Cesium").  So Earth is lit in linear light, as celestiary's.
     scene.globe.imagerySrgb = true
     if (!config.atmosphere) {
-      litSurfaceOnly(scene.globe)
+      litSurfaceOnly(scene.globe, config.albedoFloor ?? 0)
       scene.fog.enabled = false
     }
     // The terrain's own depth for the distance stage: without
@@ -724,14 +724,20 @@ export function sunlitShader(Cesium, nightFloor, {lunar = false, srgb = true, re
  * effect: its sun glint and sky reflection lit the sunward ocean up to
  * twice celestiary's (whose ocean shine is its own, Planet.md).
  *
+ * With a `floor` the light is floor + (1 − floor) × Lambert: the frame holds
+ * the albedo on the night side too, for the sky's light on the ground, and
+ * the decode takes the floor out (CesiumLayers; CESIUM.md, "The ground's
+ * light").
+ *
  * @param {object} globe Cesium.Globe
+ * @param {number} [floor] The body's albedoFloor
  */
-function litSurfaceOnly(globe) {
+function litSurfaceOnly(globe, floor = 0) {
   globe.showGroundAtmosphere = false
   globe.showWaterEffect = false
-  globe.lambertDiffuseMultiplier = 1
-  globe.dayNightLambertDiffuseMultiplier = 1
-  globe.vertexShadowDarkness = 0
+  globe.lambertDiffuseMultiplier = 1 - floor
+  globe.dayNightLambertDiffuseMultiplier = 1 - floor
+  globe.vertexShadowDarkness = floor
   globe.lightingFadeOutDistance = 0
   globe.lightingFadeInDistance = 1
 }
