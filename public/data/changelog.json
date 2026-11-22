@@ -1,6 +1,27 @@
 {
   "entries": [
     {
+      "id": "2026-11-22-the-ground-lit-through-the-air-dimmer-and",
+      "date": "2026-11-22",
+      "headline": "The ground lit through the air: dimmer and redder toward sunset",
+      "text": "The ground under an atmosphere was lit as if the air weren't there, as bright and white at sunset as at noon until the terminator.  Now sunlight reaches it through the air and the sky lights it too: Earth's land reddens and dims toward the terminator, the twilight ground keeps the sky's glow a few degrees past it, and Mars's ground darkens under its dust.  The Cesium layer matches across the terminator, and Earth's ground brightness follows the month's snow.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 376,
+          "url": "https://github.com/celestiary/web/pull/376"
+        }
+      ],
+      "epic": {
+        "number": 110,
+        "title": "Earth appearance parity across the Cesium swap",
+        "url": "https://github.com/celestiary/web/issues/110"
+      },
+      "permalink": "#sun/earth@15,20.7446,20Mm;t=9233.1234jd;cq=-0.0108,0.9967,-0.0736,0.031;fov=45deg;s=alpoU",
+      "image": null,
+      "kind": "fix"
+    },
+    {
       "id": "2026-11-21-earth-s-air-as-it-really-is-a-blue-limb-orange",
       "date": "2026-11-21",
       "headline": "Earth's air as it really is: a blue limb, orange sunsets",
