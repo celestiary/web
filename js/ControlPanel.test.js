@@ -389,6 +389,33 @@ describe('ControlPanel', () => {
     expect(panel.seaIceSwitchHtml(body)).toContain('aria-checked="false"')
   })
 
+  it('offers the Sun\'s views in its summary, one of them on, and nothing for a body with one view', () => {
+    const panel = new ControlPanel(null, null)
+    const sun = {name: 'sun', type: 'star', radius: '6.957e8 m', mass: '1.9891e30 kg', density: '1408 kg/m^3',
+      system: ['earth']}
+    expect(panel.viewHtml('sun')).toBe('')
+    let view = 'eye'
+    panel.viewHooks = {
+      of: (name) => (name === 'sun' ? [{id: 'eye', label: 'visible light', on: view === 'eye'},
+        {id: 'euv', label: 'extreme ultraviolet', on: view === 'euv'}] : null),
+      set: (name, id) => {
+        view = id
+      },
+    }
+    expect(panel.viewHtml('earth')).toBe('')
+    const html = panel.viewHtml('sun')
+    expect(html).toContain('<dt>Seen in</dt>')
+    expect(html).toContain('role="radiogroup"')
+    expect(html).toContain('class="body-view on" data-body="sun" data-view="eye" role="radio" aria-checked="true"')
+    expect(html).toContain('class="body-view" data-body="sun" data-view="euv" role="radio" aria-checked="false"')
+    // In the summary, above the sections: seen without opening one.
+    const whole = panel.bodyPanelHtml(sun, 'sun')
+    expect(whole.indexOf('Seen in')).toBeGreaterThan(-1)
+    expect(whole.indexOf('Seen in')).toBeLessThan(whole.indexOf('<details'))
+    view = 'euv'
+    expect(panel.viewHtml('sun')).toContain('data-view="euv" role="radio" aria-checked="true"')
+  })
+
   it('switches Earth\'s clouds in the atmosphere section, and follows the key', () => {
     const panel = new ControlPanel(null, null)
     const body = {name: 'earth', clouds: 'gibs', atmosphere: {height: '8e4 m'}}

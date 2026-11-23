@@ -740,6 +740,7 @@ button {
 .periodic-manifolds,
 .craft-flight,
 .info-toggle,
+.body-view,
 .population-group {
   padding: 1px var(--space-10);
   border: 1px solid var(--line);
@@ -755,6 +756,7 @@ button {
 .periodic-manifolds:hover,
 .craft-flight:hover,
 .info-toggle:hover,
+.body-view:hover,
 .population-group:hover {
   border-color: var(--line-accent);
   color: var(--ink);
@@ -765,6 +767,7 @@ button {
 .periodic-manifolds:focus-visible,
 .craft-flight:focus-visible,
 .info-toggle:focus-visible,
+.body-view:focus-visible,
 .population-group:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
@@ -775,6 +778,7 @@ button {
 .periodic-manifolds.on,
 .craft-flight.on,
 .info-toggle.on,
+.body-view.on,
 .population-group.on {
   border-color: var(--line-accent);
   background: var(--accent-fill);

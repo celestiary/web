@@ -228,6 +228,8 @@ export default class SunLayers {
     }
     // The view the page asked for (`?sun=`), which a link's gives way to.
     this.defaultView = view
+    /** Called with the view when it changes (setView): the panel's choice follows. */
+    this.onViewChange = null
     this.setView(view)
   }
 
@@ -242,7 +244,11 @@ export default class SunLayers {
    * @param {string} view
    */
   setView(view) {
+    const was = this.view
     this.view = VIEWS.includes(view) ? view : VIEW_EYE
+    if (was !== this.view) {
+      this.onViewChange?.(this.view)
+    }
     const euv = this.view === VIEW_EUV ? 1 : 0
     if (this._disc) {
       this._disc.uEuv.value = euv
@@ -264,6 +270,18 @@ export default class SunLayers {
   setLinkView(view) {
     this.setView(view ?? this.defaultView)
     this._linkView = view !== null && view !== undefined && this.view !== this.defaultView
+  }
+
+
+  /**
+   * The view the user picks (the info panel's choice): as a link's, but
+   * the eye's is the eye's, where a link naming none is the page's.
+   *
+   * @param {string} view
+   */
+  chooseView(view) {
+    this.setView(view)
+    this._linkView = this.view !== this.defaultView
   }
 
 

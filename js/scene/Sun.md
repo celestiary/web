@@ -401,6 +401,9 @@ centre are now left out.
 
 ## The activity view
 
+The Sun's info panel has the choice, *Seen in*: visible light or extreme
+ultraviolet (`ControlPanel.viewHtml`, `SunLayers.chooseView`; it follows the
+view when a link or the camera changes it, `onViewChange`).  Also
 `?sun=euv` in the URL, a link's `layers:sun=euv`
 ([URLs.md](../../design/URLs.md#layers-token): the homepage's eruption card;
 held near the Sun, and given back to the page's view once the camera has

@@ -72,6 +72,12 @@ export default class ControlPanel {
     this.settingsHooks = null
     /** The craft's switches (craftHtml): {list, toggle}. */
     this.craftHooks = null
+    /**
+     * A body's views, where it has more than one (viewHtml): {of(name):
+     * [{id, label, on}] or null, set(name, id)}.  The Sun's: visible light,
+     * or the activity view (js/scene/Sun.md).
+     */
+    this.viewHooks = null
     // The listed body and its list, and when the values last ran.
     this._orbit = null
     /**
@@ -209,6 +215,7 @@ export default class ControlPanel {
     this._wirePopulation()
     this._wireCraft()
     this._wireSettings()
+    this._wireView()
   }
 
 
@@ -241,6 +248,7 @@ export default class ControlPanel {
     summary += row('Radius', 'radius')
     if (isStar) {
       summary += row('Mass', 'mass')
+      summary += this.viewHtml(body.name)
     } else {
       if (body.siderealRotationPeriod !== undefined) {
         summary += rowHtml('Day', periodText(scalar(body.siderealRotationPeriod)))
@@ -594,6 +602,62 @@ export default class ControlPanel {
       return ''
     }
     return `<div class="info-subhead">Craft</div>\n${rowsHtml(craft.map((c) => this._craftRow(c)).join(''))}`
+  }
+
+
+  /**
+   * A body's views, one of them on (viewHooks): the Sun in visible light or
+   * as an EUV imager and a coronagraph show it.
+   *
+   * @param {string} name The body's
+   * @returns {string} The row, or nothing for a body with one view
+   */
+  viewHtml(name) {
+    const views = this.viewHooks?.of?.(name)
+    if (!views || views.length < 2) {
+      return ''
+    }
+    const chips = views.map((v) =>
+      `<span class="body-view${v.on ? ' on' : ''}" data-body="${esc(name)}" data-view="${esc(v.id)}" role="radio" ` +
+      `aria-checked="${v.on}" tabindex="0">${esc(v.label)}</span>`).join('')
+    return `<div class="info-row is-long"><dt>Seen in</dt>` +
+      `<dd class="info-switches" role="radiogroup" aria-label="Seen in">${chips}</dd></div>\n`
+  }
+
+
+  /** Mark the view's choice again, as the scene has it now (a link opened, the camera gone). */
+  refreshView() {
+    const hooks = this.viewHooks
+    if (!hooks || !this.containerElt?.querySelectorAll) {
+      return
+    }
+    for (const el of this.containerElt.querySelectorAll('.body-view')) {
+      const on = hooks.of(el.dataset.body)?.find((v) => v.id === el.dataset.view)?.on === true
+      el.classList.toggle('on', on)
+      el.setAttribute('aria-checked', String(on))
+    }
+  }
+
+
+  /** Wire the view's choice (viewHtml) to the scene. */
+  _wireView() {
+    const hooks = this.viewHooks
+    if (!hooks || !this.containerElt?.querySelectorAll) {
+      return
+    }
+    for (const el of this.containerElt.querySelectorAll('.body-view')) {
+      const fn = () => {
+        hooks.set(el.dataset.body, el.dataset.view)
+        this.refreshView()
+      }
+      el.addEventListener('click', fn)
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault()
+          fn()
+        }
+      })
+    }
   }
 
 

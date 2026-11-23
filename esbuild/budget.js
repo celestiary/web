@@ -152,7 +152,10 @@ export const STATIC_BUDGET = {
   // stand-in texture until the map is in), the `W` setting, key and switch,
   // and the node that loads it, 3 KB.  The map's loader, its PNG decoder,
   // the records and the Cesium layer are a chunk of their own (SeaIceMap.js).
-  totalMinifiedKB: 2517,
+  // 2,518, so 2,520 (a KB for the ion token's build), with the Sun's view in
+  // its info panel (ControlPanel.viewHtml and its wiring, SunLayers
+  // chooseView, the hooks): 1.5 KB.
+  totalMinifiedKB: 2520,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,

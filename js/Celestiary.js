@@ -54,6 +54,11 @@ import {elt} from './utils'
 // keys here are the lowercase per-overlay toggles ('a' asterisms, 'p'
 // planet labels, etc.); the HTML chrome key 'v' is deliberately not in
 // this list so users can hide overlays and chrome independently.
+// The Sun's views, in the info panel (ControlPanel.viewHtml; activityView.js).
+const SUN_VIEW_CHOICES = Object.freeze([
+  Object.freeze({id: 'eye', label: 'visible light'}),
+  Object.freeze({id: 'euv', label: 'extreme ultraviolet'}),
+])
 const SCENE_INFO_KEYS = ['a', 'l', 'p', 'G', 'C', 'o', 'e', 'c', 'g', 'x', 'S', 'I', 'D']
 // The HTML chrome's fade, ms: index.css's --fade-ms, and the scene's
 // overlays' (scene/fade.js FADE_MS).
@@ -223,6 +228,19 @@ export default class Celestiary {
     this.controlPanel.settingsHooks = {
       get: (key) => this.scene.getSetting(key),
       toggle: (key) => this.scene.applySettings({[key]: !this.scene.getSetting(key)}),
+    }
+    // The Sun's views (ControlPanel.viewHtml): visible light, or the activity
+    // view, which the link then carries (`layers:sun=euv`).
+    this.controlPanel.viewHooks = {
+      of: (name) => {
+        const layers = name === 'sun' ? this._sunLayers() : null
+        return layers?.activity ? SUN_VIEW_CHOICES.map((v) => ({...v, on: layers.view === v.id})) : null
+      },
+      set: (name, id) => {
+        if (name === 'sun') {
+          this._sunLayers()?.chooseView(id)
+        }
+      },
     }
     this.controlPanel.craftHooks = {
       list: (name) => this.scene.craftOf(name),
@@ -1006,6 +1024,25 @@ export default class Celestiary {
 
 
   /**
+   * The Sun's layers, once the Sun is in the scene, with the panel's choice
+   * and the link set to follow its view (a link opened, the panel's choice,
+   * the camera gone from the Sun).
+   *
+   * @returns {?object} SunLayers
+   */
+  _sunLayers() {
+    const layers = this.scene.objects?.sun?.sunLayers ?? null
+    if (layers && !layers.onViewChange) {
+      layers.onViewChange = () => {
+        this.controlPanel?.refreshView?.()
+        this._schedulePermalinkUpdate()
+      }
+    }
+    return layers
+  }
+
+
+  /**
    * Switch on the optional layers a link has on (the `layers:` token):
    * New York's city, which CesiumLayers loads once the camera is over
    * Manhattan with Earth's Cesium layer active.  On every link with a view
@@ -1023,7 +1060,7 @@ export default class Celestiary {
     }
     // The Sun's view is restored whole, as the clock is: a link without
     // `sun=euv` shows the Sun as the page does (the eye's, or `?sun=`).
-    this.scene.objects?.sun?.sunLayers?.setLinkView?.(layers.sun)
+    this._sunLayers()?.setLinkView?.(layers.sun)
   }
 
 
@@ -1660,7 +1697,7 @@ export default class Celestiary {
         // Sun flown to is the one arrived at (the arrival restores it whole).
         const sunView = decodeLayersToken(pl.tokens?.layers).sun
         if (sunView) {
-          this.scene.objects?.sun?.sunLayers?.setLinkView?.(sunView)
+          this._sunLayers()?.setLinkView?.(sunView)
         }
         this._flyTo(this._linkFlight(pl, frame, resolved))
       }, onErr)
@@ -3642,7 +3679,7 @@ export default class Celestiary {
       pop: encodePopulationToken(this.scene.getPopulationState()),
       layers: encodeLayersToken({
         newYork: this.useStore.getState().newYorkOn === true,
-        sun: this.scene.objects?.sun?.sunLayers?.view,
+        sun: this._sunLayers()?.view,
       }),
       ...encodeAppTokens(this.useStore.getState().widgets),
     }
