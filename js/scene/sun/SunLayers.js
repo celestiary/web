@@ -47,7 +47,7 @@ import {balmerPerNm} from './emission.js'
 import {glareFieldWeight, glareFunctionOf, glareRadiusDeg} from './glare.js'
 import {MS_PER_DAY, activityLevel, cyclesAt, sunspotNumber} from './solarCycle.js'
 import {newSolarWind} from './SolarWind.js'
-import {cmesAt, flaresAt, prominencesAt} from './solarEvents.js'
+import {cmeFront, cmesAt, flaresAt, prominencesAt} from './solarEvents.js'
 import {sunBodyQuaternion} from './sunFrame.js'
 import {generator, hash2} from './sunRandom.js'
 import {MAX_CMES, MAX_FILAMENTS, MAX_FLARES, MAX_REGIONS} from './limits.js'
@@ -97,6 +97,9 @@ const SUN_RADIUS_MM = 695.7
 // one has been in view this long.
 const CME_CORE_SHARE = 0.45
 const CME_LOAD_AFTER_MS = 1500
+// A link's view (setLinkView) holds this near the star, in its radii: under
+// Earth's 215.
+const LINK_VIEW_RADII = 150
 // A filament's width on the disc takes this share of its height (a model).
 const FILAMENT_LEAN = 0.25
 const J2000_MS = Date.UTC(2000, 0, 1, 12)
@@ -223,6 +226,8 @@ export default class SunLayers {
       this.wind = newSolarWind(0)
       this._windLevel = 0
     }
+    // The view the page asked for (`?sun=`), which a link's gives way to.
+    this.defaultView = view
     this.setView(view)
   }
 
@@ -244,6 +249,39 @@ export default class SunLayers {
     }
     if (this.corona) {
       this.corona.material.uniforms.uView.value.x = euv
+    }
+  }
+
+
+  /**
+   * A link's view (`layers:sun=euv`, permalink.js): the one it names, or
+   * the page's own where it names none.  A link's view is the Sun's
+   * close-up: it gives way to the page's once the camera has left it
+   * (linkViewAt), so the Sun in Earth's sky isn't left an instrument's.
+   *
+   * @param {?string} view
+   */
+  setLinkView(view) {
+    this.setView(view ?? this.defaultView)
+    this._linkView = view !== null && view !== undefined && this.view !== this.defaultView
+  }
+
+
+  /**
+   * A link's view by the camera's distance: held once the camera has been
+   * within LINK_VIEW_RADII (a link's arrival starts far off), and given
+   * back to the page's when it next leaves.
+   *
+   * @param {number} distance The camera's from the star's centre, m
+   */
+  linkViewAt(distance) {
+    if (!this._linkView) {
+      return
+    }
+    if (distance <= LINK_VIEW_RADII * this.star.props.radius.scalar) {
+      this._linkView = 'arrived'
+    } else if (this._linkView === 'arrived') {
+      this.setLinkView(null)
     }
   }
 
@@ -485,10 +523,21 @@ export default class SunLayers {
         this._events(ms)
         this._lastEventMs = ms
       } else {
-        // Flares change in minutes: their phases every frame.
+        // Flares change in minutes: their phases every frame.  And the
+        // CMEs' fronts: on the step alone an eruption moved once every 30 s
+        // of the date, half a second apart at a minute a second.
         this.state.flares = flaresAt(ms, this.state.regions, this.seed, this.model)
+        for (const cme of this.state.cmes) {
+          cme.front = cmeFront(cme, ms)
+        }
       }
       this.ms = ms
+    }
+    if (camera && this._linkView) {
+      const [cam, sun] = this._v
+      camera.getWorldPosition(cam)
+      this.star.getWorldPosition(sun)
+      this.linkViewAt(cam.distanceTo(sun))
     }
     if (camera) {
       this._occlusion(camera, objects)

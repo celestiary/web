@@ -401,7 +401,10 @@ centre are now left out.
 
 ## The activity view
 
-`?sun=euv` in the URL, or `c.ui.sceneManager.objects.sun.sunLayers.setView('euv')`
+`?sun=euv` in the URL, a link's `layers:sun=euv`
+([URLs.md](../../design/URLs.md#layers-token): the homepage's eruption card;
+held near the Sun, and given back to the page's view once the camera has
+left, `linkViewAt`), or `c.ui.sceneManager.objects.sun.sunLayers.setView('euv')`
 (`'eye'` to go back), draws the Sun as SOHO's and SDO's pictures show it
 (`activityView.js`).  Nothing new is simulated for it: in white light at
 the disc's exposure a flare is a few percent on a few granules, a

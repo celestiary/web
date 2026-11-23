@@ -1011,14 +1011,19 @@ export default class Celestiary {
    * Manhattan with Earth's Cesium layer active.  On every link with a view
    * (the first load, a followed link, What's new's), as the clock is; a link
    * without the token leaves a layer the user switched on as it is, since
-   * the city is costly to build again.
+   * the city is costly to build again.  And the Sun's view (`sun=euv`,
+   * the activity view), which a link sets either way.
    *
    * @param {object} pl The decoded link
    */
   _restoreLayers(pl) {
-    if (decodeLayersToken(pl.tokens?.layers).newYork) {
+    const layers = decodeLayersToken(pl.tokens?.layers)
+    if (layers.newYork) {
       this.useStore.getState().setNewYorkOn?.(true)
     }
+    // The Sun's view is restored whole, as the clock is: a link without
+    // `sun=euv` shows the Sun as the page does (the eye's, or `?sun=`).
+    this.scene.objects?.sun?.sunLayers?.setLinkView?.(layers.sun)
   }
 
 
@@ -1650,6 +1655,12 @@ export default class Celestiary {
         if (cut || !body?.props?.radius?.scalar) {
           this._cutTo(() => this._arrive(pl, frame, resolved))
           return
+        }
+        // The Sun's view the link names, from the flight's start, so the
+        // Sun flown to is the one arrived at (the arrival restores it whole).
+        const sunView = decodeLayersToken(pl.tokens?.layers).sun
+        if (sunView) {
+          this.scene.objects?.sun?.sunLayers?.setLinkView?.(sunView)
         }
         this._flyTo(this._linkFlight(pl, frame, resolved))
       }, onErr)
@@ -3623,7 +3634,10 @@ export default class Celestiary {
           this.scene.getPeriodicManifolds()),
       craft: encodeCraftToken(this.scene.getCraft()),
       pop: encodePopulationToken(this.scene.getPopulationState()),
-      layers: encodeLayersToken({newYork: this.useStore.getState().newYorkOn === true}),
+      layers: encodeLayersToken({
+        newYork: this.useStore.getState().newYorkOn === true,
+        sun: this.scene.objects?.sun?.sunLayers?.view,
+      }),
       ...encodeAppTokens(this.useStore.getState().widgets),
     }
     return encodePermalink(

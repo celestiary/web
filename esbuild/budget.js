@@ -231,7 +231,9 @@ export const RUNTIME_BUDGET = {
   // for the runs' spread.
   // #377's month blend (two map slots in the planet shader, about 3 KB
   // minified) with #378's sprite caps took a CI run to 1,039.0: 1,041.
-  ready: {requests: 28, kb: 1041},
+  // The eruption card's image (#371), four frames in one, is 16.6 KB where
+  // the occultation's was 2.6: 14 KB more, 1,055.
+  ready: {requests: 28, kb: 1055},
   // After #259: 39 requests, 3,918 KB.  Raised from #258's 29 requests:
   // the catalogue's faint tiers are 12 packs where stars.dat was one file,
   // by design (a deep link needs only its field's; DESIGN.md "The star
