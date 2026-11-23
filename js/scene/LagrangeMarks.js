@@ -14,6 +14,7 @@ import {POINT_NAMES, lagrangePoints, placePoints} from './lagrange.js'
 import {faceOutline, newLabels, pixelsPerMetre, unitCircle} from './overlayMarks.js'
 import {FAMILIES, inertialSweep, placeAt} from './periodicOrbits.js'
 import {newWideLineStrip} from './wideLines.js'
+import {sceneColors} from '../theme.js'
 
 
 // The space around a pair (lagrange.js; Lagrange.md): its five Lagrange
@@ -28,7 +29,8 @@ import {newWideLineStrip} from './wideLines.js'
 // equator.
 
 
-const COLORS = {point: 0x8fe3b0, hill: 0x8fb8e3, sync: 0xe3c88f, unstable: 0x9a9a9a}
+const COLORS = {point: sceneColors.lagrange.point, hill: sceneColors.lagrange.hill, sync: sceneColors.lagrange.sync,
+  unstable: sceneColors.lagrange.unstable}
 const POINT_SIZE_PX = 9
 const LINE_WIDTH = 1.25
 const HILL_OPACITY = 0.5
@@ -47,7 +49,7 @@ const FAMILY_OPACITY = 0.85
 const FAMILY_KEYS = Object.keys(FAMILIES)
 // The manifolds' tubes (setManifolds): stable green, unstable red, as Koon,
 // Lo, Marsden and Ross draw them; thin and faint, since they're dense.
-const MANIFOLD_COLORS = {stable: 0x60e080, unstable: 0xff7060}
+const MANIFOLD_COLORS = {stable: sceneColors.lagrange.manifoldStable, unstable: sceneColors.lagrange.manifoldUnstable}
 const MANIFOLD_OPACITY = 0.35
 const noRaycast = () => undefined
 const tmpV = new Vector3

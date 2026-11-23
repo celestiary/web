@@ -12,6 +12,7 @@ import {capitalize} from '../utils'
 import LayersIcon from '@mui/icons-material/Layers'
 import PublicIcon from '@mui/icons-material/Public'
 import TravelExploreIcon from '@mui/icons-material/TravelExplore'
+import {uiColors} from '../theme.js'
 
 
 const OPTIONS = [
@@ -150,7 +151,7 @@ export function LayerOptions({onChosen}) {
   return (
     <Paper
       elevation={4}
-      sx={{display: 'flex', flexDirection: 'column', p: 1, backgroundColor: 'rgba(20, 20, 20, 0.85)'}}
+      sx={{display: 'flex', flexDirection: 'column', p: 1, backgroundColor: uiColors.menuSurface}}
       data-testid='layers-button-panel'
     >
       <Box sx={{display: 'flex', gap: 1}}>
@@ -178,8 +179,8 @@ export function LayerOptions({onChosen}) {
                     'gap': 0.5,
                     'borderRadius': 2,
                     '&.Mui-selected': {
-                      color: '#90caf9',
-                      boxShadow: 'inset 0 0 0 2px #90caf9',
+                      color: uiColors.controlSelected,
+                      boxShadow: `inset 0 0 0 2px ${uiColors.controlSelected}`,
                     },
                   }}
                 >

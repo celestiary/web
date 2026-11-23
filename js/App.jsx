@@ -12,6 +12,7 @@ import ARDebugHUD from './ui/ARDebugHUD'
 import CreditsFooter from './ui/CreditsFooter'
 import DragModeToggle from './ui/DragModeToggle'
 import CameraModeControl from './ui/CameraModeControl'
+import CompassControl from './ui/CompassControl'
 import ExposureReadout from './ui/ExposureReadout'
 import Homepage from './ui/Homepage'
 import LayersButton from './ui/LayersButton'
@@ -23,11 +24,20 @@ import TimePanel from './ui/TimePanel'
 import TooltipIconButton from './ui/TooltipIconButton'
 import TooltipToggleButton from './ui/TooltipToggleButton'
 import WidgetsDrawer from './ui/WidgetsDrawer'
+import Palette from './ui/Palette'
+import {applyCssColors} from './theme.js'
 import {capitalize} from './utils'
 import SettingsIcon from '@mui/icons-material/Settings'
 import StarsIcon from '@mui/icons-material/AutoAwesome'
 import WidgetsIcon from '@mui/icons-material/WidgetsOutlined'
 import './index.css'
+
+
+// The chrome's colour tokens, from the theme (design/UI.md, "The theme").
+// index.css loads with the page (index.html links it), but what it colours
+// is rendered by React, after this runs; the loading text has its own
+// inline styles.
+applyCssColors()
 
 
 /** @returns {ReactElement} */
@@ -78,7 +88,7 @@ export default function App() {
   }, [])
 
   return (
-    <>
+    <Palette>
       <ScopedCssBaseline/>
       <div ref={sceneRef} id='scene-id'/>
       <div id='nav-id' className='panel'>
@@ -89,6 +99,7 @@ export default function App() {
         {floating &&
           <TooltipIconButton tip='Widgets' onClick={() => dispatchWidgets({type: 'toggle'})} icon={<WidgetsIcon/>}/>}
         {floating && <TimePanel time={celestiary.time} timeStr={timeStr} isPaused={isPaused} setIsPaused={setIsPaused}/>}
+        {floating && <CompassControl celestiary={celestiary}/>}
         {floating && <CameraModeControl celestiary={celestiary}/>}
         {floating && <DragModeToggle/>}
         {floating && <LayersButton/>}
@@ -111,6 +122,8 @@ export default function App() {
           <About/>
         </Route>}
       {celestiary && isMobile && homePhase === 'hidden' &&
+        <div className='compass-phone'><CompassControl celestiary={celestiary}/></div>}
+      {celestiary && isMobile && homePhase === 'hidden' &&
         <PhoneDock celestiary={celestiary} timeStr={timeStr} isPaused={isPaused} setIsPaused={setIsPaused}/>}
       {celestiary && <ExposureReadout celestiary={celestiary}/>}
       {celestiary && <WidgetsDrawer celestiary={celestiary}/>}
@@ -119,5 +132,5 @@ export default function App() {
       {/* Mounted from the start: Cesium's credits go into it whenever a layer
           loads (credits.js; design/UI.md "The credits footer"). */}
       <CreditsFooter celestiary={celestiary}/>
-    </>)
+    </Palette>)
 }

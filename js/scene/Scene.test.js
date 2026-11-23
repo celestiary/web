@@ -3,6 +3,7 @@ import vsop87cLoader from 'vsop87/dist/vsop87c-wasm'
 import {Object3D, PerspectiveCamera, Quaternion, Scene as ThreeScene, Vector3} from 'three'
 import {SETTINGS_DEFAULTS} from '../permalink.js'
 import * as Shared from '../shared.js'
+import {CAMERA} from './observer/instrument.js'
 import bltData from '../../public/data/blt.json'
 import periodicData from '../../public/data/periodicOrbits.json'
 
@@ -30,7 +31,7 @@ global.document = global.document ?? {
 }
 
 const Scene = (await import('./Scene.js')).default
-const {formatLatLng, SPIN_IN_M, SPIN_OUT_M} = await import('./Scene.js')
+const {formatLatLng, SPIN_IN_M, SPIN_OUT_M, COMPASS_RADII} = await import('./Scene.js')
 
 
 function makeScene() {
@@ -252,6 +253,27 @@ describe('Scene settings tracking', () => {
     expect(s.overlayShown('l')).toBe(true)
   })
 
+  it('toggleObserverCamera flips K and makes a camera the ui\'s observer; applySettings and initSettings drive it', () => {
+    const s = makeScene()
+    const observers = []
+    s.ui.setObserver = (inst) => observers.push(inst)
+    expect(s.observerIsCamera()).toBe(false)
+    let fired = 0
+    s.onSettingsChange = () => fired++
+    s.toggleObserverCamera()
+    expect(s.getSettings().K).toBe(true)
+    expect(s.observerIsCamera()).toBe(true)
+    expect(observers).toEqual([CAMERA])
+    expect(fired).toBe(1)
+    s.applySettings({K: true})
+    expect(fired).toBe(1)
+    s.applySettings({K: false})
+    expect(observers).toEqual([CAMERA, null])
+    s.initSettings({K: true})
+    expect(observers).toEqual([CAMERA, null, CAMERA])
+    expect(fired).toBe(2)
+  })
+
   it('toggleClouds flips i, which cloudsShown reads, and applySettings drives it', () => {
     const s = makeScene()
     expect(s.cloudsShown()).toBe(true)
@@ -395,7 +417,7 @@ describe('Scene.applySettings', () => {
     milkyWay.name = 'MilkyWay'
     s.ui.scene.add(milkyWay)
     const target = {a: false, l: true, p: false, o: false, e: true, c: true, g: true, U: false, G: true, C: true, x: false,
-      S: false, I: false, D: false, i: false, v: false}
+      S: false, I: false, D: false, i: false, K: true, v: false}
     s.registerSettingApplier('v', () => s.flipSetting('v'))
     s.applySettings(target)
     s.overlays.finish()
@@ -1679,6 +1701,44 @@ describe('Scene following', () => {
       expect(s.cameraMode().auto).toBe(true)
     })
 
+    /** @returns {object} Arrived at Jupiter and landed on it, 2 m up */
+    function landed() {
+      const sys = arrivedAtJupiter()
+      sys.s.land('jupiter', 10, 20, 2, {instant: true})
+      sys.scene.updateMatrixWorld()
+      sys.s.syncFollow()
+      return sys
+    }
+
+    it('takes off from the ground in the way chosen, where the camera is', () => {
+      const ride = landed()
+      expect(ride.s.cameraMode().mode).toBe('standing')
+      const where = ride.camera.getWorldPosition(new Vector3)
+      ride.s.setCameraMode('orbit')
+      ride.scene.updateMatrixWorld()
+      expect(Shared.targets.landed).toBe(false)
+      expect(ride.camera.platform.parent).toBe(ride.jupiter.orbitPosition)
+      expect(ride.s.cameraMode()).toEqual({mode: 'orbit', auto: false, body: 'jupiter'})
+      expect(ride.camera.getWorldPosition(new Vector3).distanceTo(where)).toBeLessThan(MM)
+      const turn = landed()
+      turn.s.setCameraMode('turning')
+      expect(Shared.targets.landed).toBe(false)
+      expect(turn.camera.platform.parent).toBe(turn.jupiter)
+      expect(turn.s.cameraMode()).toEqual({mode: 'turning', auto: false, body: 'jupiter'})
+      const auto = landed()
+      auto.s.setCameraMode('auto')
+      expect(auto.s.cameraMode()).toEqual({mode: 'turning', auto: true, body: 'jupiter'})
+    })
+
+    it('leaves the body for the frame above from the ground, as fixed in space', () => {
+      const {s, sun} = landed()
+      s.setCameraMode('fixed')
+      expect(Shared.targets.landed).toBe(false)
+      expect(Shared.targets.follow).toBe(null)
+      expect(Shared.targets.cur).toBe(sun)
+      expect(s.cameraMode().mode).toBe('fixed')
+    })
+
     it('tells the control when the state changes, once each time', () => {
       const {s, camera, scene} = at(SPIN_OUT_M * 2)
       const heard = []
@@ -1690,6 +1750,55 @@ describe('Scene following', () => {
       s.syncFollow()
       s.syncFollow()
       expect(heard).toEqual(['orbit:true', 'turning:true'])
+    })
+  })
+
+  describe('the compass (#361, step 3)', () => {
+    /**
+     * @param {number} h The camera's height over Jupiter (radius 1e6 m)
+     * @returns {object} Arrived at Jupiter, the camera h over it
+     */
+    function over(h) {
+      const sys = arrivedAtJupiter()
+      sys.camera.position.set(0, 0, 1e6 + h)
+      sys.scene.updateMatrixWorld()
+      return sys
+    }
+
+    it('has no heading farther than COMPASS_RADII radii', () => {
+      expect(over(1e6 * COMPASS_RADII).s.cameraHeading()).toBe(null)
+      expect(over(1e5).s.cameraHeading()).not.toBe(null)
+    })
+
+    it('reads back the heading and pitch the camera is turned to', () => {
+      const {s} = over(1e4)
+      s.turnCamera(1.2, -0.3)
+      const h = s.cameraHeading()
+      expect(h.heading).toBeCloseTo(1.2, 9)
+      expect(h.pitch).toBeCloseTo(-0.3, 9)
+      expect(h.alt).toBeCloseTo(1e4, 3)
+      expect(h.body).toBe('jupiter')
+    })
+
+    it('a tap turns north up, keeping the pitch; again, levels it low down and looks straight down higher', () => {
+      const low = over(SPIN_IN_M / 2)
+      low.s.turnCamera(2, -0.4)
+      low.s.compassTap()
+      expect(low.s.cameraHeading().heading).toBeCloseTo(0, 9)
+      expect(low.s.cameraHeading().pitch).toBeCloseTo(-0.4, 9)
+      low.s.compassTap()
+      expect(low.s.cameraHeading().pitch).toBeCloseTo(0, 9)
+      const high = over(SPIN_OUT_M * 2)
+      high.s.turnCamera(0, 0.2)
+      high.s.compassTap()
+      expect(high.s.cameraHeading().pitch).toBeCloseTo(-Math.PI / 2, 9)
+    })
+
+    it('stops facing the target, which would turn the camera back', () => {
+      const {s} = over(1e4)
+      s.setTracking(true)
+      s.turnCamera(0.5, 0)
+      expect(Shared.targets.track).toBe(false)
     })
   })
 

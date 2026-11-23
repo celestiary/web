@@ -252,7 +252,7 @@ galaxy fills it):
    own point, for views from beyond it).  A point carries the galaxy's
    light as a star's point does (HDR.md, "Physical stars"): its illuminance
    over the Sun's at 1 AU, L/L☉·(AU/d)², times DISPLAY_GAIN·π, over the
-   eye's 10′ patch (or a pixel where coarser), as a Gaussian a quarter of
+   eye's patch, the stars' (9.7′, `EYE_POINT_RAD`; or a pixel where coarser), as a Gaussian a quarter of
    the patch wide.  Its dust is what `attenuationTable` gives at the cosine
    of the angle between its pole and the line of sight: plane-parallel
    slabs of its discs under its dust, tabulated at five angles and

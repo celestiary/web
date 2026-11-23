@@ -1,7 +1,7 @@
 import {EMITTED_GLSL, HDR_MAX_VALUE, LUMINOUS_GLOW_MAX, LUMINOUS_SHOULDER_GLSL} from '../hdr.js'
 import {EUV_VIEW, RADIAL_FIRST, RADIAL_SAMPLES, VIEW_GLSL} from './activityView.js'
 import {CORONA_GLSL, CORONA_SAMPLES} from './corona.js'
-import {NAKED_EYE} from '../observer/instrument.js'
+import {CAMERA, NAKED_EYE} from '../observer/instrument.js'
 
 
 /**
@@ -315,6 +315,7 @@ void main() {
 export const GLARE_FRAGMENT = `
 ${EMITTED_GLSL}
 ${NAKED_EYE.psf.glareGlsl}
+${CAMERA.psf.glareGlsl}
 varying vec2 vNdc;
 uniform mat4 uProjectionInverse;
 // The disc's centre and two directions across it, in view space; its
@@ -331,11 +332,17 @@ uniform vec3 uSunColor;
 // Whether the source is in the eye's field: 1 to 90° from the view axis,
 // 0 at 100° (glare.js glareFieldWeight).
 uniform float uFieldWeight;
+// The instrument's glare: 0 the eye's, 1 a camera's (glare.js GLARE_MODEL_*).
+uniform float uGlareModel;
 const float LUMINOUS_GLOW_MAX = ${LUMINOUS_GLOW_MAX.toExponential()};
 const float RAD_TO_DEG = 57.2957795;
 
 float angleDeg(vec3 a, vec3 b) {
   return atan(length(cross(a, b)), dot(a, b)) * RAD_TO_DEG;
+}
+
+float veilOf(float thetaDeg) {
+  return uGlareModel > 0.5 ? cameraGlareFunction(thetaDeg) : glareFunction(thetaDeg);
 }
 
 void main() {
@@ -349,22 +356,22 @@ void main() {
   }
   float f;
   if (uDiscRadius < 0.0035) {
-    f = glareFunction(centreDeg);
+    f = veilOf(centreDeg);
   } else {
     // A resolved disc: its light in equal-area parts, each at its own angle
     // (a sixteenth at the centre, then rings of 6 and 12 at 0.49 and 0.84
     // of its radius).  Exact far out; near the limb within a factor of a
     // few of the disc's true integral (Sun.md, "Glare").
-    f = 0.0625 * glareFunction(centreDeg);
+    f = 0.0625 * veilOf(centreDeg);
     for (int k = 0; k < 6; k++) {
       float a = float(k) * 1.04719755 + 0.5236;
       vec3 p = normalize(uSunDir + 0.49 * uDiscRadius * (cos(a) * uAcross1 + sin(a) * uAcross2));
-      f += 0.06 * glareFunction(angleDeg(dir, p));
+      f += 0.06 * veilOf(angleDeg(dir, p));
     }
     for (int k = 0; k < 12; k++) {
       float a = float(k) * 0.52359878;
       vec3 p = normalize(uSunDir + 0.843 * uDiscRadius * (cos(a) * uAcross1 + sin(a) * uAcross2));
-      f += 0.048125 * glareFunction(angleDeg(dir, p));
+      f += 0.048125 * veilOf(angleDeg(dir, p));
     }
   }
   float veil = min(uDiscValue * uVisible * uFieldWeight * uDiscSolidAngle * f, LUMINOUS_GLOW_MAX);

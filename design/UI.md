@@ -27,9 +27,50 @@ landed; the epic is [#279](https://github.com/celestiary/web/issues/279).
 `js/index.css` declares the system's tokens as CSS custom properties on
 `:root`, under the same names (`--accent`, `--ink-3`, `--surface-sheet`,
 `--space-16`, `--radius-card`, `--row`).  New CSS uses them, never raw
-values; the homepage's rules keep their literals until they are next
-touched (the values are the same).  Numbers are set in IBM Plex Mono
-(`--font-mono`, loaded with Inter in `public/index.html`).
+values.  Numbers are set in IBM Plex Mono (`--font-mono`, loaded with Inter
+in `public/index.html`).  The colour tokens come from the theme (below),
+set at run time; spacing, radii, rows and type stay in the CSS.
+
+## The theme
+
+Every designed colour is in `js/theme.js`, the chrome's and the scene's
+together, so the panel's numbers can be keyed to the scene's lines
+(principle 3) and a whole theme can be swapped (phase 2's red theme is a
+second object with the same keys).
+
+- **`uiColors`**: the chrome's, as CSS strings.  `applyCssColors()` sets
+  each on the page's root as a custom property (`inkLink` is
+  `--ink-link`), with an `-rgb` triple for the few CSS takes with an alpha
+  (`rgba(var(--accent-rgb), 0.5)`); App runs it as its module loads,
+  before React renders anything the CSS colours, and the red theme is the
+  same call with its own colours.  MUI's palette takes them in
+  `ui/Palette.jsx`, which each route (App, the guide) wraps itself in;
+  JSX that styles in code imports them (`alpha()` makes an rgba).
+  `tools/theme/theme.test.js` fails when `index.css` uses a custom
+  property neither it nor the theme defines, or holds a colour literal.
+- **`sceneColors`**: the scene's overlays (labels, orbit lines, grids,
+  regimes, Lagrange marks, periodic orbits, the networks, the diagrams), as
+  0xRRGGBB numbers, which three's `Color` and `setHex` take; `css()` gives
+  the CSS form for a canvas or the DOM.  A lazy feature that may import
+  nothing of the first load's (Suntan, Rubin) is handed its colours by
+  Scene with its other dependencies (`deps.colors`), and `Style.jsx`, in
+  the page's entry, takes none (the routes set the palette): importing the
+  theme from any of them split it into a file of its own, a request more
+  on every load.
+- **Values are sRGB, as a designer gives them.**  How a colour reaches the
+  screen is the renderer's business (`js/scene/HDR.md`, colour spaces).
+- **Not in it**: physical colours (an albedo, a star's blackbody, a
+  model's paint), which are data; a satellite group's colour, which its
+  data file gives (`public/data/earth/satellites/index.json`); the loading
+  screen's inline CSS in `public/index.html`, which draws before any
+  script; and the developer tools' own (`js/perf`, the AR debug HUD).
+  `tools/theme/literals.test.js` fails on a colour literal anywhere else
+  in `js/`, but for an allowlist of such cases, each with its reason.
+- **Off the palette, for now**: values that were literals near a token
+  (`#d8deec`, `#dde8f7` and others by `--ink`; MUI's default blue for a
+  selected toggle; ad-hoc greys for the layers menu, the search list and
+  the drawer) came in as they were, marked in the theme, so that folding
+  them into the palette is a visible change of its own.
 
 ## The info panel, in tiers
 
@@ -270,13 +311,21 @@ ground, quiet, and the place you go when the view is confusing.
 2. **The label and its menu** (done, #361's second PR):
    `ui/CameraModeControl.jsx` over `Scene.cameraMode` and
    `setCameraMode`, in the controls and the dock's More panel; `y`; `Y`.
-   Left: the readout still says "Following on/off" for `f`.
-3. **The compass**: north-up, level, the ring.
+   Left: the readout still says "Following on/off" for `f`.  From the ground (*Standing on Earth*) each
+   choice takes off that way, where the camera is (the review of step 3:
+   greyed, the menu read as broken); `f` still keeps a landed camera
+   pinned, so its key isn't shown there.
+3. **The compass** (done, #361's third PR): `js/compass.js` (heading,
+   pitch, the orientation for them), `Scene.cameraHeading`, `turnCamera`
+   and `compassTap`, `ui/CompassControl.jsx`: an inline SVG dial turned
+   each animation frame by its style, above the label on desktop and at
+   the top right of the scene on a phone (in the column, it fell on the
+   info sheet).  Using it turns facing the target off.
 
 ### Open questions
 
-- Above which height does the compass hide?  Proposed: 3 radii, where the
-  body is a disc rather than a ground.
+- Above which height does the compass hide?  3 radii (`COMPASS_RADII`),
+  as proposed, where the body is a disc rather than a ground.
 - Should "Standing on Earth" be in the menu at all, since it needs a
   place?  Proposed: shown when landed, greyed otherwise, with "double-click
   the ground" as its hint.

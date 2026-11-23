@@ -1,3 +1,6 @@
+import {sceneColors} from '../../theme.js'
+
+
 // The craft the app can fly (Craft.md, drawn), as the panel and the link
 // need them before any is flown: code, name, the body each is drawn about
 // (`centre`) and the bodies whose panels offer it (`shownAt`).  How each is
@@ -12,8 +15,8 @@ export const BLT_DATA_URL = 'data/blt.json'
 
 /** By link code. */
 export const FLIGHT_CATALOG = {
-  tli: {code: 'tli', name: 'transfer to the Moon', centre: 'earth', shownAt: ['earth', 'moon'], color: 0xffc070},
-  blt: {code: 'blt', name: 'ballistic lunar transfer', centre: 'earth', shownAt: ['earth', 'moon'], color: 0x9fe870,
+  tli: {code: 'tli', name: 'transfer to the Moon', centre: 'earth', shownAt: ['earth', 'moon'], color: sceneColors.craft.tli},
+  blt: {code: 'blt', name: 'ballistic lunar transfer', centre: 'earth', shownAt: ['earth', 'moon'], color: sceneColors.craft.blt,
     data: BLT_DATA_URL, needsVsop: true},
 }
 

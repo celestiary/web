@@ -109,7 +109,7 @@ describe('the homepage\'s cards', () => {
     const pl = decodePermalink(card.link)
     expect(pathFromFragment(card.link)).toBe('sun')
     expect(decodeLayersToken(pl.tokens.layers).sun).toBe('euv')
-    expect(decodeTimeToken(pl.tokens.time)).toEqual({paused: false, rate: 64})
+    expect(decodeTimeToken(pl.tokens.time)).toMatchObject({paused: false, rate: 64})
     // 2024-04-17 21:50 UTC: 25 minutes before the frame the model was fitted at (Sun.md).
     expect(pl.d2000 + 2451545).toBeCloseTo(2460418.409722, 5)
   })

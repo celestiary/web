@@ -4,6 +4,8 @@ import {
   LinearSRGBColorSpace,
   MeshPhongMaterial,
   Object3D,
+  SRGBColorSpace,
+  ShaderChunk,
   Texture,
   Vector3,
 } from 'three'
@@ -32,20 +34,23 @@ import {meanElements} from './meanElements.js'
 import {ORBIT_LINE_POINTS, unitEllipse} from './orbitPath.js'
 import {newWideLineStrip} from './wideLines.js'
 import {dataUrl} from '../dataUrl.js'
-import {monthOfJulianDay, monthlyPath} from './monthly.js'
+import {monthBlendOfJulianDay, monthlyPath} from './monthly.js'
+import MonthMaps, {monthMapShaderMod} from './monthMaps.js'
 import {sharedImage} from './sharedImage.js'
 import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, toRad} from '../shared.js'
 import {exposureAt, nightLightRadiance} from './exposure.js'
 import {lunarSurfaceShaderMod, newLunarSurfaceUniforms, updateLunarSurface} from './lunarSurface.js'
+import {groundLightShaderMod, newGroundLightUniforms, setGroundMonth, updateGroundLight} from './atmos/groundLight.js'
 import CloudMap from './clouds/CloudMap.js'
 import {newCloudShell} from './clouds/CloudShell.js'
 import CloudVolume from './clouds/CloudVolume.js'
 import {cloudParams} from './clouds/cloudPhysics.js'
 import {capitalize, named} from '../utils.js'
+import {sceneColors} from '../theme.js'
 
 
 // Orbit lines: blue, added over the scene, as before as 1 px GL lines.
-const ORBIT_COLOR = 0x0000ff
+const ORBIT_COLOR = sceneColors.orbit
 const ORBIT_WIDTH_PX = 1.5
 
 
@@ -350,12 +355,13 @@ export default class Planet extends Object {
     if (!mean) {
       return
     }
-    // The brighter of the colour map's mean and the body's albedo: where a
-    // map's stretch is brighter than the body (Mars's 0.39 against 0.15),
-    // the disc drawn is the map's; where the disc has light the map hasn't
-    // (Earth's sky over its 0.16 ground), its albedo (0.37) is nearer.
+    // The brighter of the colour map's mean (linear, times its gain) and the
+    // body's albedo: where the map is brighter than the descriptor's albedo
+    // (Mars's 0.26 against 0.15), the disc drawn is the map's; where the disc
+    // has light the map hasn't (Earth's sky over its 0.09 ground), its
+    // albedo (0.37) is nearer.
     const mapLuma = ((0.2126 * mean[0]) + (0.7152 * mean[1]) + (0.0722 * mean[2])) * (this.props.texture_gain ?? 1)
-    const storedLuma = Math.max(mapLuma, this.props.albedo ?? 0)
+    const meanAlbedo = Math.max(mapLuma, this.props.albedo ?? 0)
     const radius = this.props.radius.scalar
     const marker = isMoon ? MOON_POINT_LEVEL : 1
     const size = farPoint.material.size
@@ -386,7 +392,7 @@ export default class Planet extends Object {
       const level = farPointLevel({
         marker,
         radiusPx,
-        value: discMeanValue(storedLuma, renderer.toneMappingExposure / exposureAt(fromSun), phase),
+        value: discMeanValue(meanAlbedo, renderer.toneMappingExposure / exposureAt(fromSun), phase),
         ratio: handoffRatio(distance, radius, camera),
         pointPx: size * pixelRatio,
       })
@@ -411,32 +417,34 @@ export default class Planet extends Object {
 
 
   /**
-   * A colour map that follows the simulation date's month (monthly.js).
-   * One texture, whose image is replaced when the month changes, once the
-   * new month's has loaded: no shader rebuild, and the old month shows
-   * meanwhile rather than nothing.  The month's image is the one the clouds
-   * and Cesium's base layer take from too (sharedImage.js): fetched once.
+   * A colour map that follows the simulation date, two months' pictures
+   * blended by the day (monthMaps.js; Planet.md, "The months blended by
+   * day").  Its second texture and the mix are `this.monthMaps.uniforms`,
+   * for the surface shader (monthMapShaderMod).  A month's picture is the
+   * one the clouds and Cesium's base layer take from too (sharedImage.js):
+   * fetched once.
    *
    * @param {string} pattern Under textures/, with `{MM}` for the month
    * @returns {Texture}
    */
   monthlyMap(pattern) {
-    const map = new Texture()
-    let wanted = 0
+    const maps = new MonthMaps(
+        (month) => sharedImage(dataUrl(`textures/${monthlyPath(pattern, month)}.jpg`)),
+        Material.colorMapSpace(this.props),
+        () => this.scene?.revealed !== true)
+    this.monthMaps = maps
+    let last = null
     this.preAnimCb = (time) => {
-      const month = monthOfJulianDay(time.simTimeJulianDay())
-      if (month === wanted) {
-        return
+      const now = performance.now()
+      const blend = monthBlendOfJulianDay(time.simTimeJulianDay())
+      maps.step(blend, last === null ? 0 : (now - last) / 1000)
+      last = now
+      // The ground under the air follows the months too (groundLight.js).
+      if (this.props.atmosphere) {
+        setGroundMonth(this.props.atmosphere, blend)
       }
-      wanted = month
-      sharedImage(dataUrl(`textures/${monthlyPath(pattern, month)}.jpg`)).then((image) => {
-        if (month === wanted) {
-          map.image = image
-          map.needsUpdate = true
-        }
-      }).catch((err) => console.warn(`[${this.name}] couldn't load the month's colour map`, err))
     }
-    return map
+    return maps.map
   }
 
 
@@ -451,15 +459,20 @@ export default class Planet extends Object {
     // body's many maps (terrain, hydro, atmos, night…) organized.
     const texDir = this.props.texture_dir || ''
     const monthly = this.props.texture_monthly
+    // The colour map's encoding (HDR.md, "Colour spaces"): a picture's sRGB,
+    // decoded by the GPU on each sample, or the Moon's linear stretch of I/F.
+    const colorSpace = Material.colorMapSpace(this.props)
     const surfaceMaterial = Material.cacheMaterial(
-        this.name, undefined, texDir, monthly ? this.monthlyMap(monthly) : undefined)
+        this.name, undefined, texDir, monthly ? this.monthlyMap(monthly) : undefined, colorSpace)
     // Rock and cloud aren't metallic, and metalness takes from the diffuse
     // light that exposure.js calibrates against.  Oceans' shine comes from
     // the hydrosphere metalness map, which scales this.
     surfaceMaterial.metalness = this.props.texture_hydrosphere ? 0.2 : 0
     surfaceMaterial.roughness = 0.8
-    // The colour map's stored values to the body's albedo (Planet.md): the
-    // Moon's, a linear stretch of I/F, to its normal albedo.
+    // The colour map's linear values to the body's albedo (Planet.md,
+    // "Albedo"): a picture's level is its maker's choice, so the gain puts
+    // the decoded map's mean at the body's measured geometric albedo; the
+    // Moon's, a linear stretch of I/F, at its normal albedo.
     surfaceMaterial.color.setScalar(this.props.texture_gain ?? 1)
     const lunar = this.props.photometry === 'lunar'
     if (lunar) {
@@ -489,6 +502,11 @@ export default class Planet extends Object {
     // onBeforeCompile (Three.js calls onBeforeCompile exactly once when
     // the shader is first compiled).
     const shaderMods = []
+    // Two months' maps mixed by the date (monthMaps.js).
+    if (monthly) {
+      // For a probe: the months shown and their mix.
+      surfaceMaterial.userData.monthMaps = this.monthMaps
+    }
     let nightSunDirUniform = null
     if (this.props.texture_hydrosphere) {
       const hydroTex = Material.pathTexture(`${texDir}${this.name}_hydro`)
@@ -522,7 +540,10 @@ export default class Planet extends Object {
       // public/textures/<name>_night.jpg — public domain at
       // https://earthobservatory.nasa.gov/features/NightLights.  Without
       // the file the load fails silently and the night-side stays dark.
-      const nightTex = Material.pathTexture(`${texDir}${this.name}_night`)
+      // A picture, sRGB-encoded like the day side's (Planet.md, "Brightness"):
+      // decoded, so its full white is NIGHT_LIGHT_RADIANCE and its dimmer
+      // texels are their linear share of it.
+      const nightTex = Material.pathTexture(`${texDir}${this.name}_night`, undefined, SRGBColorSpace)
       // Shared uniform: written by the surface mesh's onBeforeRender each
       // frame, read by the patched fragment shader.  Same Vector3 ref so
       // the GLSL sees live values without re-binding.
@@ -574,17 +595,31 @@ export default class Planet extends Object {
     if (lunarUniforms) {
       shaderMods.push(lunarSurfaceShaderMod(lunarUniforms))
     }
+    // A body with air: its ground lit through it, while the pass draws it
+    // (groundLight.js; composition.md, "The ground's light").  Airless
+    // bodies' shaders are as they were.
+    const atmos = this.props.atmosphere
+    const groundUniforms = atmos && !lunar ? newGroundLightUniforms() : null
+    if (groundUniforms) {
+      shaderMods.push(groundLightShaderMod(groundUniforms, ShaderChunk.lights_fragment_begin))
+    }
     // While its maps load, stand-ins (standInMaps.js; Planet.md, "While the
     // maps load"): the colour map's mean, a flat normal.  So the surface
     // is drawn from the first frame it's wanted, as bright as it will be,
     // on the way there and on arriving; the real maps take their place as
     // they come in.
-    const swapInMaps = standInMaps(surfaceMaterial, {map: textureMean(this.name), normalMap: FLAT_NORMAL})
+    const swapInMaps = standInMaps(surfaceMaterial, {map: textureMean(this.name), normalMap: FLAT_NORMAL},
+        {map: colorSpace})
     // Last: a disc a few pixels across, antialiased and shaded as the
     // sphere (smallDisc.js; Planet.md, "Small discs"), its coverage over
     // whatever the mods above added.
     const discUniforms = newSmallDiscUniforms()
     shaderMods.push(smallDiscShaderMod(discUniforms))
+    // After it: two months' maps mixed by the date, in every sample of the
+    // map, the small disc's too (monthMaps.js).
+    if (monthly) {
+      shaderMods.push(monthMapShaderMod(this.monthMaps.uniforms))
+    }
     const modCount = shaderMods.length
     surfaceMaterial.onBeforeCompile = (shader) => {
       for (const fn of shaderMods) {
@@ -595,7 +630,8 @@ export default class Planet extends Object {
     // doesn't.  Read when the program is built, so after Rings chains its
     // own onBeforeCompile (Saturn's ring shadow).
     surfaceMaterial.customProgramCacheKey = function() {
-      return `${this.onBeforeCompile.toString()}|mods:${modCount}${lunar ? '|lunar' : ''}`
+      const flags = `${lunar ? '|lunar' : ''}${groundUniforms ? '|ground' : ''}${monthly ? '|monthly' : ''}`
+      return `${this.onBeforeCompile.toString()}|mods:${modCount}${flags}`
     }
 
     // Bump surface resolution from sphere()'s default (128 segs ≈ 16k tris,
@@ -616,6 +652,9 @@ export default class Planet extends Object {
     const radius = this.props.radius.scalar
     surface.onBeforeRender = (renderer, scene, camera) => {
       updateSmallDisc(discUniforms, renderer, camera, surface, radius)
+      if (groundUniforms) {
+        updateGroundLight(groundUniforms, atmos)
+      }
       if (lunarUniforms) {
         // The Sun is at the world group's origin (Scene: rebased to the target).
         const world = this.scene.worldGroup
@@ -700,7 +739,7 @@ export default class Planet extends Object {
     // Drawn once the surface under it is, while the clouds are on
     // (Scene.toggleClouds).
     return newCloudShell(radius, map, {ready: () => planet.surfaceReady() && (this.scene?.cloudsShown?.() ?? true),
-      volume})
+      volume, atmos: this.props.atmosphere})
   }
 
 

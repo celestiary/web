@@ -2,6 +2,7 @@
 // change via GPU render-to-texture; results are consumed by Atmosphere.js.
 import {
   FloatType,
+  HalfFloatType,
   Mesh,
   OrthographicCamera,
   PlaneGeometry,
@@ -10,6 +11,9 @@ import {
   Vector3,
   WebGLRenderTarget,
 } from 'three'
+import {
+  GROUND_LIGHT_ROWS, GROUND_LIGHT_W, MU_S_MIN, groundBlend, groundLightFor, monthsAlbedo, setBuiltAlbedo, setGroundLight,
+} from './groundLight.js'
 
 
 /**
@@ -34,12 +38,27 @@ vec3 stepIntegral(vec3 sigma, float ds) {
 
 
 /**
+ * GLSL `float ozoneDensity(float h)`: the ozone layer's density at height h,
+ * over its peak's (ozoneParams' tent, uOzoneProfile).  For the shaders that
+ * declare uOzoneProfile.
+ */
+export const OZONE_GLSL = `
+float ozoneDensity(float h) {
+  float w = h < uOzoneProfile.y ? uOzoneProfile.y - uOzoneProfile.x : uOzoneProfile.z - uOzoneProfile.y;
+  return max(1.0 - abs(h - uOzoneProfile.y) / max(w, 1.0), 0.0);
+}
+`
+
+
+/**
  * Precomputes Bruneton transmittance LUT T(r, μ_sun) for the given atmosphere.
  *
  * Returns a 256×256 FloatType WebGLRenderTarget whose texture stores:
  *   R channel: Rayleigh density-weighted path length (odRlh) from (r, μ) to atmosphere top
  *   G channel: Mie density-weighted path length (odMie) from (r, μ) to atmosphere top
- *   Both channels = 0 when the sun ray is blocked by the planet.
+ *   B channel: the ozone layer's (odOzone, its tent profile: ozoneParams),
+ *     as Bruneton's 2017 implementation keeps an absorption density; times
+ *     the body's ozone absorption, zero for a body with none
  *
  * UV parameterisation:
  *   u = (r - rGround) / (rAtmos - rGround)   altitude ∈ [0,1]
@@ -60,6 +79,7 @@ export function precomputeTransmittance(renderer, atmos, rGround) {
       uAtmosphereRadius: {value: rGround + atmos.height.scalar},
       uRayleighScaleHeight: {value: atmos.rayleighScaleHeight.scalar},
       uMieScaleHeight: {value: atmos.mieScaleHeight.scalar},
+      uOzoneProfile: {value: ozoneParams(atmos).profile},
     },
     vertexShader: TRANSMIT_VERT,
     fragmentShader: TRANSMIT_FRAG,
@@ -102,8 +122,10 @@ uniform float uGroundRadius;
 uniform float uAtmosphereRadius;
 uniform float uRayleighScaleHeight;
 uniform float uMieScaleHeight;
+uniform vec3  uOzoneProfile;
 
 #define TRANSMIT_STEPS 500
+${OZONE_GLSL}
 
 vec2 rsi(vec3 r0, vec3 rd, float sr) {
   float a = dot(rd, rd);
@@ -145,6 +167,7 @@ void main() {
 
   float odR = 0.0;
   float odM = 0.0;
+  float odO = 0.0;
   float dt  = tMax / float(TRANSMIT_STEPS);
   for (int i = 0; i < TRANSMIT_STEPS; i++) {
     float t      = (float(i) + 0.5) * dt;
@@ -152,11 +175,12 @@ void main() {
     float height = max(length(pos) - uGroundRadius, 0.0);
     odR += exp(-height / uRayleighScaleHeight) * dt;
     odM += exp(-height / uMieScaleHeight) * dt;
+    odO += ozoneDensity(height) * dt;
   }
 
   // Store raw density-weighted path lengths (meters).
-  // The scatter shader multiplies by kRlh (vec3) and kMie (float) respectively.
-  gl_FragColor = vec4(odR, odM, 0.0, 1.0);
+  // The scatter shader multiplies by kRlh, kMie and the ozone's absorption (vec3s).
+  gl_FragColor = vec4(odR, odM, odO, 1.0);
 }
 `
 
@@ -171,9 +195,11 @@ void main() {
  *         delta-M beam: through the extinction with the aerosol's narrow
  *         forward lobe taken as unscattered (composition.md, "The dust's
  *         forward peak"); the true one where there is no such lobe (Earth)
- *   A   = kMie * totalMie  (Mie scatter, grayscale approximation: red's
+ *   A   = kMie * totalMie  (Mie scatter, red's: red's coefficient and
  *         transmittance), of the direct beam, through the true extinction:
- *         the narrow lobe's first order
+ *         the narrow lobe's first order.  The pass takes it as grey, or for a
+ *         body whose aerosol's extinction is per channel (Earth's) gives it
+ *         the colour Bruneton's 2017 implementation does (the pass's mieColour)
  *
  * Atlas layout: 64 r-slices × 32 μ_sun steps = 2048px wide, 512 μ_view steps tall.
  * Lookup: x = (r_slice + μ_sun_t) / R_SLICES,  y = μ_view_t
@@ -186,8 +212,44 @@ void main() {
  * @returns {WebGLRenderTarget}  2048×512 RGBA FloatType atlas
  */
 export function precomputeInScatter(renderer, atmos, rGround, transmittanceRT) {
+  const rt = renderInScatter(renderer, atmos, rGround, transmittanceRT, false)
+  if (mieParams(atmos).chroma) {
+    // The Mie's colour, for an aerosol whose extinction is per channel
+    // (Earth's): the in-scatter's Mie per channel over red's, so the pass
+    // multiplies a by it in place of the reconstruction from the Rayleigh's
+    // (mieColour), which takes the two to have travelled the same air.  The
+    // aerosol's 1.2 km scale height puts it under nearly the whole column,
+    // the gas's 8 km above most of it: through the disc from orbit the
+    // reconstruction gave the Mie 1.65 times its blue, and at sunset by the
+    // Sun 0.60 of it (composition.md, "The Mie's colour").  A ratio, so half
+    // floats hold it; on the main atlas's texture, which the pass reads it
+    // from (newAtmospherePass), and disposed with it.
+    const mie = renderInScatter(renderer, atmos, rGround, transmittanceRT, true)
+    rt.texture.userData.mieColour = mie.texture
+    const dispose = rt.dispose.bind(rt)
+    rt.dispose = () => {
+      mie.dispose()
+      dispose()
+    }
+  }
+  return rt
+}
+
+
+/**
+ * The in-scatter atlas, or with `mieColour` its Mie's colour (Mie per
+ * channel over red's, in rgb, half floats), for precomputeInScatter.
+ *
+ * @param {object} renderer
+ * @param {object} atmos
+ * @param {number} rGround
+ * @param {WebGLRenderTarget} transmittanceRT
+ * @param {boolean} mieColour
+ * @returns {WebGLRenderTarget}
+ */
+function renderInScatter(renderer, atmos, rGround, transmittanceRT, mieColour) {
   const W = 2048; const H = 512 // 64 r-slices × 32 mu_sun, 512 mu_view
-  const rt = new WebGLRenderTarget(W, H, {type: FloatType})
+  const rt = new WebGLRenderTarget(W, H, {type: mieColour ? HalfFloatType : FloatType})
 
   const mat = new ShaderMaterial({
     uniforms: {
@@ -196,13 +258,16 @@ export function precomputeInScatter(renderer, atmos, rGround, transmittanceRT) {
       uRayleighScaleHeight: {value: atmos.rayleighScaleHeight.scalar},
       uMieScaleHeight: {value: atmos.mieScaleHeight.scalar},
       uRayleigh: {value: new Vector3(...atmos.rayleigh)},
-      uMieCoeff: {value: atmos.mieCoeff},
+      uMieCoeff: {value: mieParams(atmos).extinction},
       uMieAlbedo: {value: mieParams(atmos).albedo},
       uMiePeakWeight: {value: mieParams(atmos).peakWeight},
+      uOzone: {value: ozoneParams(atmos).absorption},
+      uOzoneProfile: {value: ozoneParams(atmos).profile},
       tTransmittance: {value: transmittanceRT.texture},
     },
     vertexShader: INSCATTER_VERT,
     fragmentShader: INSCATTER_FRAG,
+    defines: {MIE_COLOUR: mieColour ? 1 : 0},
     depthTest: false,
     depthWrite: false,
   })
@@ -276,6 +341,14 @@ float bruneton_decode_mu_v(float r, float t, float rG, float rA) {
 `
 
 
+// The Sun behind the planet: jOd stores density-weighted path lengths in
+// metres, so the blocked Sun's must drive exp(-k*jOd) to zero for the
+// smallest coefficient: Earth's Rayleigh red is about 6e-6 /m, and 1e6 m let
+// e^-5.8 = 0.3% of the Sun through every blocked step, which the metered
+// exposure (HDR.md) showed as a red sky with the Sun 35° under the horizon.
+// 1e12 m is τ > 1e4 for any coefficient over 1e-8 /m (Mars's Rayleigh is
+// 1.2e-7); exp underflows to 0, no NaN.  (Kept out of the shader's string,
+// whose comments ship.)
 const INSCATTER_FRAG = `
 precision highp float;
 
@@ -286,8 +359,10 @@ uniform float     uAtmosphereRadius;
 uniform float     uRayleighScaleHeight;
 uniform float     uMieScaleHeight;
 uniform vec3      uRayleigh;
-uniform float     uMieCoeff;
+uniform vec3      uMieCoeff;
 uniform vec3      uMieAlbedo;
+uniform vec3      uOzone;
+uniform vec3      uOzoneProfile;
 uniform vec3      uMiePeakWeight;
 uniform sampler2D tTransmittance;
 
@@ -297,6 +372,8 @@ uniform sampler2D tTransmittance;
 ${STEP_INTEGRAL_GLSL}
 
 ${RSI_GLSL}
+
+${OZONE_GLSL}
 
 ${BRUNETON_DECODE_GLSL}
 
@@ -343,6 +420,7 @@ void main() {
 
   vec3  totalRlh = vec3(0.0);
   float totalMie = 0.0;
+  vec3  totalMieRgb = vec3(0.0);
   // The ray's transmittance so far, per channel.
   vec3  T = vec3(1.0);
   // The delta-M beam's (composition.md, "The dust's forward peak"): the
@@ -358,6 +436,7 @@ void main() {
     float iHeight = max(length(iPos) - uGroundRadius, 0.0);
     float dRlh    = exp(-iHeight / uRayleighScaleHeight);
     float dMie    = exp(-iHeight / uMieScaleHeight);
+    vec3  kOz     = uOzone * ozoneDensity(iHeight);
 
     // Shadow: transmittance LUT lookup from iPos toward sun.
     // The transmittance LUT encodes only atmospheric opacity; it does NOT
@@ -365,43 +444,42 @@ void main() {
     // blocked by the planet sphere and treat it as fully opaque if so.
     float iR   = length(iPos);
     float mu_s = dot(normalize(iPos), sunDir);
-    vec2  jOd;
+    vec3  jOd;
     vec2  pPlanet = rsi(iPos, sunDir, uGroundRadius);
     if (pPlanet.x > 0.0 && pPlanet.x < pPlanet.y) {
-      // Sun is behind the planet body — completely opaque.
-      // jOd stores density-weighted path lengths in metres, so this must
-      // drive exp(-k*jOd) to zero for the smallest coefficient: Earth's
-      // Rayleigh red is 5.8e-6 /m, and 1e6 m let e^-5.8 = 0.3% of the Sun
-      // through every blocked step, which the metered exposure (HDR.md)
-      // showed as a red sky with the Sun 35° under the horizon.  1e12 m
-      // is τ > 1e4 for any coefficient over 1e-8 /m (Mars's Rayleigh is
-      // 1.2e-7); exp underflows to 0, no NaN.
-      jOd = vec2(1.0e12, 1.0e12);
+      // Sun behind the planet: opaque (the note above INSCATTER_FRAG).
+      jOd = vec3(1.0e12);
     } else {
       jOd = texture2D(tTransmittance,
                vec2((iR - uGroundRadius) / (uAtmosphereRadius - uGroundRadius),
-                    mu_s * 0.5 + 0.5)).rg;
+                    mu_s * 0.5 + 0.5)).rgb;
     }
 
     // The step's in-scatter: its density times the sunlight reaching it,
     // through the ray's transmittance so far and the step's own, integrated
     // exactly over the step (stepIntegral).
-    vec3  sunT  = exp(-(uMieCoeff * jOd.g + uRayleigh * jOd.r));
-    vec3  sunTs = exp(-(kMieS * jOd.g + uRayleigh * jOd.r));
-    vec3  sigma = uRayleigh * dRlh + vec3(uMieCoeff * dMie);
-    vec3  sigmaScaled = uRayleigh * dRlh + kMieS * dMie;
+    vec3  sunT  = exp(-(uMieCoeff * jOd.g + uRayleigh * jOd.r + uOzone * jOd.b));
+    vec3  sunTs = exp(-(kMieS * jOd.g + uRayleigh * jOd.r + uOzone * jOd.b));
+    vec3  sigma = uRayleigh * dRlh + uMieCoeff * dMie + kOz;
+    vec3  sigmaScaled = uRayleigh * dRlh + kMieS * dMie + kOz;
     vec3  w     = T * sunT * stepIntegral(sigma, iStepSize);
     vec3  ws    = Ts * sunTs * stepIntegral(sigmaScaled, iStepSize);
     totalRlh  += dRlh * ws;
-    totalMie  += dMie * w.r;   // grayscale Mie (kMie is wavelength-independent)
+    totalMie  += dMie * w.r;   // red's Mie (the pass gives it its colour)
+    totalMieRgb += dMie * w;
     T         *= exp(-sigma * iStepSize);
     Ts        *= exp(-sigmaScaled * iStepSize);
     iTime     += iStepSize;
   }
 
+#if MIE_COLOUR
+  vec3 mieRgb = uMieCoeff * totalMieRgb;
+  gl_FragColor = vec4(min(mieRgb / max(mieRgb.r, 1.0e-30), vec3(1.0e4)), 1.0);
+#else
   // RGB = kRlh * totalRlh  (apply phase + sunIntensity at lookup time)
   // A   = kMie * totalMie
-  gl_FragColor = vec4(uRayleigh * totalRlh, uMieCoeff * totalMie);
+  gl_FragColor = vec4(uRayleigh * totalRlh, uMieCoeff.r * totalMie);
+#endif
 }
 `
 
@@ -426,10 +504,17 @@ void main() {
  * - `mieAlbedo`: the single-scattering albedo, one number or [r, g, b]; 1
  *   (the default) scatters everything it takes out of the beam.  Mars's
  *   dust absorbs blue.
+ * - `mieCoeff`: the extinction per metre at the ground, one number (grey:
+ *   Mars's dust, Titan's haze) or [r, g, b] (Earth's aerosol, its
+ *   Ångström law at the channels' wavelengths).  `chroma` is 1 for the
+ *   latter: the pass then gives the in-scatter table's Mie, red's, the
+ *   colour of its coefficients and of the path's transmittance (Bruneton's
+ *   2017 reconstruction: the pass's mieColour); a grey aerosol keeps red's for
+ *   every channel, as its data was fitted with.
  *
  * @param {object} atmos A body's reified atmosphere props
  * @returns {{polarity: Vector3, backPolarity: number, forwardWeight: number, albedo: Vector3,
- *   peakPolarity: Vector3, peakWeight: Vector3}}
+ *   peakPolarity: Vector3, peakWeight: Vector3, extinction: Vector3, chroma: number}}
  */
 export function mieParams(atmos) {
   const vec = (v, dflt) => {
@@ -443,7 +528,36 @@ export function mieParams(atmos) {
     albedo: vec(atmos.mieAlbedo, 1),
     peakPolarity: vec(atmos.miePeakPolarity, 0),
     peakWeight: vec(atmos.miePeakWeight, 0),
+    extinction: vec(atmos.mieCoeff, 0),
+    chroma: Array.isArray(atmos.mieCoeff) ? 1 : 0,
   }
+}
+
+
+/**
+ * A body's ozone layer (composition.md, "Per-body data"; BRUNETON.md, "The
+ * ozone layer"): absorption only, no scattering, as Bruneton's 2017
+ * implementation models it.  `atmosphere.ozone` gives `absorption`, the
+ * absorption coefficient per metre at the layer's peak density in the three
+ * channels, and the tent the density follows: 0 at `bottom`, 1 at `peak`, 0
+ * at `top` (heights above the ground).  None for a body without: zero
+ * absorption, and a tent that only keeps the profile finite.
+ *
+ * @param {object} atmos A body's reified atmosphere props
+ * @returns {{absorption: Vector3, profile: Vector3, column: Vector3}} the
+ *   absorption at the peak, the tent's (bottom, peak, top) in metres, and
+ *   the vertical optical depth of the layer, per channel
+ */
+export function ozoneParams(atmos) {
+  const o = atmos?.ozone
+  const metres = (v) => (typeof v === 'object' && v !== null ? v.scalar : parseFloat(v))
+  if (!o || !Array.isArray(o.absorption)) {
+    return {absorption: new Vector3(), profile: new Vector3(0, 1, 2), column: new Vector3()}
+  }
+  const profile = new Vector3(metres(o.bottom), metres(o.peak), metres(o.top))
+  const width = (profile.z - profile.x) / 2
+  const absorption = new Vector3(...o.absorption)
+  return {absorption, profile, column: absorption.clone().multiplyScalar(width)}
 }
 
 
@@ -510,8 +624,10 @@ function atmosUniforms(atmos, rGround) {
     uRayleighScaleHeight: {value: atmos.rayleighScaleHeight.scalar},
     uMieScaleHeight: {value: atmos.mieScaleHeight.scalar},
     uRayleigh: {value: new Vector3(...atmos.rayleigh)},
-    uMieCoeff: {value: atmos.mieCoeff},
+    uMieCoeff: {value: mie.extinction},
     uMieAlbedo: {value: mie.albedo},
+    uOzone: {value: ozoneParams(atmos).absorption},
+    uOzoneProfile: {value: ozoneParams(atmos).profile},
     uMiePolarity: {value: mie.polarity},
     uMieBackPolarity: {value: mie.backPolarity},
     uMieForwardWeight: {value: mie.forwardWeight},
@@ -576,16 +692,85 @@ function renderLut(renderer, width, height, uniforms, fragmentShader) {
  * @param {object} atmos
  * @param {number} rGround
  * @param {WebGLRenderTarget} transmittanceRT
- * @param {number} groundAlbedo The body's albedo (its JSON)
+ * @param {number} bodyAlbedo The body's albedo (its JSON), for a body whose
+ *   atmosphere gives no `groundAlbedo` (groundAlbedo, below)
  * @returns {WebGLRenderTarget} 64×64 RGBA FloatType: Ψ in rgb, over
  *   u = altitude, v = μ_sun·0.5 + 0.5
  */
-export function precomputeMultiScatter(renderer, atmos, rGround, transmittanceRT, groundAlbedo) {
-  return renderLut(renderer, 64, 64, {
+export function precomputeMultiScatter(renderer, atmos, rGround, transmittanceRT, bodyAlbedo) {
+  const albedo = groundAlbedo(atmos, bodyAlbedo)
+  setBuiltAlbedo(atmos, albedo.toArray())
+  const rt = renderLut(renderer, 64, 64, {
     ...atmosUniforms(atmos, rGround),
-    uGroundAlbedo: {value: groundAlbedo},
+    uGroundAlbedo: {value: albedo},
     tTransmittance: {value: transmittanceRT.texture},
   }, MULTISCATTER_FRAG)
+  // The ground's light (precomputeGroundLight), made with the tables it
+  // reads and disposed with them, and registered for the body's surface
+  // (groundLight.js) while they last: ThreeUi makes them for the body whose
+  // air the pass draws.
+  const ground = precomputeGroundLight(renderer, atmos, rGround, transmittanceRT, rt)
+  setGroundLight(atmos, ground.texture)
+  rt.texture.userData.groundLight = ground.texture
+  const dispose = rt.dispose.bind(rt)
+  rt.dispose = () => {
+    if (groundLightFor(atmos) === ground.texture) {
+      setGroundLight(atmos, null)
+    }
+    ground.dispose()
+    dispose()
+  }
+  return rt
+}
+
+
+/**
+ * Precomputes the ground's light (Bruneton 2017's ground irradiance; its
+ * irradiance texture): over the Sun's zenith cosine and the height, the
+ * Sun's transmittance to the point (the delta-M beam's, so an aerosol's
+ * narrow lobe, scattered within a few degrees of the Sun, counts as the
+ * Sun's light; none behind the planet), and the sky's irradiance on a level
+ * surface there, both per unit of the Sun's irradiance above the air: the
+ * single scattering of 64 directions over the upper hemisphere, marched
+ * through the transmittance table, plus the light scattered more than once
+ * (σ_s·Ψ along each, as the in-scatter's), weighted by their cosine.
+ * Layout and lookup: groundLight.js.
+ *
+ * @param {object} renderer
+ * @param {object} atmos
+ * @param {number} rGround
+ * @param {WebGLRenderTarget} transmittanceRT
+ * @param {WebGLRenderTarget} multiScatterRT
+ * @returns {WebGLRenderTarget} GROUND_LIGHT_W × 2·GROUND_LIGHT_ROWS, FloatType
+ */
+export function precomputeGroundLight(renderer, atmos, rGround, transmittanceRT, multiScatterRT) {
+  return renderLut(renderer, GROUND_LIGHT_W, 2 * GROUND_LIGHT_ROWS, {
+    ...atmosUniforms(atmos, rGround),
+    tTransmittance: {value: transmittanceRT.texture},
+    tMultiScatter: {value: multiScatterRT.texture},
+  }, GROUND_LIGHT_FRAG)
+}
+
+
+/**
+ * The albedo of the ground under the air, per channel: the Lambertian
+ * reflector the multiple scattering (precomputeMultiScatter) and the
+ * volumetric clouds' light from below (CloudVolume) take under every point.
+ * The atmosphere's `groundAlbedo` (one number or [r, g, b]) where it gives
+ * one, else the body's `albedo`.  That is a geometric albedo, the whole
+ * disc's, its air and clouds in it: as the ground's it counts them twice
+ * (composition.md, "The ground under the air").  Earth's is its drawn
+ * ground's mean, the decoded Blue Marble's, one a month (textureMeans.json
+ * `monthly`), at the simulation's months as the surface blends them
+ * (groundLight.js groundBlend).
+ *
+ * @param {object} atmos A body's reified atmosphere props
+ * @param {number} bodyAlbedo The body's albedo (its JSON)
+ * @returns {Vector3}
+ */
+export function groundAlbedo(atmos, bodyAlbedo) {
+  const a = monthsAlbedo(atmos?.groundAlbedo ?? bodyAlbedo ?? 0, groundBlend(atmos))
+  return Array.isArray(a) ? new Vector3(...a) : new Vector3(a, a, a)
 }
 
 
@@ -626,9 +811,85 @@ vec3 sunTransmittance(vec3 pos, vec3 sun) {
   if (r >= uGroundRadius && pP.x > 0.0 && pP.x < pP.y) {
     return vec3(0.0);
   }
-  vec2 od = texture2D(tTransmittance,
-      vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / r, sun) * 0.5 + 0.5)).rg;
-  return exp(-(uMieCoeff * (1.0 - uMieAlbedo * uMiePeakWeight) * od.g + uRayleigh * od.r));
+  vec3 od = texture2D(tTransmittance,
+      vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / r, sun) * 0.5 + 0.5)).rgb;
+  return exp(-(uMieCoeff * (1.0 - uMieAlbedo * uMiePeakWeight) * od.g + uRayleigh * od.r + uOzone * od.b));
+}
+`
+
+
+const GROUND_LIGHT_FRAG = `
+precision highp float;
+varying vec2 vUv;
+uniform float     uGroundRadius;
+uniform float     uAtmosphereRadius;
+uniform float     uRayleighScaleHeight;
+uniform float     uMieScaleHeight;
+uniform vec3      uRayleigh;
+uniform vec3      uMieCoeff;
+uniform vec3      uMieAlbedo;
+uniform vec3      uOzone;
+uniform vec3      uOzoneProfile;
+uniform vec3      uMiePolarity;
+uniform float     uMieBackPolarity;
+uniform float     uMieForwardWeight;
+uniform vec3      uMiePeakWeight;
+uniform sampler2D tTransmittance;
+uniform sampler2D tMultiScatter;
+#define DIRS  64
+#define STEPS 24
+#define PI 3.14159265
+${RSI_GLSL}
+${STEP_INTEGRAL_GLSL}
+${MIE_PHASE_GLSL}
+${OZONE_GLSL}
+${SUN_TRANSMITTANCE_GLSL}
+void main() {
+  float fx   = (vUv.x * ${GROUND_LIGHT_W.toFixed(1)} - 0.5) / ${(GROUND_LIGHT_W - 1).toFixed(1)};
+  float mu_s = ${MU_S_MIN.toFixed(1)} + ${(1 - MU_S_MIN).toFixed(1)} * fx;
+  float row  = floor(vUv.y * ${(2 * GROUND_LIGHT_ROWS).toFixed(1)});
+  bool  sky  = row >= ${GROUND_LIGHT_ROWS.toFixed(1)};
+  float h_t  = mod(row, ${GROUND_LIGHT_ROWS.toFixed(1)}) / ${(GROUND_LIGHT_ROWS - 1).toFixed(1)};
+  float r    = uGroundRadius + h_t * (uAtmosphereRadius - uGroundRadius) * 0.9999;
+  vec3  x    = vec3(0.0, r, 0.0);
+  vec3  sun  = vec3(sqrt(max(1.0 - mu_s * mu_s, 0.0)), mu_s, 0.0);
+  if (!sky) {
+    // None with the Sun under the horizon there (from the ground, rsi's
+    // test is float32 noise).
+    float muH = -sqrt(max(0.0, 1.0 - uGroundRadius * uGroundRadius / (r * r)));
+    gl_FragColor = vec4(mu_s < muH ? vec3(0.0) : sunTransmittance(x, sun), 1.0);
+    return;
+  }
+  vec3  kMieS = uMieCoeff * (1.0 - uMieAlbedo * uMiePeakWeight);
+  vec3  sMieS = uMieCoeff * uMieAlbedo * (1.0 - uMiePeakWeight);
+  vec3  E = vec3(0.0);
+  for (int i = 0; i < DIRS; i++) {
+    float z   = (float(i) + 0.5) / float(DIRS);
+    float rho = sqrt(max(0.0, 1.0 - z * z));
+    float phi = 2.39996323 * float(i);
+    vec3  dir = vec3(rho * cos(phi), z, rho * sin(phi));
+    float tMax = rsi(x, dir, uAtmosphereRadius).y;
+    float nu  = dot(dir, sun);
+    float pR  = 3.0 / (16.0 * PI) * (1.0 + nu * nu);
+    vec3  pM  = miePhase(nu, uMiePolarity, uMieBackPolarity, uMieForwardWeight);
+    vec3  T   = vec3(1.0);
+    vec3  L   = vec3(0.0);
+    float ds  = tMax / float(STEPS);
+    for (int j = 0; j < STEPS; j++) {
+      vec3  pos = x + dir * ((float(j) + 0.5) * ds);
+      float h   = max(length(pos) - uGroundRadius, 0.0);
+      float dR  = exp(-h / uRayleighScaleHeight);
+      float dM  = exp(-h / uMieScaleHeight);
+      vec3  sigma = uRayleigh * dR + kMieS * dM + uOzone * ozoneDensity(h);
+      vec2  msUv = vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / length(pos), sun) * 0.5 + 0.5);
+      vec3  psi = texture2D(tMultiScatter, msUv).rgb;
+      vec3  g = T * stepIntegral(sigma, ds);
+      L += g * (sunTransmittance(pos, sun) * (uRayleigh * dR * pR + sMieS * dM * pM) + (uRayleigh * dR + sMieS * dM) * psi);
+      T *= exp(-sigma * ds);
+    }
+    E += L * z;
+  }
+  gl_FragColor = vec4(E * 2.0 * PI / float(DIRS), 1.0);
 }
 `
 
@@ -643,13 +904,15 @@ uniform float     uAtmosphereRadius;
 uniform float     uRayleighScaleHeight;
 uniform float     uMieScaleHeight;
 uniform vec3      uRayleigh;
-uniform float     uMieCoeff;
+uniform vec3      uMieCoeff;
 uniform vec3      uMieAlbedo;
+uniform vec3      uOzone;
+uniform vec3      uOzoneProfile;
 uniform vec3      uMiePolarity;
 uniform float     uMieBackPolarity;
 uniform float     uMieForwardWeight;
 uniform vec3      uMiePeakWeight;
-uniform float     uGroundAlbedo;
+uniform vec3      uGroundAlbedo;
 uniform sampler2D tTransmittance;
 
 #define MS_DIRS  64
@@ -659,6 +922,7 @@ uniform sampler2D tTransmittance;
 ${RSI_GLSL}
 ${STEP_INTEGRAL_GLSL}
 ${MIE_PHASE_GLSL}
+${OZONE_GLSL}
 ${SUN_TRANSMITTANCE_GLSL}
 
 void main() {
@@ -693,7 +957,7 @@ void main() {
       float h   = max(length(pos) - uGroundRadius, 0.0);
       float dR  = exp(-h / uRayleighScaleHeight);
       float dM  = exp(-h / uMieScaleHeight);
-      vec3  sigma  = uRayleigh * dR + kMieS * dM;
+      vec3  sigma  = uRayleigh * dR + kMieS * dM + uOzone * ozoneDensity(h);
       vec3  sigmaS = uRayleigh * dR + sMieS * dM;
       vec3  g = T * stepIntegral(sigma, ds);
       L += g * sunTransmittance(pos, sun) * (uRayleigh * dR * pR + sMieS * dM * pM);
@@ -724,8 +988,10 @@ uniform float     uAtmosphereRadius;
 uniform float     uRayleighScaleHeight;
 uniform float     uMieScaleHeight;
 uniform vec3      uRayleigh;
-uniform float     uMieCoeff;
+uniform vec3      uMieCoeff;
 uniform vec3      uMieAlbedo;
+uniform vec3      uOzone;
+uniform vec3      uOzoneProfile;
 uniform vec3      uMiePeakWeight;
 uniform sampler2D tTransmittance;
 uniform sampler2D tMultiScatter;
@@ -736,6 +1002,7 @@ uniform sampler2D tMultiScatter;
 ${RSI_GLSL}
 ${STEP_INTEGRAL_GLSL}
 ${BRUNETON_DECODE_GLSL}
+${OZONE_GLSL}
 
 void main() {
   float atlas_x = vUv.x * float(R_SLICES);
@@ -777,8 +1044,9 @@ void main() {
     float h    = max(iR - uGroundRadius, 0.0);
     float dRlh = exp(-h / uRayleighScaleHeight);
     float dMie = exp(-h / uMieScaleHeight);
-    vec3  sigma  = uRayleigh * dRlh + vec3(uMieCoeff * dMie);
-    vec3  sigmaScaled = uRayleigh * dRlh + kMieS * dMie;
+    vec3  kOz    = uOzone * ozoneDensity(h);
+    vec3  sigma  = uRayleigh * dRlh + uMieCoeff * dMie + kOz;
+    vec3  sigmaScaled = uRayleigh * dRlh + kMieS * dMie + kOz;
     vec3  sigmaS = uRayleigh * dRlh + sMieS * dMie;
     vec3  psi = texture2D(tMultiScatter,
         vec2(h / (uAtmosphereRadius - uGroundRadius), dot(iPos / iR, sunDir) * 0.5 + 0.5)).rgb;
@@ -787,21 +1055,21 @@ void main() {
     // The Sun at this step, as precomputeInScatter sees it (the same
     // blocked-Sun path), for the broad lobes' single scattering of the two
     // beams.
-    vec2  jOd;
+    vec3  jOd;
     vec2  pPlanet = rsi(iPos, sunDir, uGroundRadius);
     if (pPlanet.x > 0.0 && pPlanet.x < pPlanet.y) {
-      jOd = vec2(1.0e12, 1.0e12);
+      jOd = vec3(1.0e12);
     } else {
       jOd = texture2D(tTransmittance,
-          vec2(h / (uAtmosphereRadius - uGroundRadius), dot(iPos / iR, sunDir) * 0.5 + 0.5)).rg;
+          vec2(h / (uAtmosphereRadius - uGroundRadius), dot(iPos / iR, sunDir) * 0.5 + 0.5)).rgb;
     }
-    vec3  sunT  = exp(-(uMieCoeff * jOd.g + uRayleigh * jOd.r));
-    vec3  sunTs = exp(-(kMieS * jOd.g + uRayleigh * jOd.r));
+    vec3  sunT  = exp(-(uMieCoeff * jOd.g + uRayleigh * jOd.r + uOzone * jOd.b));
+    vec3  sunTs = exp(-(kMieS * jOd.g + uRayleigh * jOd.r + uOzone * jOd.b));
     extraMie += dMie * ((gs * sunTs).r - (T * stepIntegral(sigma, iStepSize) * sunT).r);
     T     *= exp(-sigma * iStepSize);
     Ts    *= exp(-sigmaScaled * iStepSize);
     iTime += iStepSize;
   }
-  gl_FragColor = vec4(total, uMieCoeff * extraMie);
+  gl_FragColor = vec4(total, uMieCoeff.r * extraMie);
 }
 `

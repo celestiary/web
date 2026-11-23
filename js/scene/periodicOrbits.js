@@ -1,5 +1,6 @@
 import {collinearDistances} from './lagrange.js'
 import {correctSymmetric, propagate} from './cr3bp.js'
+import {sceneColors} from '../theme.js'
 
 
 // A pair's three-body periodic orbits (Lagrange.md, three-body orbits;
@@ -34,12 +35,12 @@ import {correctSymmetric, propagate} from './cr3bp.js'
  * the DRO is stable and the 9:2 NRHO nearly so (stability index 1.3).
  */
 export const FAMILIES = {
-  l1Lyapunov: {code: 'l1l', name: 'L1 Lyapunov', point: 1, manifolds: true, color: 0x9fd0ff},
-  l2Lyapunov: {code: 'l2l', name: 'L2 Lyapunov', point: 2, manifolds: true, color: 0x9fb0ff},
-  l1Halo: {code: 'l1h', name: 'L1 halo', point: 1, manifolds: true, color: 0xffb0e0, halo: true},
-  l2Halo: {code: 'l2h', name: 'L2 halo', point: 2, manifolds: true, color: 0xe0a0ff, halo: true},
-  dro: {code: 'dro', name: 'DRO', point: 0, color: 0xa0ffd0},
-  nrho: {code: 'nrho', name: '9:2 NRHO', point: 2, only: 'moon', color: 0xffe080, halo: true},
+  l1Lyapunov: {code: 'l1l', name: 'L1 Lyapunov', point: 1, manifolds: true, color: sceneColors.periodic.l1Lyapunov},
+  l2Lyapunov: {code: 'l2l', name: 'L2 Lyapunov', point: 2, manifolds: true, color: sceneColors.periodic.l2Lyapunov},
+  l1Halo: {code: 'l1h', name: 'L1 halo', point: 1, manifolds: true, color: sceneColors.periodic.l1Halo, halo: true},
+  l2Halo: {code: 'l2h', name: 'L2 halo', point: 2, manifolds: true, color: sceneColors.periodic.l2Halo, halo: true},
+  dro: {code: 'dro', name: 'DRO', point: 0, color: sceneColors.periodic.dro},
+  nrho: {code: 'nrho', name: '9:2 NRHO', point: 2, only: 'moon', color: sceneColors.periodic.nrho, halo: true},
 }
 /**
  * JPL's catalogue members matching these (tools/periodic/fetchJpl.mjs), by

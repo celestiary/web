@@ -16,6 +16,8 @@ import {
   luminousShoulder, LUMINOUS_KNEE, HDR_MAX_VALUE, LUMINOUS_CEILING, LUMINOUS_GLOW_MAX,
   EMITTED_GLSL, HDR_MIN_NORMAL, emitted,
 } from './hdr.js'
+import {SCREEN_STEP, screenOf} from './screen.js'
+import {srgbEncode} from './srgb.js'
 
 
 const close = (a, b, eps = 1e-6) => a.forEach((v, i) => expect(v).toBeCloseTo(b[i], -Math.log10(eps)))
@@ -145,11 +147,14 @@ describe('the luminous shoulder', () => {
 
 
 describe('the buffer\'s floor for emitted radiance', () => {
-  it('is half-float\'s smallest normal value, 2^-14, under a display step through the tone map', () => {
+  it('is half-float\'s smallest normal value, 2^-14, under a screen step through the output transform', () => {
     expect(HDR_MIN_NORMAL).toBe(6.103515625e-5)
     // A float32 to half conversion keeps this value exactly; anything
     // under it is subnormal, which a GPU may flush.
-    expect(neutral([HDR_MIN_NORMAL, HDR_MIN_NORMAL, HDR_MIN_NORMAL])[0]).toBeLessThan(1 / 255 / 60)
+    expect(screenOf(HDR_MIN_NORMAL) / SCREEN_STEP).toBeLessThan(1e-3)
+    // A saturated colour's channels pass the toe linearly: still under half a step.
+    const red = srgbEncode(neutral([HDR_MIN_NORMAL, 0, 0])[0])
+    expect(red / SCREEN_STEP).toBeLessThan(0.25)
   })
 
   it('zeroes each channel under it and leaves the rest alone', () => {

@@ -5,6 +5,7 @@ import {LUNAR_ORBIT_INCLINATION_DEG, moonArguments} from './lunarTheory.js'
 import {eccentricAnomaly, elementsAt, meanElements} from './meanElements.js'
 import {osculatingEllipse} from './orbitPath.js'
 import {planetElements} from './planetsApprox.js'
+import {sceneColors} from '../theme.js'
 
 
 // A body's six orbital elements at a date, as the info panel lists them and
@@ -49,14 +50,14 @@ const DEFAULT_MOON_ECCENTRICITY = 0.0549
  * as the body's source gives them.
  */
 export const ORBIT_ELEMENTS = {
-  semiMajorAxis: {symbol: 'a', name: 'semi-major axis', color: 0xffb02e},
-  eccentricity: {symbol: 'e', name: 'eccentricity', color: 0xff6ad5},
-  inclination: {symbol: 'i', name: 'inclination', color: 0x4cd964},
-  longitudeOfAscendingNode: {symbol: 'Ω', name: 'longitude of the ascending node', color: 0x2ec7e6},
-  longitudeOfPericenter: {symbol: 'ϖ', name: 'longitude of pericentre', color: 0x8c8cff},
-  argumentOfPericenter: {symbol: 'ω', name: 'argument of pericentre', color: 0x8c8cff},
-  meanLongitude: {symbol: 'L', name: 'mean longitude', color: 0xff5f57},
-  meanAnomaly: {symbol: 'M', name: 'mean anomaly', color: 0xff5f57},
+  semiMajorAxis: {symbol: 'a', name: 'semi-major axis', color: sceneColors.element.semiMajorAxis},
+  eccentricity: {symbol: 'e', name: 'eccentricity', color: sceneColors.element.eccentricity},
+  inclination: {symbol: 'i', name: 'inclination', color: sceneColors.element.inclination},
+  longitudeOfAscendingNode: {symbol: 'Ω', name: 'longitude of the ascending node', color: sceneColors.element.node},
+  longitudeOfPericenter: {symbol: 'ϖ', name: 'longitude of pericentre', color: sceneColors.element.pericenter},
+  argumentOfPericenter: {symbol: 'ω', name: 'argument of pericentre', color: sceneColors.element.pericenter},
+  meanLongitude: {symbol: 'L', name: 'mean longitude', color: sceneColors.element.anomaly},
+  meanAnomaly: {symbol: 'M', name: 'mean anomaly', color: sceneColors.element.anomaly},
 }
 
 

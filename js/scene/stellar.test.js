@@ -20,12 +20,12 @@ import {
   powerTwo,
   powerTwoMean,
   spectralTypeName,
-  srgbEncode,
   starTeff,
   stefanBoltzmannRatio,
   teffFromClass,
   umbraDeltaT,
 } from './stellar.js'
+import {srgbDecode, srgbEncode} from './srgb.js'
 
 
 /**
@@ -106,15 +106,17 @@ describe('the blackbody colour', () => {
     }
   })
 
-  it('the drawn colour is the chromaticity in stored values at a luma of 1: the Sun (255, 241, 234), an M star a pale orange', () => {
+  it('the drawn colour is the linear chromaticity at a luminance of 1: on the encoded screen the Sun (255, 241, 234)', () => {
     // sRGB's transfer function, and its inverse.
     expect(srgbEncode(0)).toBe(0)
     expect(srgbEncode(1)).toBeCloseTo(1, 9)
     expect(srgbEncode(0.2140)).toBeCloseTo(0.5, 2)
+    expect(srgbDecode(srgbEncode(0.3))).toBeCloseTo(0.3, 9)
+    // As the screen shows it: encoded, at its peak.
     const bytes = (t) => {
       const c = blackbodyColor(t)
       const peak = Math.max(...c)
-      return c.map((v) => Math.round(255 * v / peak))
+      return c.map((v) => Math.round(255 * srgbEncode(v / peak)))
     }
     expect(bytes(SUN_TEFF)).toEqual([255, 241, 234])
     expect(bytes(3000)).toEqual([255, 185, 110])
@@ -123,13 +125,9 @@ describe('the blackbody colour', () => {
       const [r, g, b] = blackbodyColor(t)
       expect(Math.min(r, g, b)).toBeGreaterThanOrEqual(0)
       expect((0.2126 * r) + (0.7152 * g) + (0.0722 * b)).toBeCloseTo(1, 9)
-      // The stored colour is the linear one's, channel by channel, through
-      // the transfer function: the same hue order, less saturated.
+      // The linear colour, scaled.
       const lin = blackbodyLinearColor(t)
-      const order = (c) => [0, 1, 2].sort((i, j) => c[j] - c[i]).join('')
-      expect(order([r, g, b])).toBe(order(lin))
-      const ratio = (c) => Math.min(...c) / Math.max(...c)
-      expect(ratio([r, g, b])).toBeGreaterThanOrEqual(ratio(lin) - 1e-9)
+      expect(r / g).toBeCloseTo(lin[0] / lin[1], 9)
     }
   })
 

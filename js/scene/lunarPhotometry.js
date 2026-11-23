@@ -68,7 +68,10 @@ export const MOON_TEXTURE_NEAR_MEAN = 0.2716
 /**
  * The scale from moon.jpg's stored values to normal albedo: the near
  * side's disc then averages the Moon's geometric albedo at full.  moon.json
- * texture_gain and Cesium's textureGain (bodies.js) are this.  0.445.
+ * texture_gain and Cesium's textureGain (bodies.js) are this.  0.445.  The
+ * stored values are a linear stretch of I/F, not a picture, so the map is
+ * read as stored (moon.json `texture_encoding: "linear"`), where every
+ * other colour map is decoded from sRGB (HDR.md, "Colour spaces").
  */
 export const MOON_TEXTURE_GAIN = MOON_GEOMETRIC_ALBEDO / MOON_TEXTURE_NEAR_MEAN
 

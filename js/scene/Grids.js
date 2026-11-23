@@ -1,6 +1,7 @@
 import {
   BufferGeometry,
   CanvasTexture,
+  SRGBColorSpace,
   Color,
   Float32BufferAttribute,
   Group,
@@ -16,6 +17,7 @@ import {galacticToSceneMatrix} from './galacticFrame.js'
 import {sceneReferred} from './hdr.js'
 import {named} from '../utils.js'
 import {toRad, overlay} from '../shared.js'
+import {sceneColors} from '../theme.js'
 
 
 // Earth's obliquity at J2000 — angle between the celestial equator (Earth's
@@ -28,9 +30,9 @@ const ECLIPTIC_TO_EQUATORIAL_DEG = 23.4392811
 // Grid colors chosen for distinct fast identification, vaguely matching
 // Celestia's defaults (warm amber for the rotating Earth frame, magenta for
 // the orbital frame, cyan for the galactic frame).
-const COLOR_EQUATORIAL = new Color(0xddaa44)
-const COLOR_ECLIPTIC = new Color(0xff66cc)
-const COLOR_GALACTIC = new Color(0x44ddee)
+const COLOR_EQUATORIAL = new Color(sceneColors.grid.equatorial)
+const COLOR_ECLIPTIC = new Color(sceneColors.grid.ecliptic)
+const COLOR_GALACTIC = new Color(sceneColors.grid.galactic)
 
 // Grid resolution.  13 parallels at 15° spacing matches 24 meridians at 15°
 // (= 1h RA), giving a clean square grid with whole-number labels in both
@@ -237,6 +239,7 @@ uniform vec3  uColor;
 uniform float uOpacity;
 void main() {
   gl_FragColor = vec4(uColor, uOpacity);
+  #include <colorspace_fragment>
 }
 `
 
@@ -803,6 +806,8 @@ function buildLabelsPoints(items, color) {
   geom.setAttribute('aVisible', new Float32BufferAttribute(visibles, 1))
 
   const tex = new CanvasTexture(canvas)
+  // CSS colours, sRGB: decoded on sampling (HDR.md, "Colour spaces").
+  tex.colorSpace = SRGBColorSpace
   tex.minFilter = LinearFilter
   tex.magFilter = LinearFilter
   tex.needsUpdate = true
@@ -862,5 +867,6 @@ void main() {
     vSpriteCoord.x + vSpriteCoord.z * gl_PointCoord.x,
     vSpriteCoord.y + vSpriteCoord.w * (1.0 - gl_PointCoord.y));
   gl_FragColor = texture2D(map, uv);
+  #include <colorspace_fragment>
 }
 `

@@ -1,5 +1,6 @@
 import {RUBIN_TARGET, askRubinWatch} from './rubinApp.js'
 import {askSuntan} from './suntanApp.js'
+import {startBreathing} from './breathingApp.js'
 
 
 // The apps' ways in, as search results (search/providers/ViewsProvider.js;
@@ -30,5 +31,13 @@ export const APP_VIEWS = [
     path: 'milkyway/sun',
     target: 'sun',
     open: (celestiary) => askSuntan(celestiary.ui.useStore),
+  },
+  {
+    id: 'breathing',
+    name: 'Earth breathing',
+    aliases: ['breathing earth', 'breathing', 'seasons', 'the seasons', 'solar noon', 'noon to noon'],
+    path: 'milkyway/sun/earth',
+    target: 'earth',
+    open: (celestiary) => startBreathing(celestiary),
   },
 ]

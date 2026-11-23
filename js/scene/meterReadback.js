@@ -11,8 +11,7 @@
  * A small ring of buffers, so a reading can be a few frames late without a
  * metering waiting for the one before it.  The GPU finishes its work in
  * order, so when a reading is ready every older one is too: each is copied
- * out (a buffer written again unread costs Chrome its shadow copy, and a
- * console warning), and the newest is the reading.  With every slot in
+ * out, and the newest is the reading.  With every slot in
  * flight (a GPU several meterings behind) a metering is skipped, never
  * waited for.
  *
@@ -110,12 +109,9 @@ export class AsyncReadback {
     // Every buffer, and the ones free; in flight, oldest first.
     this._slots = []
     this._free = []
-    // Each buffer's storage is allocated at its first read (issue), not
-    // here: allocated here, every buffer but the first was written (by
-    // bufferData), fenced (by the first read's fence) and written again (its
-    // own first read), and Chrome warned for each.
+    // Each buffer's storage is given at each read (issue), not here.
     for (let i = 0; i < slots; i++) {
-      const slot = {buffer: gl.createBuffer(), allocated: false, sync: null, meta: null, frame: 0}
+      const slot = {buffer: gl.createBuffer(), sync: null, meta: null, frame: 0}
       this._slots.push(slot)
       this._free.push(slot)
     }
@@ -154,10 +150,11 @@ export class AsyncReadback {
     const gl = this.gl
     const pack = this._enum('PIXEL_PACK_BUFFER')
     gl.bindBuffer(pack, slot.buffer)
-    if (!slot.allocated) {
-      gl.bufferData(pack, this.pixels.byteLength, this._enum('STREAM_READ'))
-      slot.allocated = true
-    }
+    // Storage again at every read: in Chrome only bufferData frees the
+    // shadow copy its last fence made (getBufferSubData is a plain copy that
+    // never uses it), and a buffer written and fenced with one still there
+    // warns, at every read after its first (HDR.md, "The meter's readback").
+    gl.bufferData(pack, this.pixels.byteLength, this._enum('STREAM_READ'))
     gl.readPixels(0, 0, this.width, this.height, this._enum('RGBA'), this._enum('FLOAT'), 0)
     gl.bindBuffer(pack, null)
     slot.sync = gl.fenceSync(this._enum('SYNC_GPU_COMMANDS_COMPLETE'), 0)
@@ -180,11 +177,8 @@ export class AsyncReadback {
     let newest = null
     // In order: the GPU finishes them in order, so stop at the first that hasn't.
     // Every finished read is copied out, the older ones too (into the same
-    // array, the newest last): a STREAM_READ buffer written, fenced and then
-    // written again unread makes Chrome drop the shadow copy it serves
-    // getBufferSubData from ("READ-usage buffer was written, then fenced, but
-    // written again before being read back"), a console warning each time and
-    // a slower read after.  A copy of the 32x32 floats (16 KB) waits for nothing.
+    // array, the newest last), so each buffer is free for the next read.  A
+    // copy of the 32x32 floats (16 KB) waits for nothing.
     while (this._inFlight.length > 0 && this._signalled(this._inFlight[0])) {
       const slot = this._inFlight.shift()
       gl.deleteSync(slot.sync)

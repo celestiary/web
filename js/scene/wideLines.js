@@ -236,6 +236,7 @@ const fragmentShader = `
   void main() {
     float cover = clamp(vHalf - 0.5 - (abs(vSide) * vHalf), 0.0, 1.0);
     gl_FragColor = vec4(vColor, vAlpha * cover);
+    #include <colorspace_fragment>
   }
 `
 

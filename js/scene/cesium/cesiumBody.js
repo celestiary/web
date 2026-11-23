@@ -1,4 +1,4 @@
-import {dataUrl, isAbsoluteUrl} from '../../dataUrl.js'
+import {dataUrl} from '../../dataUrl.js'
 import {DISPLAY_GAIN} from '../../shared.js'
 import {CESIUM_BODIES} from './bodies.js'
 import {DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL} from './distance.js'
@@ -6,8 +6,7 @@ import {baseTexelMeters, ionImageryAltitude} from './ionImagery.js'
 import {LOG_ENCODE_GLSL} from './encoding.js'
 import {RELIEF_GLSL} from './relief.js'
 import {LUNAR_PHOTOMETRY_GLSL} from '../lunarPhotometry.js'
-import {monthlyPath} from '../monthly.js'
-import {sharedObjectUrl} from '../sharedImage.js'
+import {absoluteUrl, addDetail, createSeason, monthlyBaseLayer, updateSeason} from './season.js'
 
 
 /**
@@ -51,6 +50,7 @@ export function createWidget(Cesium, name, {container, contextOptions, creditCon
   const body = {name, Cesium, credits: creditContainer, month, frames: 0, distanceScale: DISTANCE_SCALE_M}
   const ellipsoid = Cesium.Ellipsoid[config.ellipsoid]
   Cesium.Ellipsoid.default = ellipsoid
+  const monthBase = config.monthlyImagery ? monthlyBaseLayer(Cesium, config.monthlyImagery, month) : null
   const surface = config.ionTileset ?
     // An ion 3D-tiles body (Moon, Mars): no globe, the tileset is the surface.
     {globe: false, baseLayer: false} :
@@ -58,7 +58,7 @@ export function createWidget(Cesium, name, {container, contextOptions, creditCon
     // so it draws whatever ion does (requestIon): for Earth the month's
     // Blue Marble, bundled with celestiary; else Cesium's Natural Earth II.
     config.monthlyImagery ?
-      {baseLayer: monthlyBaseLayer(Cesium, config.monthlyImagery, month)} :
+      {baseLayer: monthBase} :
       {baseLayer: Cesium.ImageryLayer.fromProviderAsync(
           Cesium.TileMapServiceImageryProvider.fromUrl(Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')))}
   const widget = new Cesium.CesiumWidget(container, {
@@ -81,6 +81,7 @@ export function createWidget(Cesium, name, {container, contextOptions, creditCon
   const customShader = config.ionTileset ?
     sunlitShader(Cesium, config.nightFloor ?? 0, {
       lunar: config.photometry === 'lunar',
+      srgb: config.imageryEncoding !== 'linear',
       reliefUrl: config.relief ? absoluteUrl(dataUrl(config.relief)) : null,
     }) : null
   if (config.ionTileset) {
@@ -102,8 +103,9 @@ export function createWidget(Cesium, name, {container, contextOptions, creditCon
         })
         .catch(onError)
   }
+  // The months' Blue Marble, blended by the day, and ion's detail over it (season.js).
   if (config.monthlyImagery) {
-    widget.imageryLayers.add(monthlyTileLayer(Cesium, config.monthlyImagery, month))
+    body.season = createSeason(Cesium, widget, monthBase, config.monthlyImagery, month)
   }
   const night = widget.scene.globe && config.nightImagery ?
     addNightLights(Cesium, widget, config.nightImagery) : null
@@ -127,8 +129,9 @@ export function createWidget(Cesium, name, {container, contextOptions, creditCon
   // then matches celestiary's whatever its sidereal phase.
   // Every body draws the same thing, whether Cesium loads it as a globe
   // (Earth: terrain and imagery) or as a 3D tileset (the Moon, Mars:
-  // imagery baked in): its imagery's stored values × Lambert, at most 1,
-  // which fits Cesium's 8-bit buffers, and its distance in alpha; the
+  // imagery baked in): its imagery's albedo × Lambert, at most 1, encoded
+  // to fit Cesium's 8-bit buffers (a globe's by sRGB, a tileset's by the
+  // log encoding), and its distance in alpha; the
   // composite's one decode scales it into _sceneRT (bodyGain), and
   // celestiary's atmosphere pass, where the body has one, hazes it.  A
   // globe that drew its own atmosphere (config.atmosphere; none does
@@ -139,8 +142,14 @@ export function createWidget(Cesium, name, {container, contextOptions, creditCon
   })
   if (scene.globe) {
     scene.globe.enableLighting = true
+    // The imagery is pictures, sRGB-encoded (Earth's Blue Marble, Bing, the
+    // Black Marble): our Cesium patch decodes each sample to linear light
+    // before the globe lights it, and encodes the lit colour back to sRGB
+    // for the 8-bit frame, which the decode inverts (CesiumLayers; CESIUM.md,
+    // "Patching Cesium").  So Earth is lit in linear light, as celestiary's.
+    scene.globe.imagerySrgb = true
     if (!config.atmosphere) {
-      litSurfaceOnly(scene.globe)
+      litSurfaceOnly(scene.globe, config.albedoFloor ?? 0)
       scene.fog.enabled = false
     }
     // The terrain's own depth for the distance stage: without
@@ -192,7 +201,9 @@ export function createWidget(Cesium, name, {container, contextOptions, creditCon
  *   fovyRad, heightM, distanceScale: the host's vertical fov, the camera's
  *     height over the sphere, and the scale of the distance in alpha;
  *   sunDirection: the direction the Sun's light travels, ECEF;
- *   month: 1-12;
+ *   month: 1-12, and monthBlend: {a, b, w}, the two months the date falls
+ *     between and the share of b (monthly.js monthBlendOfJulianDay); a host
+ *     that sends no blend has the month alone;
  *   earthshine: {level, direction} for the Moon's shader, or null
  */
 export function applyView(body, view) {
@@ -227,8 +238,8 @@ export function applyView(body, view) {
     body.tileset.maximumScreenSpaceError = TILE_SCREEN_SPACE_ERROR * view.detail
   }
   requestIon(body, body.name, view.fovyRad, height)
-  if (config.monthlyImagery) {
-    updateMonthlyImagery(body, config, view.month)
+  if (body.season) {
+    updateSeason(body, config, view.monthBlend ?? {a: view.month, b: view.month, w: 0})
   }
   widget.scene.light.direction = new Cesium.Cartesian3(...view.sunDirection)
   if (view.earthshine && body.customShader) {
@@ -256,42 +267,8 @@ export function requestIon(body, name, fovyRad, heightPx) {
   const imageryBelow = ionImageryAltitude(baseTexelMeters(config.monthlyImagery, config.radii[0]), fovyRad, heightPx)
   if (body.heightM < imageryBelow) {
     ion.imagery = true
-    addIonImagery(body.Cesium, body.widget, config.detailFromLevel, body.night)
+    addDetail(body, config, ionFailure)
   }
-}
-
-
-/**
- * Keep a body's monthly base imagery on the simulation date's month.  The
- * new month's layer goes in above the old one, which is removed once the
- * globe's tiles are in again, so the globe never shows without imagery.
- *
- * @param {object} body
- * @param {object} config
- * @param {number} month 1-12
- */
-export function updateMonthlyImagery(body, config, month) {
-  const {Cesium, widget} = body
-  const layers = widget.imageryLayers
-  // Once the new month's tiles are in and its map has loaded (an async
-  // layer, which the globe's tiles don't wait for).
-  if (body.oldBase && widget.scene.globe.tilesLoaded && body.newBase?.ready !== false) {
-    for (const layer of body.oldBase) {
-      layers.remove(layer, true)
-    }
-    body.oldBase = null
-    body.newBase = null
-  }
-  if (month === body.month || body.oldBase) {
-    return
-  }
-  body.month = month
-  // The old month's map and tiles, the first two layers; the new month's
-  // go in above them, under any detail layer and the lights.
-  body.oldBase = [layers.get(0), layers.get(1)]
-  body.newBase = monthlyBaseLayer(Cesium, config.monthlyImagery, month)
-  layers.add(body.newBase, 2)
-  layers.add(monthlyTileLayer(Cesium, config.monthlyImagery, month), 3)
 }
 
 
@@ -398,53 +375,6 @@ function addIonTerrain(Cesium, widget) {
 
 
 /**
- * Add ion's world imagery (Bing, asset 2) to the Earth globe, as detail over
- * the base's: shown only from globe tile level `detailFromLevel`.  Calling
- * this opens an ion imagery session (billed), so the caller does it once,
- * and only when the base's texels would show (ionImagery.js).  If ion
- * can't give it (no network, a token scoped to other assets, a 401 or 403
- * from the token or the account's quota) the layer is removed and the base
- * imagery stays, with one line in the console and no error thrown.
- *
- * @param {object} Cesium
- * @param {object} widget
- * @param {number} [detailFromLevel]
- * @param {object} [above] An imagery layer to go under, if any (the night
- *   lights', which stays on top)
- */
-function addIonImagery(Cesium, widget, detailFromLevel, above) {
-  const imagery = Cesium.ImageryLayer.fromWorldImagery({minimumTerrainLevel: detailFromLevel})
-  let dropped = false
-  const drop = (why) => {
-    if (dropped) {
-      return
-    }
-    dropped = true
-    console.warn(`[cesium layer] ion imagery unavailable (${why}); using the base imagery`)
-    if (!widget.isDestroyed()) {
-      widget.imageryLayers.remove(imagery)
-    }
-  }
-  // The endpoint request failed: no provider.
-  imagery.errorEvent.addEventListener((err) => drop(ionFailure(err)))
-  // Tile errors from Bing's side: no retries, and a layer that is refused is
-  // dropped, rather than failing tile by tile.
-  imagery.readyEvent.addEventListener((provider) => {
-    provider.errorEvent.addEventListener((err) => {
-      err.retry = false
-      const failure = ionFailure(err)
-      if (failure === 'HTTP 401' || failure === 'HTTP 403') {
-        drop(failure)
-      }
-    })
-  })
-  const layers = widget.imageryLayers
-  const at = above ? layers.indexOf(above) : -1
-  layers.add(imagery, at >= 0 ? at : undefined)
-}
-
-
-/**
  * Add a globe's night lights imagery layer, with alpha 0: its tiles load
  * and stay cached, and the day frame skips it (Cesium draws no layer at
  * alpha 0); _drawNightLights turns it on for its own frame.  On top of the
@@ -514,68 +444,7 @@ export function renderNightLights(body, render) {
 }
 
 
-/**
- * @param {string} url Absolute, or relative to the page's base
- * @returns {string} Absolute
- */
-export function absoluteUrl(url) {
-  return isAbsoluteUrl(url) ? url : new URL('.', document.baseURI).href + url
-}
-
-
-/**
- * The Blue Marble of a month as one image: the map celestiary's own Earth is
- * textured with, laid over the whole globe, at every level.  It is all the
- * globe has until its tiles reach `fromLevel` (monthlyTileLayer), and the
- * tiles' own levels 0-2 are no better (4096 px across is level 2 of 512 px
- * tiles): so it is one request, where the tiles took ten (levels 0 and 1),
- * popping in as they came.  Async: the layer is ready once the image has
- * loaded.  Celestiary's own Earth and its clouds have fetched the image
- * already (or are fetching it), so Cesium is given a `blob:` URL of the
- * same bytes (sharedImage.js) and makes no request; if that fetch failed, it
- * is given the image's URL to try itself.
- *
- * @param {object} Cesium
- * @param {object} imagery A body's monthlyImagery config (bodies.js)
- * @param {number} month 1-12
- * @returns {object} Cesium.ImageryLayer
- */
-function monthlyBaseLayer(Cesium, imagery, month) {
-  const url = dataUrl(monthlyPath(imagery.singleUrl, month))
-  const provider = sharedObjectUrl(url)
-      .catch(() => absoluteUrl(url))
-      .then((src) => Cesium.SingleTileImageryProvider.fromUrl(src, {credit: imagery.credit}))
-  return Cesium.ImageryLayer.fromProviderAsync(provider)
-}
-
-
-/**
- * The Blue Marble of a month as tiles, over its map (monthlyBaseLayer):
- * shown from globe level `fromLevel`, and asking for nothing above it.
- * `minimumLevel` as well as `minimumTerrainLevel`: a globe tile at level 3
- * would pick the imagery level by its texel size, and might pick 2.
- *
- * @param {object} Cesium
- * @param {object} imagery A body's monthlyImagery config (bodies.js)
- * @param {number} month 1-12
- * @returns {object} Cesium.ImageryLayer
- */
-function monthlyTileLayer(Cesium, imagery, month) {
-  const {url, tileSize, maximumLevel, fromLevel, credit} = imagery
-  return new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({
-    // Cesium wants an absolute URL: the data base URL if the build has one
-    // (DESIGN.md, data policy), else the page's base (celestiary may be
-    // served under a path).  Not new URL(url, base), which escapes the
-    // {z}/{x}/{y} placeholders.
-    url: absoluteUrl(dataUrl(monthlyPath(url, month))),
-    tilingScheme: new Cesium.GeographicTilingScheme(),
-    tileWidth: tileSize,
-    tileHeight: tileSize,
-    minimumLevel: fromLevel,
-    maximumLevel,
-    credit,
-  }), {minimumTerrainLevel: fromLevel})
-}
+export {absoluteUrl}
 
 
 /**
@@ -595,14 +464,17 @@ function monthlyTileLayer(Cesium, imagery, month) {
  * the surface, while the imagery already shows the craters' shading.
  *
  * Lit as celestiary lights its own surfaces, so the two match across the
- * swap: celestiary scales the texture's stored (sRGB) values and
- * tone-maps them (PBR Neutral, three's and Cesium's alike) straight to the
- * screen, with no sRGB decode or encode.  Cesium hands the shader the
- * imagery decoded to linear and sRGB-encodes what it returns.  Lighting
- * that linear colour instead lifted the dark side and the terminator and
- * dimmed the day side (the Moon: 18 vs 0 at night, 122 vs 190 by the
- * limb, of 255).  So: back to stored values, light and tone-map there,
- * then decode for Cesium's encode to undo.
+ * swap (HDR.md, "Colour spaces"): a picture's sRGB decoded to linear light
+ * and lit (Mars), a linear map's stored values lit as they are (the Moon's
+ * linear stretch of I/F, bodies.js `imageryEncoding`).  Cesium hands the
+ * shader the imagery decoded by a 2.2 power (czm_srgbToLinear) and encodes
+ * what it returns by its inverse.  So the shader first undoes Cesium's
+ * decode, back to the stored value, exactly; then for a picture decodes
+ * that by sRGB's own curve (2.2 is 8× too dark at a stored 0.02, in sRGB's
+ * linear toe); lights it; and decodes the log-encoded result for Cesium's
+ * encode to undo.  Lighting Cesium's linear colour on the Moon lifted the
+ * dark side and the terminator and dimmed the day side (18 vs 0 at night,
+ * 122 vs 190 by the limb, of 255), as its map isn't a picture.
  *
  * The night side: the Moon's is lit by earthshine, Earth's reflected
  * sunlight, from Earth's direction (`u_earthshine`, `u_earthDirWC`, set
@@ -630,11 +502,13 @@ function monthlyTileLayer(Cesium, imagery, month) {
  * @param {number} nightFloor The night side's light, a fraction of full sun
  * @param {object} [options]
  * @param {boolean} [options.lunar] Light it by the lunar photometric function, not Lambert's law
+ * @param {boolean} [options.srgb] Its imagery is a picture, sRGB-encoded (Mars's); false for
+ *   a linear map (the Moon's), lit as stored
  * @param {string|null} [options.reliefUrl] The normal map to light the surface's slopes by
  *   (bodies.js `relief`; relief.js), absolute; null for the smooth sphere
  * @returns {object} Cesium.CustomShader
  */
-function sunlitShader(Cesium, nightFloor, {lunar = false, reliefUrl = null} = {}) {
+export function sunlitShader(Cesium, nightFloor, {lunar = false, srgb = true, reliefUrl = null} = {}) {
   const f = (x) => x.toFixed(4)
   // The light's law, toward a direction `l` from a surface of normal `n`
   // seen along `v` (eye space): the Moon's photometric function, as
@@ -666,15 +540,18 @@ function sunlitShader(Cesium, nightFloor, {lunar = false, reliefUrl = null} = {}
   return new Cesium.CustomShader({
     lightingModel: Cesium.LightingModel.UNLIT,
     uniforms,
-    // Stored value × light, as Earth's globe draws (litSurfaceOnly): the
-    // texture's stored values, not Cesium's linear ones, lit; Cesium's
-    // output encodes linear back to what's returned here, the code.
-    // `normal` is the surface normal both lights are taken against: the
-    // smooth sphere's, or with relief the map's slopes on it (relief.js).
+    // Albedo × light: the texture's stored value (Cesium's 2.2 decode
+    // undone), decoded by sRGB's curve for a picture; Cesium's output
+    // encodes linear back to what's returned here, the code.  `normal` is
+    // the surface normal both lights are taken against: the smooth
+    // sphere's, or with relief the map's slopes on it (relief.js).
     fragmentShaderText: `
       ${LOG_ENCODE_GLSL}
       ${reliefUrl ? RELIEF_GLSL : ''}
       ${lunar ? LUNAR_PHOTOMETRY_GLSL : ''}
+      vec3 albedoOf(vec3 c) {
+        return ${srgb ? 'mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c))' : 'c'};
+      }
       float sunlitLaw(vec3 n, vec3 l, vec3 v) {
         return ${law};
       }
@@ -685,8 +562,8 @@ function sunlitShader(Cesium, nightFloor, {lunar = false, reliefUrl = null} = {}
         float sun = sunlitLaw(normal, czm_lightDirectionEC, toEye);
         float earth = sunlitLaw(normal, czm_viewRotation * u_earthDirWC, toEye);
         float light = ${f(nightFloor)} + ${f(1 - nightFloor)} * sun + u_earthshine * earth;
-        vec3 stored = czm_linearToSrgb(material.diffuse) * light;
-        material.diffuse = czm_srgbToLinear(cesiumLogEncode(stored, gl_FragCoord.xy));
+        vec3 lit = albedoOf(czm_linearToSrgb(material.diffuse)) * light;
+        material.diffuse = czm_srgbToLinear(cesiumLogEncode(lit, gl_FragCoord.xy));
       }`,
   })
 }
@@ -694,7 +571,8 @@ function sunlitShader(Cesium, nightFloor, {lunar = false, reliefUrl = null} = {}
 
 /**
  * Make a Cesium globe draw only its lit surface, as celestiary lights its
- * own: its imagery's stored values × Lambert (Cesium's defaults add 0.3 and
+ * own: its imagery's linear values × Lambert (decoded and the result
+ * encoded by globe.imagerySrgb, createWidget; Cesium's defaults add 0.3 and
  * scale Lambert by 0.9), with no ground atmosphere (celestiary's atmosphere
  * pass draws it), lit at every distance (Cesium fades day-night shading out
  * below lightingFadeOutDistance, ~10,000 km from Earth's centre, and with it
@@ -707,14 +585,20 @@ function sunlitShader(Cesium, nightFloor, {lunar = false, reliefUrl = null} = {}
  * effect: its sun glint and sky reflection lit the sunward ocean up to
  * twice celestiary's (whose ocean shine is its own, Planet.md).
  *
+ * With a `floor` the light is floor + (1 − floor) × Lambert: the frame holds
+ * the albedo on the night side too, for the sky's light on the ground, and
+ * the decode takes the floor out (CesiumLayers; CESIUM.md, "The ground's
+ * light").
+ *
  * @param {object} globe Cesium.Globe
+ * @param {number} [floor] The body's albedoFloor
  */
-function litSurfaceOnly(globe) {
+function litSurfaceOnly(globe, floor = 0) {
   globe.showGroundAtmosphere = false
   globe.showWaterEffect = false
-  globe.lambertDiffuseMultiplier = 1
-  globe.dayNightLambertDiffuseMultiplier = 1
-  globe.vertexShadowDarkness = 0
+  globe.lambertDiffuseMultiplier = 1 - floor
+  globe.dayNightLambertDiffuseMultiplier = 1 - floor
+  globe.vertexShadowDarkness = floor
   globe.lightingFadeOutDistance = 0
   globe.lightingFadeInDistance = 1
 }

@@ -40,6 +40,7 @@ tried and dropped.
 | What's new on the homepage, the changelog tour, the `#;news:tour` link | DESIGN.md [what's new](DESIGN.md#whats-new-and-the-changelog-tour); [design/URLs.md](design/URLs.md#news-token); [tools/changelog/README.md](tools/changelog/README.md) (the entries) |
 | Social post drafts from the changelog (`yarn posts`), the first campaign, what to attach and how to publish | [tools/posts/README.md](tools/posts/README.md); [What's new epic #244](https://github.com/celestiary/web/issues/244) |
 | The interface's look: the design system, its tokens, the info panel's tiers, the phone sheet, and the redesign's phases | [design/UI.md](design/UI.md); DESIGN.md [the info panel](DESIGN.md#the-info-panel) |
+| Colours: every designed colour, chrome and scene, in `js/theme.js` (the chrome's set as CSS custom properties at load, `applyCssColors`) | [design/UI.md, the theme](design/UI.md#the-theme) |
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
 | Lagrange points, Hill spheres, synchronous orbits (every pair), orbital regimes (LEO, MEO, GPS, Molniya, sun-synchronous, cislunar space), three-body orbits (halo, Lyapunov, DRO, NRHO; the CR3BP), and the rest of #272's orbital structure | [js/scene/Lagrange.md](js/scene/Lagrange.md); DESIGN.md [orbital elements](DESIGN.md#orbital-elements) |
 | A craft's integrator (#11): the force model on the ephemerides, the integrators and their energy drift, Lambert, the transfer to the Moon, the `craft:` flights | [js/scene/Craft.md](js/scene/Craft.md) |
@@ -58,6 +59,7 @@ tried and dropped.
 | Human expansion (an app: BFS spread across the stars) | [js/scene/Colonization.md](js/scene/Colonization.md) |
 | The Rubin Observatory on Cerro Pachón following 2026 ED138, its first dwarf planet candidate (an app: the model, its pointing, the object's apparent path, the body's JPL elements; Rubin's image on the sky, its WCS and tiles) | [js/scene/rubin/Rubin.md](js/scene/rubin/Rubin.md); the image: [the imagery](js/scene/rubin/Rubin.md#the-imagery) |
 | Sky imagery as HiPS surveys (HEALPix tiles on the sky): the layer, a survey's manifest and coverage (MOC), the tile's orientation in its cell, Rubin's First Look, ESASky's JWST, adding Hubble's | [js/scene/sky/Sky.md](js/scene/sky/Sky.md) |
+| Earth breathing (an app: the clock's day steps at solar noon over the seasons, `time:step=`; the time panel's toggle; `solarNoon.js`) | [design/URLs.md, Earth breathing](design/URLs.md#earth-breathing-breathing), [the time token](design/URLs.md#time-token) |
 | Suntan (an app: a concept mission to the Sun's surface on Parker Solar Probe's path): the mission model and how it's checked against Parker, its sensors (sunlight, temperatures by layer, wind, field), the panel; the research, trajectory numbers and STEP model in `design/suntan/` | [js/scene/suntan/Suntan.md](js/scene/suntan/Suntan.md) |
 | Other galaxies: SPARC's 175 discs from their parameters, their data and cross-match, levels of detail, rotation curves | [js/scene/Galaxies.md](js/scene/Galaxies.md); the model they share with the Milky Way, [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
 | Social previews via the portal proxy | [portal/DESIGN.md](portal/DESIGN.md) |
@@ -318,6 +320,22 @@ tried and dropped.
   Earth turns to the new time only when the frame animates. To compare
   with and without clouds, move the shell off its layer
   (`clouds.layers.set(31)`); its `visible` is rewritten every frame.
+- **Earth's months headless** (Planet.md, [the months blended by
+  day](js/scene/Planet.md#the-months-blended-by-day)): celestiary's
+  surface's `material.userData.monthMaps` (the `planet surface` mesh under
+  `c.scene.objects.earth`) has the two slots' months and `uniforms.uMonthMix`;
+  Cesium's is `c.ui.layers.bodies.earth.season` (`entries` with each month's
+  share and layers, `detail` the detail's strength).  A new month's share
+  grows over half a second of frames, so step frames after `setTime`.  To see
+  ion's detail without ion, stub `/v1/assets/2/endpoint` with `externalType:
+  'URL_TEMPLATE'` and a local tile server; `?detail=raw` shows the detail
+  layer's own tiles, as before the transfer, and `?detailWorker=0` makes
+  the detail tiles on the main thread (the fallback, the worker's bytes
+  exactly); a `PerformanceObserver` for `longtask` in an init script counts
+  what the tiles cost the main thread.  A shader mod that replaces a
+  chunk another mod also replaces (`map_fragment`: the small disc's) silently
+  drops the other's code, and the program fails to compile: collect
+  `Shader Error` from the console.
 - **Overlays and the chrome come in with the first load's reveal**
   (DESIGN.md [the first load](DESIGN.md#the-first-load)): held hidden
   until the scene is in, then faded in over about 1.3 s.  A probe that
@@ -494,6 +512,11 @@ tried and dropped.
     (in sync mode, how long it was waited on).  `counts` are per frame,
     by pass.  `gpu.unmaskedRenderer` and `devicePixelRatio` say which GPU
     and how many pixels.
+  - **The `` ` `` key** opens the same overlay without `?perf=1` (with
+    the render panel; DESIGN.md [performance
+    panel](DESIGN.md#performance-panel)), but a Cesium layer made before
+    the press has no shadow-context row: for a snapshot, ask for the
+    `?perf=1` link.
   - **Add a pass's marker** when you add a pass: `perf.begin('name')` /
     `perf.end('name')` in the loop and a line in `js/perf/passes.js`.
 - **Known SwiftShader quirk:** `gl_PointCoord` flips in point shaders
@@ -611,7 +634,9 @@ tried and dropped.
   fails when it drifts**: after editing a body's descriptor
   (`public/data/<dir>/index.json`: `public/data/earth/`,
   `public/data/earth/moons/moon/`) run `yarn bodies`; a place catalogue,
-  `yarn places-index`; `CHANGELOG.md`, `yarn changelog`. Nothing but the
+  `yarn places-index`; `CHANGELOG.md`, `yarn changelog`.  Colours are in
+  `js/theme.js` only: a colour literal elsewhere in `js/` fails a test
+  (`tools/theme/literals.test.js`). Nothing but the
   page, its scripts, the bodies' bundle and the stars loads with the page:
   a body's places, the galaxies and the changelog wait until something
   needs them (DESIGN.md [what loads when](DESIGN.md#what-loads-when)), so

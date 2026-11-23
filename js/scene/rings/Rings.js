@@ -7,6 +7,7 @@ import {
   OneMinusSrcAlphaFactor,
   Quaternion,
   RingGeometry,
+  SRGBColorSpace,
   ShaderMaterial,
   Vector3,
 } from 'three'
@@ -139,7 +140,9 @@ export default class Rings extends Mesh {
     // Lit in exposure units, its colour premultiplied by its cover.
     const material = new ShaderMaterial({
       uniforms: {
-        uColorMap: {value: Material.pathTexture(`${texture}ringcolor`, '.png')},
+        // A picture, sRGB-encoded: decoded on each sample, so the albedo is
+        // linear (ringPhotometry.js RING_ALBEDO_SCALE).  The opacity map is data.
+        uColorMap: {value: Material.pathTexture(`${texture}ringcolor`, '.png', SRGBColorSpace)},
         uAlphaMap: {value: Material.pathTexture(`${texture}ringalpha`, '.png')},
         // Updated each frame in onBeforeRender.
         uSunDir: {value: new Vector3(1, 0, 0)},

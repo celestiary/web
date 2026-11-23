@@ -17,6 +17,7 @@ import {sceneReferred} from '../hdr.js'
 import {unixMsToJd} from '../satellites/sgp4.js'
 import {DSN_NOW_URL, POLL_MS, bodyFixedToEquator, dsnLinks, parseDsnXml, topocentricDirection} from './dsn.js'
 import {newWideLines, setWideLineSegments} from '../wideLines.js'
+import {css, sceneColors} from '../../theme.js'
 
 
 // NASA's Deep Space Network (Networks.md, "DSN"): its three complexes'
@@ -48,11 +49,11 @@ const LABEL_MIN_APART = 0.05
 const DASH_FILL = 0.6
 // Backing off after a failed poll: doubled each time, up to this, ms.
 const MAX_BACKOFF_MS = 5 * 60e3
-const UP_COLOR = 0xffa040
-const DOWN_COLOR = 0x50d8ff
-const DISH_COLOR = 0xffffff
-const SITE_LABEL_COLOR = '#e8f4ff'
-const SC_LABEL_COLOR = '#a8ecff'
+const UP_COLOR = sceneColors.dsn.up
+const DOWN_COLOR = sceneColors.dsn.down
+const DISH_COLOR = sceneColors.dsn.dish
+const SITE_LABEL_COLOR = css(sceneColors.dsn.siteLabel)
+const SC_LABEL_COLOR = css(sceneColors.dsn.craftLabel)
 const DOWN_WIDTH_PX = 3
 const UP_WIDTH_PX = 1.5
 const DISH_SIZE_PX = 5
