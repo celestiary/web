@@ -59,6 +59,7 @@ tried and dropped.
 | Human expansion (an app: BFS spread across the stars) | [js/scene/Colonization.md](js/scene/Colonization.md) |
 | The Rubin Observatory on Cerro Pachón following 2026 ED138, its first dwarf planet candidate (an app: the model, its pointing, the object's apparent path, the body's JPL elements; Rubin's image on the sky, its WCS and tiles) | [js/scene/rubin/Rubin.md](js/scene/rubin/Rubin.md); the image: [the imagery](js/scene/rubin/Rubin.md#the-imagery) |
 | Sky imagery as HiPS surveys (HEALPix tiles on the sky): the layer, a survey's manifest and coverage (MOC), the tile's orientation in its cell, Rubin's First Look, ESASky's JWST, adding Hubble's | [js/scene/sky/Sky.md](js/scene/sky/Sky.md) |
+| Earth's cryosphere (#380): the day's sea ice from GIBS on both globes (built: the `W` key, `seaice/`), then the weekly atlas for timelapses, the thickness model, floes and icebergs up close, the ice sheets' thickness (proposed) | [js/scene/Planet.md, sea ice](js/scene/Planet.md#sea-ice) (what's built); [design/Cryosphere.md](design/Cryosphere.md) (the plan) |
 | Earth breathing (an app: the clock's day steps at solar noon over the seasons, `time:step=`; the time panel's toggle; `solarNoon.js`) | [design/URLs.md, Earth breathing](design/URLs.md#earth-breathing-breathing), [the time token](design/URLs.md#time-token) |
 | Suntan (an app: a concept mission to the Sun's surface on Parker Solar Probe's path): the mission model and how it's checked against Parker, its sensors (sunlight, temperatures by layer, wind, field), the panel; the research, trajectory numbers and STEP model in `design/suntan/` | [js/scene/suntan/Suntan.md](js/scene/suntan/Suntan.md) |
 | Other galaxies: SPARC's 175 discs from their parameters, their data and cross-match, levels of detail, rotation curves | [js/scene/Galaxies.md](js/scene/Galaxies.md); the model they share with the Milky Way, [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
@@ -320,6 +321,16 @@ tried and dropped.
   Earth turns to the new time only when the frame animates. To compare
   with and without clouds, move the shell off its layer
   (`clouds.layers.set(31)`); its `visible` is rewritten every frame.
+- **Earth's sea ice headless** (Planet.md, [sea ice](js/scene/Planet.md#sea-ice)):
+  its loader is a chunk imported on Earth's first near frame, so wait on
+  `c.scene.objects.earth.seaIce.userData.map?.status.ready` (a second after
+  the date settles, then 8 tiles from GIBS through the pinned proxy, as the
+  clouds'), with the clouds off (`applySettings({i: false})`) to see it.
+  Toggle it with `applySettings({W: false})`.  To compare the globes, force
+  the layer (`c.ui.layers.fadeOf = () => 1` or `0`) and render each with the
+  ice on and off; Cesium's layer is `c.ui.layers.bodies.earth.seaIce`.  Pick
+  a date the ice is sunlit (April for the Arctic, September and October for
+  the Antarctic): at the equinoxes the poles are on the terminator.
 - **Earth's months headless** (Planet.md, [the months blended by
   day](js/scene/Planet.md#the-months-blended-by-day)): celestiary's
   surface's `material.userData.monthMaps` (the `planet surface` mesh under

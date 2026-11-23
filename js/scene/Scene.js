@@ -253,6 +253,7 @@ export default class Scene {
       I: false, // Iridium and its crosslinks
       D: false, // the Deep Space Network and its live links
       i: true, // Earth's clouds: the shell and the volume (cloudsShown; the 'I' key)
+      W: true, // Earth's sea ice (seaIceShown; the 'W' key)
       K: false, // a camera the observer, not the eye (setObserverCamera; Sun.md, "Glare")
       v: true, // nav panels / heads-up display (Celestiary-owned, see registerSettingApplier)
     }
@@ -673,6 +674,7 @@ export default class Scene {
       I: () => this.toggleNetwork('I'),
       D: () => this.toggleNetwork('D'),
       i: () => this.toggleClouds(),
+      W: () => this.toggleSeaIce(),
       K: () => this.toggleObserverCamera(),
       ...this._customAppliers,
     }
@@ -3956,6 +3958,22 @@ export default class Scene {
   /** @returns {boolean} whether Earth's clouds are drawn (the 'i' setting) */
   cloudsShown() {
     return this._settings.i !== false
+  }
+
+
+  /**
+   * Earth's sea ice on or off (the 'W' key, the atmosphere section's switch):
+   * the surface's shader and Cesium's layer read seaIceShown each frame
+   * (Planet.newSeaIceNode, cesium/seaIceLayer.js).  Not an overlay.
+   */
+  toggleSeaIce() {
+    this._flipSetting('W')
+  }
+
+
+  /** @returns {boolean} whether Earth's sea ice is drawn (the 'W' setting) */
+  seaIceShown() {
+    return this._settings.W !== false
   }
 
 

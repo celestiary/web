@@ -374,6 +374,21 @@ describe('ControlPanel', () => {
     expect(list.innerHTML).toContain('No match')
   })
 
+  it('switches Earth\'s sea ice beside its clouds', () => {
+    const panel = new ControlPanel(null, null)
+    const body = {name: 'earth', sea_ice: 'gibs', atmosphere: {height: '8e4 m'}}
+    expect(panel.seaIceSwitchHtml(body)).toBe('')
+    const settings = {W: true}
+    panel.settingsHooks = {get: (k) => settings[k], toggle: () => {}}
+    expect(panel.seaIceSwitchHtml({name: 'mars', atmosphere: {}})).toBe('')
+    const html = panel.seaIceSwitchHtml(body)
+    expect(html).toContain('<dt>Sea ice</dt>')
+    expect(html).toContain('class="info-toggle on" data-setting="W" role="switch" aria-checked="true"')
+    expect(html).toContain('<span class="info-unit">W</span>')
+    settings.W = false
+    expect(panel.seaIceSwitchHtml(body)).toContain('aria-checked="false"')
+  })
+
   it('switches Earth\'s clouds in the atmosphere section, and follows the key', () => {
     const panel = new ControlPanel(null, null)
     const body = {name: 'earth', clouds: 'gibs', atmosphere: {height: '8e4 m'}}

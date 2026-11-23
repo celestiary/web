@@ -212,6 +212,10 @@ export const sceneColors = Object.freeze({
   rubin: Object.freeze({path: 0x4fd8c8, beam: 0x9fe8ff}),
   // A galaxy's rotation curve plot (rotationCurve.js).
   rotationCurve: Object.freeze({observed: 0x3987e5, baryons: 0xd95926}),
+  // Earth's sea ice, as stored (sRGB), decoded where it's drawn
+  // (seaice/seaIceShader.js; design/Cryosphere.md): snow-covered pack, an
+  // albedo of about 0.8 against the Blue Marble's ice sheets' white (238).
+  seaIce: 0xe2e8ee,
   // Human expansion's lines (ColonizationLines.js): sRGB triples, 0 to 1, as
   // CSS takes them (the app's legend) and decoded for the lines, as three
   // decodes a hex.  The hops' ramp, near to far, and a selected star's

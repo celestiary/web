@@ -39,6 +39,19 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### Sea ice on Earth, day by day, from 1978 to yesterday
+
+The oceans used to stay open all year. Now Earth shows the sea ice that satellites saw on the day you're looking at: the
+Arctic frozen to Hudson Bay and the Gulf of St. Lawrence in April, the Antarctic pack spreading past 60° south in September,
+and back through every winter to 1978. Press `W`, or use the *Sea ice* switch in Earth's atmosphere section, to turn it off and on.
+
+- Date: 2026-11-22
+- PR: [#383](https://github.com/celestiary/web/pull/383)
+- Issue: [#381](https://github.com/celestiary/web/issues/381)
+- Epic: [#380](https://github.com/celestiary/web/issues/380) Earth's cryosphere
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@62,-60,10.193616Mm;t=9601.125001jd;cq=-0.4416,0.7166,0.2506,0.4781;fov=45deg;s=iF;time:pause)
+- Featured: yes
+
 ### A compass near a planet: north up, or level, in a tap
 
 Near a planet a small compass shows which way north is on the ground below. Tap it to turn north up, tap again to

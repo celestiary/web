@@ -1173,6 +1173,9 @@ export default class CesiumLayers {
     applyView(body, view)
     if (name === 'earth') {
       this._updateNewYork(body, view.position)
+      // The day's sea ice, from celestiary's own map (seaIceLayer.js, in
+      // the sea ice's chunk: Planet.newSeaIceNode).
+      node.seaIce?.userData.syncCesium?.(body, this.ui.sceneManager?.seaIceShown?.() ?? true)
     }
     this._sampleGround(body, name)
     body.nightInView = this._nightInView(body, name, node, view)

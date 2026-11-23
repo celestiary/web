@@ -582,6 +582,100 @@ Cost: a sphere of 256 × 128 segments and one more scene traversal a frame
 for the layer (as the label overlay's), the coverage texture's 3.3 MB (4.4
 with mips), and per pixel two texture reads and two ray-sphere solves.
 
+## Sea ice
+
+The Blue Marble is a land product: its ocean is the same dark blue in every
+month, so Earth breathing showed the land's snow come and go and no sea ice
+(read from `blue-marble/2004-MM.jpg`, the Beaufort Sea, Hudson Bay and the
+Weddell Sea are `[2, 5, 20]` in March and September alike).  The day's sea
+ice is a layer of its own, the cryosphere's first (#380, #381;
+[design/Cryosphere.md](../../design/Cryosphere.md)), drawn on the ocean
+under the clouds on both sides of the Cesium swap.  `earth/index.json`
+turns it on (`"sea_ice": "gibs"`); the code is `js/scene/seaice/`.  **The
+`W` key** and the *Sea ice* switch in Earth's atmosphere section turn it
+off and on (`Scene.toggleSeaIce`, the `W` setting, `s=W` in a link for off).
+
+### Source: NASA GIBS's passive microwave
+
+The simulation day's sea ice concentration, from GIBS (`seaIceSource.js`):
+
+| Date | Layer | Grid |
+|---|---|---|
+| from 2002-09-01 | `GHRSST_L4_MUR25_Sea_Ice_Concentration` | EPSG:4326, `2km` level 1: 3 × 2 tiles of 512 px, 144° each, 0.28° a pixel; the map is the mosaic's top left 1280 × 640 |
+| 1978-10-26 to 2002-08-31 | `SSMIS_Sea_Ice_Concentration` (NSIDC's SMMR/SSM/I/SSMIS) | EPSG:3413 and 3031 polar stereographic, `1km` level 0: 2 × 2 tiles a hemisphere at 8,192 m, reprojected (Snyder's ellipsoidal formulas, within a metre of PROJ) |
+| the present | the latest day (GIBS's default is yesterday's) | |
+| before 1978-10-26, or the future | the same calendar day of 1979, or of the latest year (`standin` in the status) | |
+
+Each is a colour-mapped PNG whose palette index is the colour map's `ref`
+(`colormaps/v1.3/GHRSST_Sea_Ice_Concentration.xml`, `SSMIS_…`; every entry
+of both checked 2026-11-22), so the tiles are decoded to their indices
+(`png.js`, PNG's own filters over `DecompressionStream`), not to colours:
+exact, and testable in bun with no DOM.  MUR25's index is percent + 1 (0 no
+data, land); SSMIS's is (i − 5) × 0.4%, with the pole hole (1) taken as
+ice and coast, land and missing as no data.  Below 15%, NSIDC's ice edge,
+it's open water.  A day is 8 tiles at most and **41 KB** for both
+hemispheres (MUR25, 2026-03-10), against the clouds' 1.2 MB.
+
+**Whole days.**  GIBS answers a day missing from a layer (MUR25 has a few:
+2021-02-20 and 21, 2022-11-09, 2023-02-02 and 03, 2023-04-22, 2024-07-02)
+with empty tiles, not a 404, so a day counts only with every tile in and
+2,000 ice pixels or more (both hemispheres together never have under ~5
+million km², tens of thousands of pixels); otherwise the day before is
+tried, up to three back (SSMIS's every-other-day years try the day after
+second).  If none is whole the one with the most ice is shown.
+
+**The two records agree where both reach.**  The same day from each, over
+|lat| ≥ 50° weighted by area: on 2010-03-10 the ice pixels' intersection
+over union is 0.79 (MUR25 alone 2%, SSMIS alone 19%), on 2010-09-15 0.91;
+SSMIS's extra is a fringe along the coasts (its 25 km land mask), and the
+southern Sea of Okhotsk is outside its grid.  The fringe lies on land
+celestiary's hydrosphere mask clips; on Cesium's globe it shows on the
+shore (below).
+
+**At the shore.**  The data have nothing on land, so a filtered sample at
+the coast mixed the ice with land's 0 and drew a dark line of open sea
+along every iced shore (headless, plain on Cesium's globe, fainter on
+celestiary's).  The ice is spread two pixels into the no-data pixels next
+to it (`spreadIntoLand`), and the line is gone.
+
+### Loading
+
+`SeaIceMap.js` is a chunk of its own, imported on the sea ice node's first
+frame (`Planet.newSeaIceNode`; the first load's budget).  Its map is a
+one-byte `DataTexture`, empty at first; once the date has stood for a second
+the day's tiles are fetched four at a time, the map built off screen and
+put in the texture in one upload, as the clouds' are.  The first map fades
+in over 1.2 s from the first frame Earth is drawn with it.  While the clock
+steps by days (Earth breathing) it holds its day, as the clouds do; the
+bundled weekly atlas (Cryosphere.md, phase 2) is what will let the ice
+breathe with the seasons.  The status (`c.scene.objects.earth.seaIce
+.userData.map.status`) says the day wanted, the day shown, its record, any
+stand-in, and each day tried.
+
+### Drawing
+
+**celestiary's Earth** (`seaIceShader.js`): a step in the surface
+material's shader before `normal_fragment_begin`, which no other mod
+replaces.  Over the ocean (the hydrosphere map's white), the colour goes to
+the ice's (`theme.js` `seaIce`, 0xe2e8ee, snow-covered pack, about 0.8
+against the Blue Marble's ice sheets' 238) by the concentration, in linear
+light and times the material's colour (texture_gain) as the map's texels
+are; the roughness goes to the land's and the metalness to 0, so there's
+no glint off the pack.  Until the chunk is in the shader samples a 1 × 1
+stand-in, no ice.  **Cesium's globe** draws an imagery layer of the same
+map (CESIUM.md, "Sea ice").
+
+**Measured** headless (SwiftShader, 480 × 360, no ion, clouds off), 2026-04-15
+15:00 UTC from 2.6 Earth radii over 62° N 60° W: Hudson Bay, Baffin Bay,
+the Arctic Ocean and the Gulf of St Lawrence iced on both globes; the
+pack's bright interior within 1% between them (the 90th and 97th
+percentiles of the pixels the ice changed: 195 and 204.7 on celestiary's,
+197 and 207 on Cesium's, of 255), and Greenland's snow, which the ice
+doesn't touch, the same on both (198, 196, 194).  The medians differ more
+(140 against 147), from the leads and edges, which the two filter
+differently.  2026-09-12 shows the Antarctic's maximum, and 1995-04-15 the
+SSMIS record (more ice off East Greenland and Labrador than 2026's).
+
 ## Lighting and exposure
 
 The Sun is a `PointLight` of `SUN_LUMINOUS_INTENSITY` falling off as

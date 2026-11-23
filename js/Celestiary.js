@@ -218,8 +218,8 @@ export default class Celestiary {
     // A long flight waits for VSOP87C itself (flights.js needsVsop).
     this.animation.onEphemeris = () => this.scene._syncCraft()
     this.scene.onCraftChange = () => this.controlPanel.refreshCraft()
-    // The settings the info panel switches: Earth's clouds, in the
-    // atmosphere section (ControlPanel.cloudsSwitchHtml).
+    // The settings the info panel switches: Earth's clouds and sea ice, in
+    // the atmosphere section (ControlPanel.cloudsSwitchHtml, seaIceSwitchHtml).
     this.controlPanel.settingsHooks = {
       get: (key) => this.scene.getSetting(key),
       toggle: (key) => this.scene.applySettings({[key]: !this.scene.getSetting(key)}),
@@ -3200,6 +3200,12 @@ export default class Celestiary {
     },
     'Earth\'s clouds',
     () => this.scene.getSetting('i'),
+    'Surfaces')
+    k.map('W', () => {
+      this.scene.toggleSeaIce()
+    },
+    'Earth\'s sea ice',
+    () => this.scene.getSetting('W'),
     'Surfaces')
 
     // === Observer === The eye (the default) or a camera, whose veil round

@@ -222,9 +222,9 @@ isn't written.
   of a degree: a camera riding a body keeps a few metres, one left in the Sun's
   frame is good to ~260 km at 1 AU.
 A letter is a flip of the toggle's default, not "on": `a`, `l`, `p`, `o`,
-`U`, `G`, `x`, `i` and `v` are on by default, so their letters mean off (`s=loL` is
+`U`, `G`, `x`, `i`, `W` and `v` are on by default, so their letters mean off (`s=loL` is
 star labels off, orbits off, landed; `s=i` is Earth's clouds off, the `I`
-key's, Celestia's `i`), while `e` `c` `g` `C` `S` `I` `D` `K` `L` `T` `F` `A` mean
+key's, Celestia's `i`; `s=W` Earth's sea ice off, the `W` key's), while `e` `c` `g` `C` `S` `I` `D` `K` `L` `T` `F` `A` mean
 on (`s=ID` is Iridium and the DSN shown: js/scene/networks/Networks.md).
 
 `K` is the observer: off, the eye (the default); on, a camera, whose veil

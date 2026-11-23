@@ -44,6 +44,9 @@ import {groundLightShaderMod, newGroundLightUniforms, setGroundMonth, updateGrou
 import CloudMap from './clouds/CloudMap.js'
 import {newCloudShell} from './clouds/CloudShell.js'
 import CloudVolume from './clouds/CloudVolume.js'
+import {SEA_ICE_RGB, newSeaIceUniforms, seaIceShaderMod, setSeaIceMap, updateSeaIce} from './seaice/seaIceShader.js'
+import {creditGibs} from './gibs.js'
+import {followCredit} from '../credits.js'
 import {cloudParams} from './clouds/cloudPhysics.js'
 import {capitalize, named} from '../utils.js'
 import {sceneColors} from '../theme.js'
@@ -253,6 +256,12 @@ export default class Planet extends Object {
           // clouds are drawn over Cesium's surface too (Planet.md, Clouds).
           planet.clouds = this.newCloudShell(planet)
           planet.add(planet.clouds)
+        }
+        if (this.seaIceUniforms) {
+          // Its map loads and fades from here; the surface's shader and
+          // Cesium's layer draw it (seaice/; Planet.md, Sea ice).
+          planet.seaIce = this.newSeaIceNode(planet)
+          planet.add(planet.seaIce)
         }
       }
     }
@@ -534,6 +543,12 @@ export default class Planet extends Object {
       `)
       })
     }
+    // The day's sea ice over the ocean (seaice/; Planet.md, "Sea ice"),
+    // after the hydrosphere's roughness, which it overrides on the pack.
+    if (this.props.sea_ice) {
+      this.seaIceUniforms = newSeaIceUniforms()
+      shaderMods.push(seaIceShaderMod(this.seaIceUniforms))
+    }
     if (this.props.texture_night) {
       // City lights / night-side emissive map.  Drop a NASA "Black Marble"
       // (or equivalent equirectangular night-lights JPG) at
@@ -621,6 +636,7 @@ export default class Planet extends Object {
       shaderMods.push(monthMapShaderMod(this.monthMaps.uniforms))
     }
     const modCount = shaderMods.length
+    const seaIce = Boolean(this.seaIceUniforms)
     surfaceMaterial.onBeforeCompile = (shader) => {
       for (const fn of shaderMods) {
         fn(shader)
@@ -630,7 +646,8 @@ export default class Planet extends Object {
     // doesn't.  Read when the program is built, so after Rings chains its
     // own onBeforeCompile (Saturn's ring shadow).
     surfaceMaterial.customProgramCacheKey = function() {
-      const flags = `${lunar ? '|lunar' : ''}${groundUniforms ? '|ground' : ''}${monthly ? '|monthly' : ''}`
+      const flags = `${lunar ? '|lunar' : ''}${groundUniforms ? '|ground' : ''}${monthly ? '|monthly' : ''}` +
+        `${seaIce ? '|seaice' : ''}`
       return `${this.onBeforeCompile.toString()}|mods:${modCount}${flags}`
     }
 
@@ -712,6 +729,56 @@ export default class Planet extends Object {
       }
     }
     return named(group, 'planet surface and guides')
+  }
+
+
+  /**
+   * The node that keeps Earth's sea ice on the date (seaice/; Planet.md,
+   * "Sea ice").  Its map's loader is a chunk of its own, imported on the
+   * node's first frame (the first load's budget: AGENTS.md), whose texture
+   * then takes the shader's stand-in's place; `userData.map` is the
+   * SeaIceMap once it's in.  Each frame it starts the day's load once the date has
+   * settled, unless the clock is stepping by days (Earth breathing), when
+   * it holds its day as the clouds do; it sets the shader's share (the
+   * first map's fade, 0 with the sea ice off) and keeps GIBS's credit
+   * while the ice is drawn.
+   *
+   * @param {Object3D} planet The rotating node
+   * @returns {Object3D}
+   */
+  newSeaIceNode(planet) {
+    const node = new Object3D()
+    node.name = 'sea ice'
+    node.userData.map = null
+    let loading = null
+    const credit = followCredit((on) => creditGibs('sea-ice', on))
+    node.preAnimCb = (time) => {
+      const map = node.userData.map
+      if (!map) {
+        loading ??= import('./seaice/SeaIceMap.js').then(({default: SeaIceMap, syncSeaIceLayer}) => {
+          const seaIce = new SeaIceMap({shown: () => this.scene?.revealed === true})
+          node.userData.map = seaIce
+          // Cesium's globe's layer of it (CesiumLayers._setCesiumView).
+          node.userData.syncCesium = (body, on) => syncSeaIceLayer(body, seaIce, on, SEA_ICE_RGB)
+          setSeaIceMap(this.seaIceUniforms, seaIce)
+        }).catch((err) => {
+          console.warn('[sea ice] couldn\'t load the sea ice\'s code; none drawn', err)
+        })
+        updateSeaIce(this.seaIceUniforms, 0)
+        return
+      }
+      if (!(time.stepDays > 0 && !time.isPaused)) {
+        map.update(time.simTime)
+      }
+      const on = planet.surfaceReady() && (this.scene?.seaIceShown?.() ?? true)
+      if (on) {
+        map.drawn()
+      }
+      const share = on ? map.gain() : 0
+      updateSeaIce(this.seaIceUniforms, share)
+      credit(share > 0 && map.status.ready)
+    }
+    return node
   }
 
 

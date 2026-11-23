@@ -146,8 +146,13 @@ export const STATIC_BUDGET = {
   // With the compass (#361 step 3: js/compass.js, Scene cameraHeading,
   // turnCamera and compassTap, ui/CompassControl.jsx, its dial an inline
   // SVG; and the camera menu from the ground, Scene._leaveGround), 2,512
-  // (2,513 with the ion token), so 2,514.
-  totalMinifiedKB: 2514,
+  // (2,513 with the ion token), so 2,514.  2,515, so 2,517 (a KB for the ion
+  // token's build), with Earth's sea ice (#381; Planet.md, "Sea ice"): its
+  // step in the surface's shader, compiled with the first frame of Earth (a
+  // stand-in texture until the map is in), the `W` setting, key and switch,
+  // and the node that loads it, 3 KB.  The map's loader, its PNG decoder,
+  // the records and the Cesium layer are a chunk of their own (SeaIceMap.js).
+  totalMinifiedKB: 2517,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -179,8 +184,9 @@ export const STATIC_BUDGET = {
   // 777, so 778, with the months blended by the day (as above).  778 and a
   // fraction, so 779, with the day steps and the Earth breathing app.
   // 780 and a fraction with the ion token, so 781, with the compass (#361
-  // step 3, as above).
-  totalGzipKB: 781,
+  // step 3, as above).  781 and a fraction with the ion token, so 782, with
+  // Earth's sea ice's first-load part (#381, as above).
+  totalGzipKB: 782,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,

@@ -1,6 +1,32 @@
 {
   "entries": [
     {
+      "id": "2026-11-22-sea-ice-on-earth-day-by-day-from-1978-to",
+      "date": "2026-11-22",
+      "headline": "Sea ice on Earth, day by day, from 1978 to yesterday",
+      "text": "The oceans used to stay open all year. Now Earth shows the sea ice that satellites saw on the day you're looking at: the Arctic frozen to Hudson Bay and the Gulf of St. Lawrence in April, the Antarctic pack spreading past 60° south in September, and back through every winter to 1978. Press W, or use the Sea ice switch in Earth's atmosphere section, to turn it off and on.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 383,
+          "url": "https://github.com/celestiary/web/pull/383"
+        },
+        {
+          "kind": "issue",
+          "number": 381,
+          "url": "https://github.com/celestiary/web/issues/381"
+        }
+      ],
+      "epic": {
+        "number": 380,
+        "title": "Earth's cryosphere",
+        "url": "https://github.com/celestiary/web/issues/380"
+      },
+      "permalink": "#sun/earth@62,-60,10.193616Mm;t=9601.125001jd;cq=-0.4416,0.7166,0.2506,0.4781;fov=45deg;s=iF;time:pause",
+      "image": null,
+      "featured": true
+    },
+    {
       "id": "2026-11-22-a-compass-near-a-planet-north-up-or-level-in-a",
       "date": "2026-11-22",
       "headline": "A compass near a planet: north up, or level, in a tap",

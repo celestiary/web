@@ -980,6 +980,26 @@ together at 12 km over the Gulf.  The low views that predate it (the
 terrain and the twilight ones) are on dates and places without cloud in
 the map, so they are unchanged.
 
+### Sea ice
+
+Earth's sea ice (#381; Planet.md, "Sea ice") is the other way round from
+the clouds: on the surface, under the clouds and the air, so on Cesium's
+globe it's an **imagery layer** (`seaIceLayer.js`), made from celestiary's
+own map: the ice's colour everywhere and the concentration in alpha, one
+1280 × 640 picture over the globe (`SingleTileImageryProvider` from a
+`blob:` URL), over the months' Blue Marble and its detail and under the
+night lights.  Our patch's `imagerySrgb` decodes each sample before the
+layers blend, so it mixes over the ocean in linear light, as celestiary's
+shader does; matched headless to within 1% in the pack's interior (Planet.md
+has the numbers).  It needs no ocean mask: the map is 0 on land but where
+the ice is spread two pixels onto the shore, and SSMIS's coarse coast
+(before 2002) leaves a fringe there.  A new day's layer is added once its
+picture is in, then the old one removed, so there's no frame without ice;
+its alpha is the map's fade, 0 with the sea ice off.  It rides in the sea
+ice's chunk and is called from `_setCesiumView` through the node
+(`userData.syncCesium`).  Not yet on the Cesium guest page
+(`?cesium=iframe`), which would need the map sent across.
+
 ### Tiles and lighting (ion 3D tiles)
 
 - Celestiary's bodies turn under its camera, so Cesium's camera moves
