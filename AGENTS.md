@@ -287,7 +287,8 @@ tried and dropped.
   its URL: the host's own URL carries the guest's, so `url().includes(...)`
   finds the host and `frame.evaluate` runs in the wrong page.
 - **The Sun's activity view headless** (Sun.md, [the activity
-  view](js/scene/Sun.md#the-activity-view)): open `?sun=euv#sun`, or call
+  view](js/scene/Sun.md#the-activity-view)): open `?sun=euv#sun`, a link with
+  `;layers:sun=euv` (which holds only near the Sun), or call
   `c.ui.sceneManager.objects.sun.sunLayers.setView('euv')`.  What it shows
   is the model's at the date, so find a moment first, in bun, with
   `flaresAt` and `cmesAt` (`sun/solarEvents.js`): at 2024-04-17 22:15 UTC
@@ -359,7 +360,8 @@ tried and dropped.
   `c.leaveHome()`; to see a tour frame, set `c.tour.playing = false` and
   `c.tour.t = ms`, and give the meter a few seconds after a jump.  The
   cards' images re-render with `node tools/home/cards.mjs` (after a build;
-  `--gpu` on a real GPU).
+  `--gpu` on a real GPU; `--only eruption` for one).  A card with a `panel`
+  there is a grid of views, not its link's (the eruption's four moments).
 - **Post drafts: `yarn posts`** adds a draft for each new *featured*
   CHANGELOG entry (`- Featured: yes`) to `posts/drafts.md`, and checks every
   post against X's 280 (a link counts 23) and Facebook's 300 to 500 target;

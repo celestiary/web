@@ -157,7 +157,8 @@ the image becomes optional.
 Each post names an image:
 
 - **An existing one** where there is one: the homepage cards in
-  `public/images/home/` (`earth`, `gaia`, `occultation`, `tonight`, 600 × 375
+  `public/images/home/` (`earth`, `eruption`, `gaia`, `tonight`, and `occultation`, a card until
+  the eruption took its place, 600 × 375
   WebP; X and Facebook both take WebP). They are SwiftShader captures.
   `node tools/home/cards.mjs --gpu` on a machine with a GPU replaces them in
   place with sharper ones.

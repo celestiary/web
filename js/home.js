@@ -1,12 +1,12 @@
 /**
  * The homepage (DESIGN.md "Homepage"; design/URLs.md "The bare URL"): what
  * the bare URL shows, with no fragment and no path.  The title, the
- * search and three scene cards over a slow tour of the live scene.  Any
+ * search and four scene cards over a slow tour of the live scene.  Any
  * link or path goes straight to its scene.
  */
 
 
-import {decodeNewsToken} from './changelog'
+import {decodeNewsToken} from './changelog.js'
 
 
 /**
@@ -92,10 +92,15 @@ export const HOME_CARDS = Object.freeze([
     link: 'sun/earth@-38.1501,-99.3434,12.104919Mm;t=now;cq=0.3284,-0.0652,-0.0081,0.9423;fov=45deg;s=alpoGF',
   },
   {
-    id: 'occultation',
-    title: 'The Moon hides Jupiter',
-    text: 'Jupiter and its moons slip behind the Moon\'s limb, seen from Ohio.',
-    link: 'sun/jupiter@41.2054,-82.3901,169m;from=sun/earth;t=9774.891jd;cq=0.3372,-0.7003,-0.112,0.6191;fov=0.91deg;s=oL',
+    // The Sun's activity view (`layers:sun=euv`; js/scene/Sun.md), a little
+    // before a coronal mass ejection lifts off, the clock at 64 times: the
+    // eruption plays as the card opens.  Its image is four moments of it
+    // (tools/home/cards.mjs).
+    id: 'eruption',
+    title: 'The Sun erupts',
+    text: 'A coronal mass ejection lifts off the Sun, as a space observatory\'s cameras show it.',
+    link: 'sun@-50.7478,-141.4986,23.604464Gm;t=8873.409722jd;cq=0.376,-0.4341,0.206,0.7923;fov=5.5deg;s=alpoGxF;' +
+      'time:rate=64;layers:sun=euv',
   },
   {
     id: 'gaia',
