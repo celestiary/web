@@ -399,6 +399,30 @@ filament, under its top) held at the antipode too, so every prominence at
 one limb drew a second at the other.  Samples on the far side of the
 centre are now left out.
 
+## History
+
+The Sun's info panel has a *History* section (`ControlPanel.historySectionHtml`,
+from `history` in `public/data/sun/index.json`; run `yarn bodies` after
+editing it): chips that each open a moment, a whole link with its date,
+camera, the clock at 64 times and `layers:sun=euv`, starting 20 minutes
+before the frame it was found at so the ejection grows as you arrive.
+
+They are the **simulation's** eruptions.  The model follows each year's real
+sunspot numbers, but which flare and ejection happen when is its own draw,
+so a chip is named by its date and nothing else, and the section says so:
+none is a recorded event, and the dates of famous storms (March 1989, May
+2024) were only where the search looked.
+
+To add one: search for a moment in bun (`cmesAt` for a heavy, wide CME 3 to
+4.5 radii out, `flaresAt` for a flare with it), then pose the camera in a
+headless page from `sunLayers.cmeDrawn` and `cmeCloud.shapes` (the rope face
+on: the camera along its axis crossed with its direction, 33 radii out,
+looking 2.5 radii out along the CME), and take `c.permalink()`.  The five
+there: 1989-03-25 21:40 (8e15 g at 550 km/s, an M5.4 flare), 2001-04-10
+03:35 (1,230 km/s), 2014-03-01 17:25 (1e16 g), 2024-04-17 22:15 (the
+homepage's: an X6.6 flare and an erupting prominence), 2024-05-09 19:50 (a
+wide one behind two others).
+
 ## The activity view
 
 The Sun's info panel has the choice, *Seen in*: visible light or extreme

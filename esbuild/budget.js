@@ -188,8 +188,10 @@ export const STATIC_BUDGET = {
   // fraction, so 779, with the day steps and the Earth breathing app.
   // 780 and a fraction with the ion token, so 781, with the compass (#361
   // step 3, as above).  781 and a fraction with the ion token, so 782, with
-  // Earth's sea ice's first-load part (#381, as above).
-  totalGzipKB: 782,
+  // Earth's sea ice's first-load part (#381, as above).  782 and a fraction
+  // with the ion token, so 783, with the Sun's view and history in its info
+  // panel (#384: ControlPanel viewHtml and historySectionHtml).
+  totalGzipKB: 783,
   // The largest single first-load file, minified.  Main: 695 KB.  759 with
   // three.js 0.187, the file three is in (758 KB of it three's).
   largestChunkMinifiedKB: 765,
@@ -242,7 +244,10 @@ export const RUNTIME_BUDGET = {
   // minified) with #378's sprite caps took a CI run to 1,039.0: 1,041.
   // The eruption card's image (#371), four frames in one, is 16.6 KB where
   // the occultation's was 2.6: 14 KB more, 1,055.
-  ready: {requests: 28, kb: 1055},
+  // The Sun's history (#384) is five links in its descriptor, 0.5 KB of
+  // bodies.json gzipped, with the panel's code (measured here 1,062.9
+  // before and 1,063.6 after, with a favicon request CI doesn't count): 1,057.
+  ready: {requests: 28, kb: 1057},
   // After #259: 39 requests, 3,918 KB.  Raised from #258's 29 requests:
   // the catalogue's faint tiers are 12 packs where stars.dat was one file,
   // by design (a deep link needs only its field's; DESIGN.md "The star

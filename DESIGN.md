@@ -558,7 +558,7 @@ it follows: [design/UI.md](design/UI.md)).
   mass, and for the Sun *Seen in*, its view: visible light or the
   [activity view](js/scene/Sun.md#the-activity-view), `viewHtml`), with periods to a glance's precision (`periodText`); then
   `<details>` sections, shut until asked: Orbit, Physical, Space around,
-  Rings, Atmosphere, Moons (open), More data (the descriptor's other fields,
+  Rings, Atmosphere, History (a body's `history`: chips that open a moment's view; the Sun's eruptions, [Sun.md](js/scene/Sun.md#history)), Moons (open), More data (the descriptor's other fields,
   in words, nested ones on a line).  Stars from the catalogue and SPARC
   galaxies get the same head and rows.
 - **Strings, then wiring.**  `infoPanel.js` builds the HTML as strings, so

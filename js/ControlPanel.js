@@ -282,6 +282,7 @@ export default class ControlPanel {
       html += sectionHtml('atmosphere', 'Atmosphere', '',
           rowsHtml(this.cloudsSwitchHtml(body) + this.seaIceSwitchHtml(body) + fieldRowsHtml(body.atmosphere, secsToYDHMS, sci)))
     }
+    html += this.historySectionHtml(body)
     html += sectionHtml('system', isStar ? 'Planets' : 'Moons', String(system.length),
         systemHtml(system, pathPrefix), true)
     html += sectionHtml('more', 'More data', '', rowsHtml(more))
@@ -602,6 +603,29 @@ export default class ControlPanel {
       return ''
     }
     return `<div class="info-subhead">Craft</div>\n${rowsHtml(craft.map((c) => this._craftRow(c)).join(''))}`
+  }
+
+
+  /**
+   * A body's history (`history` in its descriptor: {about, events: [{name,
+   * note, link}]}): moments to open, each a chip whose link is a whole view
+   * (its date, camera, clock and layers).  The Sun's: eruptions of the
+   * simulation, in the activity view (js/scene/Sun.md, "History").
+   *
+   * @param {object} body the body's props
+   * @returns {string} the section, or nothing
+   */
+  historySectionHtml(body) {
+    const events = (body.history?.events ?? []).filter((e) => e?.name && e?.link)
+    if (events.length === 0) {
+      return ''
+    }
+    const chips = events.map((e) =>
+      `<li><a class="info-chip" href="#${esc(e.link)}"${e.note ? ` title="${esc(e.note)}"` : ''}>${esc(e.name)}</a></li>`)
+        .join('')
+    const about = body.history.about ? `<p class="info-note">${esc(body.history.about)}</p>\n` : ''
+    const peek = `${events.length} moment${events.length === 1 ? '' : 's'}`
+    return sectionHtml('history', 'History', peek, `<ul class="info-chips">${chips}</ul>\n${about}`)
   }
 
 
@@ -1217,7 +1241,7 @@ function regimeRowHtml(text) {
 
 /** The body's fields its summary and sections show; the rest go in More data. */
 const BODY_LISTED = new Set(['radius', 'mass', 'density', 'siderealRotationPeriod', 'axialInclination', 'albedo',
-  'equatorialGravity', 'escapeVelocity', 'spectralType', 'orbit', 'rings', 'atmosphere'])
+  'equatorialGravity', 'escapeVelocity', 'spectralType', 'orbit', 'rings', 'atmosphere', 'history'])
 
 
 /** The orbit block's fields the element list shows itself. */
