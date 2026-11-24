@@ -21,5 +21,15 @@
 "date": "Sat Jan 01 07:00:00 EST 2000"
 }
 },
+"history": {
+"about": "Eruptions in the simulation: its Sun follows each year's real sunspot numbers, but each flare and ejection is the model's own, not a recorded one.",
+"events": [
+{"name": "25 Mar 1989", "note": "A heavy ejection at 550 km/s, with an M5 flare", "link": "sun@46.6012,-19.2458,22.910215Gm;t=-3933.611111jd;cq=-0.3155,0.5039,0.2044,0.7777;fov=7deg;s=alpoGxF;time:rate=64;layers:sun=euv"},
+{"name": "10 Apr 2001", "note": "A fast ejection, 1,200 km/s", "link": "sun@63.5682,-117.65,22.910215Gm;t=464.635417jd;cq=-0.5331,-0.138,-0.0886,0.83;fov=7deg;s=alpoGxF;time:rate=64;layers:sun=euv"},
+{"name": "1 Mar 2014", "note": "The heaviest of these, 650 km/s", "link": "sun@-66.1274,-158.6274,22.910215Gm;t=5173.211805jd;cq=0.4448,-0.4441,0.271,0.729;fov=7deg;s=alpoGxF;time:rate=64;layers:sun=euv"},
+{"name": "17 Apr 2024", "note": "An X6 flare and an erupting prominence: the homepage's", "link": "sun@-50.7478,-141.4986,23.604464Gm;t=8873.409722jd;cq=0.376,-0.4341,0.206,0.7923;fov=5.5deg;s=alpoGxF;time:rate=64;layers:sun=euv"},
+{"name": "9 May 2024", "note": "A wide ejection, the third in a row", "link": "sun@-56.4857,-99.5793,22.910215Gm;t=8895.3125jd;cq=0.4808,-0.1272,0.0707,0.8647;fov=7deg;s=alpoGxF;time:rate=64;layers:sun=euv"}
+]
+},
 "system": ["mercury","venus","earth","mars","jupiter","saturn","uranus","neptune","pluto","ed138"]
 }

@@ -555,9 +555,10 @@ it follows: [design/UI.md](design/UI.md)).
 - **A head, rows, sections.**  The head has the name, the kind and one fact
   (how far out it orbits, or a star's class); under it the few rows a
   visitor asks first (radius, day, year, moons; a star's class, radius and
-  mass), with periods to a glance's precision (`periodText`); then
+  mass, and for the Sun *Seen in*, its view: visible light or the
+  [activity view](js/scene/Sun.md#the-activity-view), `viewHtml`), with periods to a glance's precision (`periodText`); then
   `<details>` sections, shut until asked: Orbit, Physical, Space around,
-  Rings, Atmosphere, Moons (open), More data (the descriptor's other fields,
+  Rings, Atmosphere, History (a body's `history`: chips that open a moment's view; the Sun's eruptions, [Sun.md](js/scene/Sun.md#history)), Moons (open), More data (the descriptor's other fields,
   in words, nested ones on a line).  Stars from the catalogue and SPARC
   galaxies get the same head and rows.
 - **Strings, then wiring.**  `infoPanel.js` builds the HTML as strings, so

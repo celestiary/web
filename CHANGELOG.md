@@ -39,6 +39,19 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## November 2026
 
+### Switch the Sun's view, and replay its eruptions
+
+The Sun's info panel now has the choice the homepage's card opened: under **Seen in**, pick visible
+light or extreme ultraviolet, the view of a space observatory's instruments. A new **History** section
+lists five eruptions from 1989 to 2024: click one to go to its date and watch the ejection lift off.
+They are the simulation's own eruptions, drawn from each year's real sunspot numbers, not recorded
+events.
+
+- Date: 2026-11-24
+- PR: [#384](https://github.com/celestiary/web/pull/384)
+- Epic: [#164](https://github.com/celestiary/web/issues/164) Stars up close: a dynamic Sun, and every star from its physical parameters
+- Permalink: [Open this view](https://celestiary.org/#sun@-66.1274,-158.6274,22.910215Gm;t=5173.211805jd;cq=0.4448,-0.4441,0.271,0.729;fov=7deg;s=alpoGxF;time:rate=64;layers:sun=euv)
+
 ### Sea ice on Earth, day by day, from 1978 to yesterday
 
 The oceans used to stay open all year. Now Earth shows the sea ice that satellites saw on the day you're looking at: the

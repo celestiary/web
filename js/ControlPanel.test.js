@@ -1,5 +1,8 @@
 import {describe, expect, it} from 'bun:test'
 import Measure from '@pablo-mayrgundter/measure.js'
+import {readFileSync} from 'node:fs'
+import {HOME_CARDS} from './home.js'
+import {decodeLayersToken, decodePermalink, decodeTimeToken} from './permalink.js'
 
 
 // The real module, by a name the process-global mock of './ControlPanel'
@@ -387,6 +390,66 @@ describe('ControlPanel', () => {
     expect(html).toContain('<span class="info-unit">W</span>')
     settings.W = false
     expect(panel.seaIceSwitchHtml(body)).toContain('aria-checked="false"')
+  })
+
+  it('lists a body\'s history as chips that open each moment\'s view, with what they are', () => {
+    const panel = new ControlPanel(null, null)
+    expect(panel.historySectionHtml({name: 'earth'})).toBe('')
+    expect(panel.historySectionHtml({name: 'x', history: {events: []}})).toBe('')
+    const link = 'sun@1,2,3Gm;t=5jd;cq=0,0,0,1;fov=7deg;layers:sun=euv'
+    const html = panel.historySectionHtml({name: 'sun', history: {about: 'The model\'s own.',
+      events: [{name: '1 Mar 2014', note: 'Heavy & fast', link}, {name: 'no link'}]}})
+    expect(html).toContain('data-prop="history"')
+    expect(html).toContain('<span class="info-section-title">History</span>')
+    expect(html).toContain('<span class="info-peek">1 moment</span>')
+    expect(html).toContain(`<a class="info-chip" href="#${link}" title="Heavy &amp; fast">1 Mar 2014</a>`)
+    expect(html).toContain('<p class="info-note">The model\'s own.</p>')
+    expect(html).not.toContain('no link')
+  })
+
+  it('the Sun\'s history: each moment a whole view in the activity view, the clock running', () => {
+    const sun = JSON.parse(readFileSync(new URL('../public/data/sun/index.json', import.meta.url), 'utf8'))
+    const events = sun.history.events
+    expect(events.length).toBeGreaterThanOrEqual(5)
+    for (const e of events) {
+      const pl = decodePermalink(e.link)
+      expect(pl, e.name).not.toBeNull()
+      expect(pl.path).toBe('sun')
+      expect(decodeLayersToken(pl.tokens.layers).sun).toBe('euv')
+      expect(decodeTimeToken(pl.tokens.time)).toMatchObject({paused: false, rate: 64})
+      // The chip's name is the link's date.
+      const date = new Date(((pl.d2000 + 2451545) - 2440587.5) * 86400000)
+      expect(e.name).toBe(`${date.getUTCDate()} ${date.toLocaleString('en', {month: 'short', timeZone: 'UTC'})} ${date.getUTCFullYear()}`)
+    }
+    // The homepage's eruption is one of them.
+    expect(events.map((e) => e.link)).toContain(HOME_CARDS.find((c) => c.id === 'eruption').link)
+  })
+
+  it('offers the Sun\'s views in its summary, one of them on, and nothing for a body with one view', () => {
+    const panel = new ControlPanel(null, null)
+    const sun = {name: 'sun', type: 'star', radius: '6.957e8 m', mass: '1.9891e30 kg', density: '1408 kg/m^3',
+      system: ['earth']}
+    expect(panel.viewHtml('sun')).toBe('')
+    let view = 'eye'
+    panel.viewHooks = {
+      of: (name) => (name === 'sun' ? [{id: 'eye', label: 'visible light', on: view === 'eye'},
+        {id: 'euv', label: 'extreme ultraviolet', on: view === 'euv'}] : null),
+      set: (name, id) => {
+        view = id
+      },
+    }
+    expect(panel.viewHtml('earth')).toBe('')
+    const html = panel.viewHtml('sun')
+    expect(html).toContain('<dt>Seen in</dt>')
+    expect(html).toContain('role="radiogroup"')
+    expect(html).toContain('class="body-view on" data-body="sun" data-view="eye" role="radio" aria-checked="true"')
+    expect(html).toContain('class="body-view" data-body="sun" data-view="euv" role="radio" aria-checked="false"')
+    // In the summary, above the sections: seen without opening one.
+    const whole = panel.bodyPanelHtml(sun, 'sun')
+    expect(whole.indexOf('Seen in')).toBeGreaterThan(-1)
+    expect(whole.indexOf('Seen in')).toBeLessThan(whole.indexOf('<details'))
+    view = 'euv'
+    expect(panel.viewHtml('sun')).toContain('data-view="euv" role="radio" aria-checked="true"')
   })
 
   it('switches Earth\'s clouds in the atmosphere section, and follows the key', () => {

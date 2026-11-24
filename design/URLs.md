@@ -680,7 +680,8 @@ Decisions:
   the Sun's close-up: once the camera has been within 150 solar radii and
   then leaves, the view gives way to the page's (`SunLayers.linkViewAt`),
   so the Sun in Earth's sky isn't an instrument's.  The app writes it
-  while the view is on.
+  while the view is on, from a link or from the Sun's info panel (*Seen
+  in*), whose choice is held near the Sun the same way.
 - **A token, not an `s=` letter.**  `s=` is the scene's toggles, each of
   them free to flip and drawn at once; this is a layer that loads ~140 MB
   and takes seconds to build, offered only in one place.  It belongs with

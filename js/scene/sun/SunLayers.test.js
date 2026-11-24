@@ -69,6 +69,26 @@ describe('the view the layers are drawn in', () => {
     expect(asked.view).toBe(VIEW_EUV)
   })
 
+  it('a view picked in the panel is held near the Sun as a link\'s is, and its changes are announced', () => {
+    const R = 6.957e8
+    const layers = new SunLayers(star(), {activity: true})
+    const seen = []
+    layers.onViewChange = (view) => seen.push(view)
+    layers.chooseView(VIEW_EUV)
+    layers.chooseView(VIEW_EUV)
+    expect(seen).toEqual([VIEW_EUV])
+    layers.linkViewAt(34 * R)
+    layers.linkViewAt(215 * R)
+    expect(layers.view).toBe(VIEW_EYE)
+    expect(seen).toEqual([VIEW_EUV, VIEW_EYE])
+    // On a page that asks for the activity view, the eye's can still be picked, and stays.
+    const asked = new SunLayers(star(), {activity: true, view: VIEW_EUV})
+    asked.chooseView(VIEW_EYE)
+    expect(asked.view).toBe(VIEW_EYE)
+    asked.linkViewAt(34 * R)
+    expect(asked.view).toBe(VIEW_EYE)
+  })
+
   it('is the eye\'s unless asked, and switches the disc\'s and the corona\'s shaders together', () => {
     const layers = new SunLayers(star(), {activity: true})
     const disc = layers.photosphereUniforms()
